@@ -5,26 +5,39 @@ import { useState, useEffect } from 'react'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
-import { X, Loader2, CheckCircle2, XCircle, Plug } from 'lucide-react'
+import { X, Loader2, CheckCircle2, XCircle, Plug, Eye, EyeOff } from 'lucide-react'
 import { useMutation } from '@tanstack/react-query'
 import api from '@/services/api'
 
 const routerSchema = z.object({
+  id: z.string().optional(),
   nombre: z.string().min(2, 'Mínimo 2 caracteres').max(120),
-  ip_zerotier: z.string().min(7, 'IP inválida').max(45),
-  puerto_api: z.number().min(1).max(65535),
+  ip: z.string().min(7, 'IP inválida').max(45),
+  puerto_api: z.coerce.number().min(1).max(65535),
   usuario_api: z.string().min(1, 'Requerido').max(120),
-  password_api: z.string().min(1, 'Requerido'),
+  password_api: z.string().optional(),
   modelo_hw: z.string().max(120).optional(),
   notas: z.string().optional(),
-})
+}).refine(
+  (data) => {
+    // La contraseña es obligatoria solo si es un router nuevo (no hay id)
+    if (!data.id && (!data.password_api || data.password_api.trim() === '')) {
+      return false
+    }
+    return true
+  },
+  {
+    message: 'Requerido',
+    path: ['password_api'],
+  }
+)
 
 type RouterFormData = z.infer<typeof routerSchema>
 
 interface RouterFormDialogProps {
   open: boolean
   onClose: () => void
-  router?: { id: string; nombre: string; ip_zerotier: string; puerto_api: number; usuario_api: string; modelo_hw: string | null; notas: string | null } | null
+  router?: { id: string; nombre: string; ip: string; puerto_api: number; usuario_api: string; modelo_hw: string | null; notas: string | null } | null
   onSuccess: () => void
 }
 
@@ -40,11 +53,14 @@ export function RouterFormDialog({ open, onClose, router, onSuccess }: RouterFor
   const isEdit = !!router
   const [testResult, setTestResult] = useState<TestResult | null>(null)
   const [isTesting, setIsTesting] = useState(false)
+  const [showPassword, setShowPassword] = useState(false)
 
   const {
     register,
     handleSubmit,
     reset,
+    getValues,
+    trigger,
     formState: { errors },
   } = useForm<RouterFormData>({
     resolver: zodResolver(routerSchema) as any,
@@ -56,10 +72,12 @@ export function RouterFormDialog({ open, onClose, router, onSuccess }: RouterFor
   useEffect(() => {
     if (open) {
       setTestResult(null)
+      setShowPassword(false)
       if (router) {
         reset({
+          id: router.id,
           nombre: router.nombre,
-          ip_zerotier: router.ip_zerotier,
+          ip: router.ip,
           puerto_api: router.puerto_api,
           usuario_api: router.usuario_api,
           password_api: '',
@@ -67,35 +85,49 @@ export function RouterFormDialog({ open, onClose, router, onSuccess }: RouterFor
           notas: router.notas ?? '',
         })
       } else {
-        reset({ puerto_api: 8728, nombre: '', ip_zerotier: '', usuario_api: '', password_api: '' })
+        reset({ id: undefined, puerto_api: 8728, nombre: '', ip: '', usuario_api: '', password_api: '' })
       }
     }
   }, [open, router, reset])
 
   const saveMutation = useMutation({
     mutationFn: async (data: RouterFormData) => {
+      const { id, ...payload } = data
+      if (isEdit && !payload.password_api) {
+        delete payload.password_api
+      }
       if (isEdit) {
-        await api.put(`/routers/${router!.id}`, data)
+        await api.put(`/routers/${router!.id}`, payload)
       } else {
-        await api.post('/routers', data)
+        await api.post('/routers', payload)
       }
     },
     onSuccess,
   })
 
   const handleTest = async () => {
-    // Si es edición, testear el router existente; si es nuevo, guardar primero
-    if (!isEdit) {
-      setTestResult({ success: false, message: 'Guarda el router primero para probar la conexión.' })
-      return
-    }
+    // Validamos únicamente los campos requeridos para la prueba de conexión
+    const isValid = await trigger(['ip', 'puerto_api', 'usuario_api', 'password_api'])
+    if (!isValid) return
+
     setIsTesting(true)
     setTestResult(null)
+
+    const formValues = getValues()
+    const testPayload = {
+      ip: formValues.ip,
+      puerto_api: formValues.puerto_api,
+      usuario_api: formValues.usuario_api,
+      password_api: formValues.password_api || undefined,
+      router_id: router?.id || undefined,
+    }
+
     try {
-      const { data } = await api.post(`/routers/${router!.id}/test-connection`)
+      const { data } = await api.post('/routers/test-connection', testPayload)
       setTestResult(data)
-    } catch {
-      setTestResult({ success: false, message: 'Error al contactar el servidor', error: 'Error de red' })
+    } catch (err: any) {
+      const errMsg = err?.response?.data?.detail || 'Error al contactar el servidor'
+      setTestResult({ success: false, message: errMsg, error: 'Error de red/servidor' })
     } finally {
       setIsTesting(false)
     }
@@ -150,17 +182,17 @@ export function RouterFormDialog({ open, onClose, router, onSuccess }: RouterFor
           <div className="grid grid-cols-3 gap-3">
             <div className="col-span-2">
               <label className="block text-sm font-medium text-foreground mb-1.5">
-                IP ZeroTier *
+                IP / Host de conexión *
               </label>
               <input
                 id="router-ip"
                 type="text"
-                placeholder="10.147.17.x"
-                {...register('ip_zerotier')}
+                placeholder="192.168.88.1 o 10.147.17.x"
+                {...register('ip')}
                 className="input-field font-mono"
               />
-              {errors.ip_zerotier && (
-                <p className="text-xs text-destructive mt-1">{errors.ip_zerotier.message}</p>
+              {errors.ip && (
+                <p className="text-xs text-destructive mt-1">{errors.ip.message}</p>
               )}
             </div>
             <div>
@@ -195,13 +227,23 @@ export function RouterFormDialog({ open, onClose, router, onSuccess }: RouterFor
               <label className="block text-sm font-medium text-foreground mb-1.5">
                 Contraseña API *{isEdit && <span className="text-muted-foreground text-xs"> (dejar vacío = no cambiar)</span>}
               </label>
-              <input
-                id="router-password"
-                type="password"
-                placeholder="••••••••"
-                {...register('password_api')}
-                className="input-field"
-              />
+              <div className="relative">
+                <input
+                  id="router-password"
+                  type={showPassword ? 'text' : 'password'}
+                  placeholder="••••••••"
+                  {...register('password_api')}
+                  className="input-field pr-11"
+                />
+                <button
+                  type="button"
+                  id="toggle-router-password-visibility"
+                  onClick={() => setShowPassword(!showPassword)}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors"
+                >
+                  {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                </button>
+              </div>
               {errors.password_api && (
                 <p className="text-xs text-destructive mt-1">{errors.password_api.message}</p>
               )}
@@ -237,56 +279,54 @@ export function RouterFormDialog({ open, onClose, router, onSuccess }: RouterFor
           </div>
 
           {/* Test de conexión */}
-          {isEdit && (
-            <div className="border border-border rounded-lg p-4 space-y-3">
-              <div className="flex items-center justify-between">
-                <p className="text-sm font-medium text-foreground">Probar conexión</p>
-                <button
-                  type="button"
-                  id="test-connection-btn"
-                  onClick={handleTest}
-                  disabled={isTesting}
-                  className="btn-secondary text-xs py-1.5"
-                >
-                  {isTesting ? (
-                    <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                  ) : (
-                    <Plug className="w-3.5 h-3.5" />
-                  )}
-                  {isTesting ? 'Probando...' : 'Probar ahora'}
-                </button>
-              </div>
-
-              {testResult && (
-                <div
-                  className={`rounded-lg p-3 flex items-start gap-3 ${
-                    testResult.success
-                      ? 'bg-emerald-500/10 border border-emerald-500/30'
-                      : 'bg-destructive/10 border border-destructive/30'
-                  }`}
-                >
-                  {testResult.success ? (
-                    <CheckCircle2 className="w-4 h-4 text-emerald-400 flex-shrink-0 mt-0.5" />
-                  ) : (
-                    <XCircle className="w-4 h-4 text-destructive flex-shrink-0 mt-0.5" />
-                  )}
-                  <div className="text-xs space-y-1">
-                    <p className={testResult.success ? 'text-emerald-400' : 'text-destructive'}>
-                      {testResult.message}
-                    </p>
-                    {testResult.ros_version && (
-                      <p className="text-muted-foreground">
-                        RouterOS {testResult.ros_version} · Uptime: {testResult.uptime}
-                      </p>
-                    )}
-                    {testResult.error && (
-                      <p className="text-muted-foreground font-mono">{testResult.error}</p>
-                    )}
-                  </div>
-                </div>
-              )}
+          <div className="border border-border rounded-lg p-4 space-y-3">
+            <div className="flex items-center justify-between">
+              <p className="text-sm font-medium text-foreground">Probar conexión</p>
+              <button
+                type="button"
+                id="test-connection-btn"
+                onClick={handleTest}
+                disabled={isTesting}
+                className="btn-secondary text-xs py-1.5"
+              >
+                {isTesting ? (
+                  <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                ) : (
+                  <Plug className="w-3.5 h-3.5" />
+                )}
+                {isTesting ? 'Probando...' : 'Probar ahora'}
+              </button>
             </div>
-          )}
+
+            {testResult && (
+              <div
+                className={`rounded-lg p-3 flex items-start gap-3 ${
+                  testResult.success
+                    ? 'bg-emerald-500/10 border border-emerald-500/30'
+                    : 'bg-destructive/10 border border-destructive/30'
+                }`}
+              >
+                {testResult.success ? (
+                  <CheckCircle2 className="w-4 h-4 text-emerald-400 flex-shrink-0 mt-0.5" />
+                ) : (
+                  <XCircle className="w-4 h-4 text-destructive flex-shrink-0 mt-0.5" />
+                )}
+                <div className="text-xs space-y-1">
+                  <p className={testResult.success ? 'text-emerald-400' : 'text-destructive'}>
+                    {testResult.message}
+                  </p>
+                  {testResult.ros_version && (
+                    <p className="text-muted-foreground">
+                      RouterOS {testResult.ros_version} · Uptime: {testResult.uptime}
+                    </p>
+                  )}
+                  {testResult.error && (
+                    <p className="text-muted-foreground font-mono">{testResult.error}</p>
+                  )}
+                </div>
+              </div>
+            )}
+          </div>
 
           {/* Error de guardado */}
           {saveMutation.isError && (

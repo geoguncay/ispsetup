@@ -17,7 +17,8 @@ class Router(Base):
         Uuid(native_uuid=False), primary_key=True, default=uuid.uuid4
     )
     nombre: Mapped[str] = mapped_column(String(120), nullable=False)
-    ip_zerotier: Mapped[str] = mapped_column(String(45), nullable=False, index=True)
+    # Nota: Almacena cualquier dirección IP o host de red (LAN, WAN, VPN, Tailscale, ZeroTier, etc.).
+    ip: Mapped[str] = mapped_column(String(45), nullable=False, index=True)
     puerto_api: Mapped[int] = mapped_column(Integer, nullable=False, default=8728)
     usuario_api: Mapped[str] = mapped_column(String(120), nullable=False)
     password_enc: Mapped[str] = mapped_column(String(512), nullable=False)  # Fernet cifrado
@@ -35,4 +36,4 @@ class Router(Base):
     )
 
     def __repr__(self) -> str:
-        return f"<Router id={self.id} nombre={self.nombre} ip={self.ip_zerotier}>"
+        return f"<Router id={self.id} nombre={self.nombre} ip={self.ip}>"

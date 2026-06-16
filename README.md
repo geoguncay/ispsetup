@@ -6,7 +6,9 @@
 
 ## 🗺️ Arquitectura del Sistema
 
-El sistema está diseñado para interactuar de forma segura y eficiente con múltiples MikroTik RouterOS remotos a través de una red privada ZeroTier VPN. A continuación se detallan los diagramas de arquitectura:
+El sistema está diseñado para interactuar de forma segura y eficiente con múltiples MikroTik RouterOS remotos o locales. Aunque el diseño por defecto y recomendado en producción sugiere el uso de túneles VPN ZeroTier (para evadir CGNAT y simplificar el ruteo), el backend se comunica mediante peticiones API sobre sockets TCP convencionales. Esto significa que **se soporta cualquier tipo de conectividad de red** (como IPs locales LAN, direcciones WAN públicas, Tailscale, WireGuard u otros túneles VPN) con solo registrar la dirección IP o host correspondiente.
+
+A continuación se detallan los diagramas de arquitectura utilizando el flujo de referencia con ZeroTier:
 
 ### 1. Vista General de la Arquitectura
 ![Vista General](architecture/isp_arch_overview.svg)

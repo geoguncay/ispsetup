@@ -7,7 +7,7 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from app.api import auth, routers_api, users
+from app.api import auth, routers_api, users, company
 from app.core.config import settings
 from app.core.database import Base, engine
 from app.core.seed import run_seed
@@ -56,6 +56,7 @@ app.add_middleware(
 app.include_router(auth.router, prefix="/api")
 app.include_router(users.router, prefix="/api")
 app.include_router(routers_api.router, prefix="/api")
+app.include_router(company.router, prefix="/api")
 
 
 @app.get("/api/health", tags=["health"])

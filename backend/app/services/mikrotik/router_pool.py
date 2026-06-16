@@ -56,13 +56,13 @@ class RouterPool:
         api: Api | None = None
         try:
             api = connect(
-                host=router.ip_zerotier,
+                host=router.ip,
                 username=router.usuario_api,
                 password=password,
                 port=router.puerto_api,
                 timeout=10,
             )
-            logger.info(f"Conexión establecida a router {router.nombre} ({router.ip_zerotier})")
+            logger.info(f"Conexión establecida a router {router.nombre} ({router.ip})")
             yield api
         except librouteros.exceptions.TrapError as e:
             logger.warning(f"TrapError conectando a {router.nombre}: {e}")
@@ -70,7 +70,7 @@ class RouterPool:
         except OSError as e:
             logger.warning(f"OSError conectando a {router.nombre}: {e}")
             raise RouterConnectionError(
-                f"No se puede alcanzar {router.nombre} ({router.ip_zerotier}:{router.puerto_api}): {e}"
+                f"No se puede alcanzar {router.nombre} ({router.ip}:{router.puerto_api}): {e}"
             ) from e
         except Exception as e:
             logger.error(f"Error inesperado conectando a {router.nombre}: {e}")

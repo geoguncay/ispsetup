@@ -55,10 +55,10 @@ services:
     container_name: isp_celery_beat
     restart: unless-stopped
     env_file: .env
-    command: celery -A app.workers.celery_app beat --loglevel=info --scheduler celery.beat.PersistentScheduler
+    command: celery -A app.workers.celery_app beat --loglevel=info --scheduler celery.beat.PersistentScheduler -s /app/celerybeat/celerybeat-schedule
     volumes:
       - ./backend:/app
-      - celery_beat_data:/app/celerybeat-schedule
+      - celery_beat_data:/app/celerybeat
     depends_on:
       - redis
     networks:

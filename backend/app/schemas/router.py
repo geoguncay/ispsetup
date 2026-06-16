@@ -10,8 +10,10 @@ from pydantic import BaseModel, Field, IPvAnyAddress
 
 class RouterCreate(BaseModel):
     nombre: str = Field(min_length=2, max_length=120)
-    ip_zerotier: str = Field(
-        min_length=7, max_length=45, description="IP ZeroTier del router (IPv4 o IPv6)"
+    ip: str = Field(
+        min_length=7,
+        max_length=45,
+        description="Dirección IP o host del router (LAN, WAN, ZeroTier, VPN, Tailscale, etc.)",
     )
     puerto_api: int = Field(default=8728, ge=1, le=65535)
     usuario_api: str = Field(min_length=1, max_length=120)
@@ -23,7 +25,7 @@ class RouterCreate(BaseModel):
 
 class RouterUpdate(BaseModel):
     nombre: str | None = Field(default=None, min_length=2, max_length=120)
-    ip_zerotier: str | None = Field(default=None, min_length=7, max_length=45)
+    ip: str | None = Field(default=None, min_length=7, max_length=45)
     puerto_api: int | None = Field(default=None, ge=1, le=65535)
     usuario_api: str | None = Field(default=None, min_length=1, max_length=120)
     password_api: str | None = Field(default=None, min_length=1, max_length=255)
@@ -37,7 +39,7 @@ class RouterRead(BaseModel):
 
     id: uuid.UUID
     nombre: str
-    ip_zerotier: str
+    ip: str
     puerto_api: int
     usuario_api: str
     activo: bool
@@ -54,7 +56,7 @@ class RouterRead(BaseModel):
 class RouterStatus(BaseModel):
     router_id: uuid.UUID
     status: str                         # "online" | "offline" | "degraded"
-    ip_zerotier: str
+    ip: str
     uptime: str | None = None
     ros_version: str | None = None
     interfaces: list[dict[str, Any]] = []
@@ -68,3 +70,12 @@ class RouterTestResult(BaseModel):
     ros_version: str | None = None
     uptime: str | None = None
     error: str | None = None
+
+
+class RouterTestPayload(BaseModel):
+    ip: str
+    puerto_api: int = 8728
+    usuario_api: str
+    password_api: str | None = None
+    router_id: uuid.UUID | None = None
+

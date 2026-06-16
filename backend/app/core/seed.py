@@ -17,7 +17,13 @@ logger = logging.getLogger(__name__)
 def seed_admin(db: Session) -> None:
     exists = db.query(User).filter(User.email == settings.ADMIN_SEED_EMAIL).first()
     if exists:
-        logger.info(f"Usuario admin ya existe: {settings.ADMIN_SEED_EMAIL}")
+        from app.core.security import verify_password
+        if not verify_password(settings.ADMIN_SEED_PASSWORD, exists.hashed_password):
+            exists.hashed_password = hash_password(settings.ADMIN_SEED_PASSWORD)
+            db.commit()
+            logger.info(f"🔑 Contraseña del administrador actualizada según .env")
+        else:
+            logger.info(f"Usuario admin ya existe: {settings.ADMIN_SEED_EMAIL}")
         return
 
     admin = User(

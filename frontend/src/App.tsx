@@ -11,6 +11,7 @@ import { AppLayout } from '@/components/AppLayout'
 import { LoginPage } from '@/pages/LoginPage'
 import { DashboardPage } from '@/pages/DashboardPage'
 import { RoutersPage } from '@/pages/RoutersPage'
+import { ProfilePage } from '@/pages/ProfilePage'
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -41,6 +42,7 @@ function AppContent() {
         <Route element={<AppLayout />}>
           <Route path="/dashboard" element={<DashboardPage />} />
           <Route path="/routers" element={<RoutersPage />} />
+          <Route path="/profile" element={<ProfilePage />} />
           {/* Páginas de fases futuras — placeholder */}
           <Route path="/users" element={
             <div className="flex items-center justify-center h-64 text-muted-foreground">

@@ -53,7 +53,7 @@ async def check_router_health(router: Router) -> RouterStatus:
         status = RouterStatus(
             router_id=router.id,
             status="online",
-            ip_zerotier=router.ip_zerotier,
+            ip=router.ip,
             uptime=uptime,
             ros_version=ros_version,
             interfaces=interfaces,
@@ -66,7 +66,7 @@ async def check_router_health(router: Router) -> RouterStatus:
         status = RouterStatus(
             router_id=router.id,
             status="offline",
-            ip_zerotier=router.ip_zerotier,
+            ip=router.ip,
             error=str(e),
             checked_at=now,
         )

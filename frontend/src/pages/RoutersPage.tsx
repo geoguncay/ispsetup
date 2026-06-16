@@ -8,11 +8,12 @@ import api from '@/services/api'
 import { RouterStatusBadge } from '@/components/RouterStatusBadge'
 import { RouterFormDialog } from '@/components/RouterFormDialog'
 import { useAuthStore } from '@/stores/authStore'
+import { useSettingsStore } from '@/stores/settingsStore'
 
 interface Router {
   id: string
   nombre: string
-  ip_zerotier: string
+  ip: string
   puerto_api: number
   usuario_api: string
   activo: boolean
@@ -34,6 +35,7 @@ async function deleteRouter(id: string): Promise<void> {
 
 export function RoutersPage() {
   const { user } = useAuthStore()
+  const { hideIps } = useSettingsStore()
   const queryClient = useQueryClient()
   const isAdmin = user?.rol === 'admin'
 
@@ -76,7 +78,7 @@ export function RoutersPage() {
         <div>
           <h1 className="text-2xl font-bold text-foreground">Routers</h1>
           <p className="text-muted-foreground text-sm mt-0.5">
-            Gestión de routers MikroTik vía ZeroTier
+            Gestión de routers MikroTik remotos o locales (VPN, ZeroTier, LAN, etc.)
           </p>
         </div>
         <div className="flex items-center gap-3">
@@ -141,7 +143,7 @@ export function RoutersPage() {
             <thead>
               <tr>
                 <th>Router</th>
-                <th className="hidden md:table-cell">IP ZeroTier</th>
+                <th className="hidden md:table-cell">IP / Host</th>
                 <th>Estado</th>
                 <th className="hidden lg:table-cell">Versión ROS</th>
                 <th className="hidden lg:table-cell">Uptime</th>
@@ -166,7 +168,7 @@ export function RoutersPage() {
                   </td>
                   <td className="hidden md:table-cell">
                     <code className="text-xs bg-secondary/50 px-2 py-1 rounded text-muted-foreground font-mono">
-                      {router.ip_zerotier}:{router.puerto_api}
+                      {hideIps ? '••••••••' : router.ip}:{router.puerto_api}
                     </code>
                   </td>
                   <td>
@@ -184,7 +186,7 @@ export function RoutersPage() {
                   </td>
                   {isAdmin && (
                     <td className="text-right">
-                      <div className="flex items-center justify-end gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                      <div className="flex items-center justify-end gap-2">
                         <button
                           id={`edit-router-${router.id}`}
                           onClick={() => { setEditingRouter(router); setDialogOpen(true) }}

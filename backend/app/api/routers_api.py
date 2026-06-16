@@ -7,12 +7,13 @@ from fastapi import APIRouter, HTTPException, status
 from sqlalchemy.exc import IntegrityError
 
 from app.core.deps import AdminOnly, AdminOrTecnico, CurrentUser, DBSession
-from app.core.security import encrypt_secret
+from app.core.security import decrypt_secret, encrypt_secret
 from app.models.router import Router
 from app.schemas.router import (
     RouterCreate,
     RouterRead,
     RouterStatus,
+    RouterTestPayload,
     RouterTestResult,
     RouterUpdate,
 )
@@ -48,7 +49,7 @@ async def list_routers(db: DBSession, _: CurrentUser) -> list:
 def create_router(payload: RouterCreate, db: DBSession, _: AdminOnly) -> Router:
     r = Router(
         nombre=payload.nombre,
-        ip_zerotier=payload.ip_zerotier,
+        ip=payload.ip,
         puerto_api=payload.puerto_api,
         usuario_api=payload.usuario_api,
         password_enc=encrypt_secret(payload.password_api),
@@ -60,6 +61,63 @@ def create_router(payload: RouterCreate, db: DBSession, _: AdminOnly) -> Router:
     db.commit()
     db.refresh(r)
     return r
+
+
+@router.post("/test-connection", response_model=RouterTestResult)
+def test_unsaved_router_connection(
+    payload: RouterTestPayload,
+    db: DBSession,
+    _: AdminOnly,
+) -> RouterTestResult:
+    """
+    Prueba la conexión al router usando datos del formulario (antes de guardar o al editar).
+    """
+    password = payload.password_api
+    if not password:
+        if payload.router_id:
+            r = db.get(Router, payload.router_id)
+            if not r:
+                raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Router no encontrado")
+            try:
+                password = decrypt_secret(r.password_enc)
+            except Exception as e:
+                return RouterTestResult(
+                    success=False,
+                    message="Error al descifrar la contraseña guardada en la base de datos",
+                    error=str(e),
+                )
+        else:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Se requiere la contraseña para probar la conexión de un nuevo router",
+            )
+
+    temp_router = Router(
+        nombre=f"Test-{payload.ip}",
+        ip=payload.ip,
+        puerto_api=payload.puerto_api,
+        usuario_api=payload.usuario_api,
+        password_enc=encrypt_secret(password),
+    )
+
+    try:
+        with router_pool.connect_to(temp_router) as api_conn:
+            sys_res = list(api_conn("/system/resource/print"))
+            ros_version = sys_res[0].get("version") if sys_res else None
+            uptime = sys_res[0].get("uptime") if sys_res else None
+
+        return RouterTestResult(
+            success=True,
+            message=f"Conexión exitosa a {payload.ip}:{payload.puerto_api}",
+            ros_version=ros_version,
+            uptime=uptime,
+        )
+    except RouterConnectionError as e:
+        return RouterTestResult(
+            success=False,
+            message=f"No se pudo conectar a {payload.ip}:{payload.puerto_api}",
+            error=str(e),
+        )
 
 
 @router.get("/{router_id}", response_model=RouterRead)
@@ -131,7 +189,7 @@ def test_router_connection(router_id: uuid.UUID, db: DBSession, _: AdminOnly) ->
 
         return RouterTestResult(
             success=True,
-            message=f"Conexión exitosa a {r.nombre} ({r.ip_zerotier}:{r.puerto_api})",
+            message=f"Conexión exitosa a {r.nombre} ({r.ip}:{r.puerto_api})",
             ros_version=ros_version,
             uptime=uptime,
         )

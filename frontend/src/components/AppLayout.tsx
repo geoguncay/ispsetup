@@ -5,9 +5,10 @@ import { useState } from 'react'
 import { NavLink, Outlet, useNavigate } from 'react-router-dom'
 import {
   Wifi, LayoutDashboard, Router, Users, Bell,
-  LogOut, Menu, X, ChevronDown, Activity,
+  LogOut, Menu, X, ChevronDown, Activity, Settings, Eye, EyeOff, Network,
 } from 'lucide-react'
 import { useAuthStore } from '@/stores/authStore'
+import { useSettingsStore } from '@/stores/settingsStore'
 
 const navItems = [
   { to: '/dashboard', icon: LayoutDashboard, label: 'Dashboard' },
@@ -18,6 +19,7 @@ const navItems = [
 
 export function AppLayout() {
   const { user, logout } = useAuthStore()
+  const { hideIps, toggleHideIps } = useSettingsStore()
   const navigate = useNavigate()
   const [sidebarOpen, setSidebarOpen] = useState(false)
 
@@ -40,7 +42,7 @@ export function AppLayout() {
       {/* Logo */}
       <div className="flex items-center gap-3 px-5 py-5 border-b border-border">
         <div className="w-8 h-8 bg-brand-600 rounded-lg flex items-center justify-center shadow-lg shadow-brand-600/30">
-          <Wifi className="w-4 h-4 text-white" strokeWidth={2.5} />
+          <Network className="w-4 h-4 text-white" strokeWidth={2.5} />
         </div>
         <div className="flex-1 min-w-0">
           <p className="font-bold text-foreground text-sm truncate">ISP Platform</p>
@@ -85,6 +87,22 @@ export function AppLayout() {
             <p className="text-xs text-muted-foreground capitalize">{user?.rol}</p>
           </div>
           <button
+            id="toggle-ips-btn"
+            onClick={toggleHideIps}
+            title={hideIps ? 'Mostrar IPs' : 'Ocultar IPs'}
+            className="p-1.5 rounded-lg text-muted-foreground hover:text-foreground transition-colors mr-1"
+          >
+            {hideIps ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+          </button>
+          <NavLink
+            id="profile-btn"
+            to="/profile"
+            title="Configuración de Perfil y Empresa"
+            className={({ isActive }) => `p-1.5 rounded-lg text-muted-foreground hover:text-foreground transition-colors ${isActive ? 'text-primary bg-primary/10' : ''}`}
+          >
+            <Settings className="w-4 h-4" />
+          </NavLink>
+          <button
             id="logout-btn"
             onClick={handleLogout}
             title="Cerrar sesión"
@@ -125,7 +143,7 @@ export function AppLayout() {
             <Menu className="w-5 h-5" />
           </button>
           <div className="flex items-center gap-2">
-            <Wifi className="w-4 h-4 text-brand-400" />
+            <Network className="w-4 h-4 text-brand-400" />
             <span className="font-semibold text-foreground text-sm">ISP Platform</span>
           </div>
         </header>

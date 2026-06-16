@@ -4,12 +4,13 @@ Endpoints CRUD de usuarios (solo admin).
 import uuid
 
 from fastapi import APIRouter, HTTPException, status
+from sqlalchemy import func
 from sqlalchemy.exc import IntegrityError
 
 from app.core.deps import AdminOnly, CurrentUser, DBSession
 from app.core.security import hash_password
 from app.models.user import User
-from app.schemas.user import UserCreate, UserRead, UserUpdate
+from app.schemas.user import ClientStats, UserCreate, UserRead, UserUpdate
 
 router = APIRouter(prefix="/users", tags=["users"])
 
@@ -17,6 +18,26 @@ router = APIRouter(prefix="/users", tags=["users"])
 @router.get("", response_model=list[UserRead])
 def list_users(db: DBSession, _: AdminOnly) -> list[User]:
     return db.query(User).order_by(User.created_at.desc()).all()
+
+
+@router.get("/stats", response_model=ClientStats)
+def get_client_stats(db: DBSession, _: AdminOnly) -> ClientStats:
+    """
+    Retorna conteo de clientes (usuarios no-admin) agrupados por estado.
+      - conectados  → activo=True  y rol != 'admin'
+      - suspendidos → activo=False y rol != 'admin'
+    """
+    base_q = db.query(User).filter(User.rol != "admin")
+    total = base_q.count()
+    conectados = base_q.filter(User.activo == True).count()  # noqa: E712
+    suspendidos = base_q.filter(User.activo == False).count()  # noqa: E712
+    desconectados = 0  # Se calculará con datos de sesiones MikroTik en fases futuras
+    return ClientStats(
+        total=total,
+        conectados=conectados,
+        desconectados=desconectados,
+        suspendidos=suspendidos,
+    )
 
 
 @router.post("", response_model=UserRead, status_code=status.HTTP_201_CREATED)

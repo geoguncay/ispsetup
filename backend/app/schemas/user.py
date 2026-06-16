@@ -53,3 +53,11 @@ class UserRead(BaseModel):
     activo: bool
     created_at: datetime
     updated_at: datetime
+
+
+# ── Dashboard stats ───────────────────────────────────────────────────────────
+class ClientStats(BaseModel):
+    total: int
+    conectados: int
+    desconectados: int
+    suspendidos: int

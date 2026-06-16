@@ -38,14 +38,14 @@ class Settings(BaseSettings):
     FERNET_KEY: str
 
     # ── Usuario admin inicial (seed) ──────────────────────────
-    ADMIN_SEED_EMAIL: str = "admin@isp.local"
-    ADMIN_SEED_PASSWORD: str = "changeme"
-    ADMIN_SEED_NOMBRE: str = "Administrador"
+    ADMIN_SEED_EMAIL: str = "admin@email.com"
+    ADMIN_SEED_PASSWORD: str = "t3PXeS4tnt"
+    ADMIN_SEED_NOMBRE: str = "Geo"
     # Clave secreta para el endpoint POST /auth/setup (requerida en producción)
     ADMIN_SEED_KEY: str | None = None
 
     # ── CORS ──────────────────────────────────────────────────
-    ALLOWED_ORIGINS: list[str] = [
+    ALLOWED_ORIGINS: str | list[str] = [
         "http://localhost:5173",
         "http://localhost:80",
     ]
