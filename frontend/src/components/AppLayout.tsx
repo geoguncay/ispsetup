@@ -7,7 +7,7 @@ import { useQuery } from '@tanstack/react-query'
 import {
   Wifi, LayoutDashboard, Router, Users,
   LogOut, Menu, X, ChevronDown, ChevronRight, Activity, Settings, Network,
-  Zap, Building, Sliders, BarChart2,
+  Zap, Building, Sliders, BarChart2, Receipt, DollarSign,
 } from 'lucide-react'
 import { useAuthStore } from '@/stores/authStore'
 import api from '@/services/api'
@@ -56,6 +56,15 @@ const navItems: NavItem[] = [
       { to: '/custom-services', icon: Sliders, label: 'Personalizado' },
     ]
   },
+  {
+    label: 'Facturación',
+    icon: Receipt,
+    roles: ['admin', 'tecnico'],
+    items: [
+      { to: '/invoices', icon: Receipt, label: 'Facturas' },
+      { to: '/payments', icon: DollarSign, label: 'Caja y Cobros' },
+    ]
+  },
 ]
 
 export const getLogoUrl = (url: string | null | undefined): string => {
@@ -81,6 +90,9 @@ export function AppLayout() {
   const [servicesMenuOpen, setServicesMenuOpen] = useState(
     location.pathname.startsWith('/plans') || location.pathname.startsWith('/custom-services')
   )
+  const [billingMenuOpen, setBillingMenuOpen] = useState(
+    location.pathname.startsWith('/invoices') || location.pathname.startsWith('/payments')
+  )
 
   useEffect(() => {
     if (location.pathname.startsWith('/routers') || location.pathname.startsWith('/traffic')) {
@@ -91,6 +103,9 @@ export function AppLayout() {
     }
     if (location.pathname.startsWith('/plans') || location.pathname.startsWith('/custom-services')) {
       setServicesMenuOpen(true)
+    }
+    if (location.pathname.startsWith('/invoices') || location.pathname.startsWith('/payments')) {
+      setBillingMenuOpen(true)
     }
   }, [location.pathname])
 
@@ -199,14 +214,18 @@ export function AppLayout() {
                 ? networkMenuOpen
                 : item.label === 'Suscriptores'
                 ? subscribersMenuOpen
-                : servicesMenuOpen
+                : item.label === 'Servicios'
+                ? servicesMenuOpen
+                : billingMenuOpen
             const toggleMenu = () => {
               if (item.label === 'Dispositivos') {
                 setNetworkMenuOpen(!networkMenuOpen)
               } else if (item.label === 'Suscriptores') {
                 setSubscribersMenuOpen(!subscribersMenuOpen)
-              } else {
+              } else if (item.label === 'Servicios') {
                 setServicesMenuOpen(!servicesMenuOpen)
+              } else if (item.label === 'Facturación') {
+                setBillingMenuOpen(!billingMenuOpen)
               }
             }
             const Icon = item.icon

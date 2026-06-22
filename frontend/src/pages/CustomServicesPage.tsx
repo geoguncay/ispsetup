@@ -16,6 +16,7 @@ interface CustomService {
   precio: number
   descripcion?: string | null
   impuestos: number
+  recurrente: boolean
   activo: boolean
   created_at: string
   updated_at: string
@@ -26,6 +27,7 @@ const serviceSchema = z.object({
   descripcion: z.string().max(255).optional().or(z.literal('')),
   precio: z.coerce.number().min(0.01, 'Mínimo $0.01'),
   impuestos: z.coerce.number().min(0, 'No puede ser negativo').default(0),
+  recurrente: z.boolean().default(true),
   activo: z.boolean().default(true),
 })
 
@@ -99,6 +101,7 @@ export function CustomServicesPage() {
       descripcion: '',
       precio: 10.0,
       impuestos: 15.0,
+      recurrente: true,
       activo: true,
     })
     setDialogOpen(true)
@@ -112,6 +115,7 @@ export function CustomServicesPage() {
       descripcion: service.descripcion || '',
       precio: service.precio,
       impuestos: service.impuestos || 0,
+      recurrente: service.recurrente,
       activo: service.activo,
     })
     setDialogOpen(true)
@@ -186,28 +190,28 @@ export function CustomServicesPage() {
                   </div>
                   <div className="text-right">
                     <span className="text-2xl font-bold text-brand-400 font-mono">${Number(service.precio).toFixed(2)}</span>
-                    <span className="text-xs text-muted-foreground block">/valor</span>
+                    <span className="text-xs text-muted-foreground block">
+                      {service.recurrente ? '/mes' : '/pago único'}
+                    </span>
                   </div>
                 </div>
 
                 <div className="flex items-center justify-between gap-2 mb-2">
                   <h3 className="text-lg font-semibold text-foreground truncate">{service.nombre}</h3>
-                  <span className={`flex items-center gap-1 text-[10px] font-semibold px-2 py-0.5 rounded-full border ${service.activo
-                      ? 'bg-emerald-500/10 border-emerald-500/20 text-emerald-400'
-                      : 'bg-slate-500/10 border-slate-500/20 text-slate-400'
-                    }`}>
-                    {service.activo ? (
-                      <>
-                        <ShieldCheck className="w-3 h-3" />
-                        Activo
-                      </>
-                    ) : (
-                      <>
-                        <ShieldAlert className="w-3 h-3" />
-                        Inactivo
-                      </>
-                    )}
-                  </span>
+                  <div className="flex items-center gap-1.5 shrink-0">
+                    <span className={`flex items-center gap-0.5 text-[10px] font-semibold px-1.5 py-0.5 rounded-full border ${service.recurrente
+                        ? 'bg-blue-500/10 border-blue-500/20 text-blue-400'
+                        : 'bg-purple-500/10 border-purple-500/20 text-purple-400'
+                      }`}>
+                      {service.recurrente ? 'Recurrente' : 'Único'}
+                    </span>
+                    <span className={`flex items-center gap-0.5 text-[10px] font-semibold px-1.5 py-0.5 rounded-full border ${service.activo
+                        ? 'bg-emerald-500/10 border-emerald-500/20 text-emerald-400'
+                        : 'bg-slate-500/10 border-slate-500/20 text-slate-400'
+                      }`}>
+                      {service.activo ? 'Activo' : 'Inactivo'}
+                    </span>
+                  </div>
                 </div>
 
                 <p className="text-sm text-muted-foreground min-h-[40px] mb-4 line-clamp-2">
@@ -329,6 +333,19 @@ export function CustomServicesPage() {
                   </div>
                   {errors.impuestos && <p className="text-xs text-destructive mt-1">{errors.impuestos.message}</p>}
                 </div>
+              </div>
+
+              {/* Recurrente (Switch/Checkbox) */}
+              <div className="flex items-center gap-2.5 py-1.5">
+                <input
+                  type="checkbox"
+                  id="recurrente"
+                  {...register('recurrente')}
+                  className="w-4 h-4 rounded bg-secondary/50 border-border text-brand-600 focus:ring-brand-500/50 cursor-pointer"
+                />
+                <label htmlFor="recurrente" className="text-xs font-medium text-foreground cursor-pointer select-none">
+                  Servicio Recurrente (Facturación Mensual)
+                </label>
               </div>
 
               {/* Activo (Switch/Checkbox) */}

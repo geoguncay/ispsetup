@@ -11,6 +11,7 @@ class CustomServiceBase(BaseModel):
     precio: float = Field(gt=0.0)
     descripcion: str | None = Field(default=None, max_length=255)
     impuestos: float = Field(default=0.0, ge=0.0)
+    recurrente: bool = Field(default=True)
     activo: bool = Field(default=True)
 
 

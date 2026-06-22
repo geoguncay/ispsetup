@@ -27,6 +27,7 @@ def create_custom_service(payload: CustomServiceCreate, db: DBSession, _: AdminO
         precio=payload.precio,
         descripcion=payload.descripcion,
         impuestos=payload.impuestos,
+        recurrente=payload.recurrente,
         activo=payload.activo,
     )
     db.add(cs)

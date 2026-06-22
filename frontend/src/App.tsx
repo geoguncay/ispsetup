@@ -19,6 +19,8 @@ import { RouterProfilePage } from '@/pages/RouterProfilePage'
 import { TrafficPage } from '@/pages/TrafficPage'
 import { CustomServicesPage } from '@/pages/CustomServicesPage'
 import { SubscribersStatsPage } from '@/pages/SubscribersStatsPage'
+import { InvoicesPage } from '@/pages/InvoicesPage'
+import { PaymentsPage } from '@/pages/PaymentsPage'
 
 
 
@@ -58,6 +60,8 @@ function AppContent() {
           <Route path="/subscribers/stats" element={<SubscribersStatsPage />} />
           <Route path="/plans" element={<PlansPage />} />
           <Route path="/custom-services" element={<CustomServicesPage />} />
+          <Route path="/invoices" element={<InvoicesPage />} />
+          <Route path="/payments" element={<PaymentsPage />} />
           <Route path="/profile" element={<ProfilePage />} />
 
         </Route>

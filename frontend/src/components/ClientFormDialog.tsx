@@ -39,6 +39,15 @@ interface FormPlan {
   precio: number
 }
 
+interface FormCustomService {
+  id: string
+  nombre: string
+  precio: number
+  descripcion?: string
+  recurrente: boolean
+  activo: boolean
+}
+
 // Centrado por defecto en Quito, Ecuador
 const DEFAULT_CENTER: [number, number] = [-0.180653, -78.467834]
 
@@ -54,6 +63,7 @@ const clientSchema = z.object({
   router_id: z.string().min(1, 'Debe seleccionar un router'),
   tipo: z.enum(['static', 'pppoe']),
   plan_id: z.string().optional().nullable(),
+  custom_service_ids: z.array(z.string()).optional(),
   activo: z.boolean().optional(),
   ip: z.string().optional().nullable(),
   mac: z.string().optional().nullable(),
@@ -163,7 +173,7 @@ interface FormClient {
   latitud?: number | null
   longitud?: number | null
   created_at?: string | null
-  plan_activo?: { id: string } | null
+  plan_activo?: { id: string; nombre: string; precio: number } | null
   static_ip?: {
     ip: string
     mac?: string | null
@@ -174,6 +184,7 @@ interface FormClient {
     contraseña_ppp: string
     perfil_id: string
   } | null
+  custom_services?: { id: string; nombre: string; precio: number; recurrente: boolean }[] | null
 }
 
 interface ClientFormDialogProps {
@@ -224,7 +235,38 @@ export function ClientFormDialog({ open, onClose, client, onSuccess }: ClientFor
     enabled: open,
   })
 
+  // Obtener Servicios Adicionales
+  const { data: customServices = [] } = useQuery<FormCustomService[]>({
+    queryKey: ['custom-services-form'],
+    queryFn: async () => {
+      const { data } = await api.get('/custom-services')
+      return data.filter((cs: FormCustomService) => cs.activo)
+    },
+    enabled: open,
+  })
+
   const selectedRouterId = watch('router_id')
+  const selectedPlanId = watch('plan_id')
+  const selectedCustomServiceIds = watch('custom_service_ids') || []
+
+  const activePlanPrice = selectedPlanId
+    ? plans.find((p) => p.id === selectedPlanId)?.precio || 0
+    : client?.plan_activo
+      ? client.plan_activo.precio
+      : 0
+
+  const recurringCustomServicesPrice = selectedCustomServiceIds.reduce((sum, csId) => {
+    const cs = customServices.find((s) => s.id === csId)
+    return sum + (cs && cs.recurrente ? Number(cs.precio) : 0)
+  }, 0)
+
+  const oneTimeCustomServicesPrice = selectedCustomServiceIds.reduce((sum, csId) => {
+    const cs = customServices.find((s) => s.id === csId)
+    return sum + (cs && !cs.recurrente ? Number(cs.precio) : 0)
+  }, 0)
+
+  const nextInvoiceTotal = Number(activePlanPrice) + recurringCustomServicesPrice + oneTimeCustomServicesPrice
+  const futureMonthlyTotal = Number(activePlanPrice) + recurringCustomServicesPrice
 
 
   const handleGetLocation = useCallback(() => {
@@ -273,6 +315,7 @@ export function ClientFormDialog({ open, onClose, client, onSuccess }: ClientFor
           notif_email: true,
           notif_sms: false,
           notif_whatsapp: true,
+          custom_service_ids: client.custom_services?.map((cs: any) => cs.id) ?? [],
         })
       } else {
         const today = new Date()
@@ -306,6 +349,7 @@ export function ClientFormDialog({ open, onClose, client, onSuccess }: ClientFor
           notif_email: true,
           notif_sms: false,
           notif_whatsapp: true,
+          custom_service_ids: [],
         })
         handleGetLocation()
       }
@@ -314,7 +358,10 @@ export function ClientFormDialog({ open, onClose, client, onSuccess }: ClientFor
 
   const saveMutation = useMutation({
     mutationFn: async (data: ClientFormData) => {
-      const payload = { ...data } as Record<string, string | number | boolean | null | undefined>
+      const payload = { ...data } as any
+      if (!payload.custom_service_ids) {
+        payload.custom_service_ids = []
+      }
       delete payload.tipo_documento
       delete payload.dia_pago
       delete payload.metodo_pago
@@ -822,13 +869,120 @@ export function ClientFormDialog({ open, onClose, client, onSuccess }: ClientFor
                     </p>
                   </div>
                 ) : (
-                  <div className="bg-brand-500/10 border border-brand-500/20 rounded-lg p-3 text-xs text-brand-300">
+                   <div className="bg-brand-500/10 border border-brand-500/20 rounded-lg p-3 text-xs text-brand-300">
                     ℹ️ Para modificar el plan activo o aplicar promociones, dirígete al perfil del cliente una vez guardados los cambios.
                   </div>
                 )}
+                {/* Servicios de Valor Agregado / Adicionales */}
+                <div className="border-t border-border/40 pt-4 mt-2 space-y-3">
+                  <div>
+                    <label className="block text-sm font-semibold text-brand-400 uppercase tracking-wider mb-1">
+                      Servicios Adicionales (Valores Agregados)
+                    </label>
+                    <p className="text-xs text-muted-foreground leading-relaxed font-medium">
+                      Selecciona los servicios adicionales personalizados para este cliente. Estos se sumarán al cobro de su plan mensual.
+                    </p>
+                  </div>
+
+                  {customServices.length === 0 ? (
+                    <p className="text-xs text-muted-foreground italic bg-secondary/20 p-3 rounded-lg border border-border/40 text-center">
+                      No hay servicios adicionales activos configurados en el catálogo.
+                    </p>
+                  ) : (
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
+                      {customServices.map((cs) => {
+                        const isSelected = selectedCustomServiceIds.includes(cs.id)
+                        return (
+                          <label
+                            key={cs.id}
+                            className={`flex items-start gap-3 p-3 rounded-xl border transition-all cursor-pointer select-none bg-secondary/10 hover:bg-secondary/20 ${
+                              isSelected
+                                ? 'border-brand-500/50 shadow-lg shadow-brand-500/5 bg-brand-500/5'
+                                : 'border-border/60 hover:border-border/80'
+                            }`}
+                          >
+                            <input
+                              type="checkbox"
+                              checked={isSelected}
+                              onChange={() => {
+                                const updatedIds = isSelected
+                                  ? selectedCustomServiceIds.filter((id) => id !== cs.id)
+                                  : [...selectedCustomServiceIds, cs.id]
+                                setValue('custom_service_ids', updatedIds)
+                              }}
+                              className="mt-1 accent-brand-500 rounded border-border cursor-pointer"
+                            />
+                            <div className="space-y-0.5">
+                              <span className="text-xs font-semibold text-foreground flex items-center gap-1.5 flex-wrap">
+                                {cs.nombre}
+                                <span className="text-[10px] font-mono font-bold text-brand-400 bg-brand-500/10 px-1.5 py-0.5 rounded">
+                                  +${Number(cs.precio).toFixed(2)}
+                                </span>
+                                <span className={`text-[8px] font-bold uppercase px-1.5 py-0.2 rounded border ${
+                                  cs.recurrente
+                                    ? 'bg-blue-500/10 border-blue-500/20 text-blue-400'
+                                    : 'bg-purple-500/10 border-purple-500/20 text-purple-400'
+                                }`}>
+                                  {cs.recurrente ? 'Mensual' : 'Pago Único'}
+                                </span>
+                              </span>
+                              {cs.descripcion && (
+                                <span className="text-[11px] text-muted-foreground leading-normal block">
+                                  {cs.descripcion}
+                                </span>
+                              )}
+                            </div>
+                          </label>
+                        )
+                      })}
+                    </div>
+                  )}
+
+                  {/* Tarjeta de Resumen / Factura Estimada */}
+                  <div className="bg-brand-500/10 border border-brand-500/20 rounded-xl p-4 flex flex-col gap-3 mt-3">
+                    <div className="flex justify-between items-center pb-2 border-b border-brand-500/10">
+                      <div>
+                        <h4 className="text-xs font-bold text-brand-300 uppercase tracking-wider">Simulación de Facturación</h4>
+                        <p className="text-[10px] text-muted-foreground mt-0.5 font-medium">
+                          Desglose estimado de cobros para el cliente.
+                        </p>
+                      </div>
+                    </div>
+                    
+                    <div className="grid grid-cols-2 gap-y-1.5 text-xs font-medium text-muted-foreground">
+                      <span>Plan Base:</span>
+                      <span className="text-right text-foreground font-mono">${Number(activePlanPrice).toFixed(2)}/mes</span>
+
+                      {recurringCustomServicesPrice > 0 && (
+                        <>
+                          <span>Adicionales Recurrentes:</span>
+                          <span className="text-right text-foreground font-mono">${recurringCustomServicesPrice.toFixed(2)}/mes</span>
+                        </>
+                      )}
+
+                      {oneTimeCustomServicesPrice > 0 && (
+                        <>
+                          <span className="text-purple-400 font-semibold">Cargos Únicos (Siguiente Factura):</span>
+                          <span className="text-right text-purple-400 font-semibold font-mono">${oneTimeCustomServicesPrice.toFixed(2)}</span>
+                        </>
+                      )}
+                    </div>
+
+                    <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 pt-2 border-t border-brand-500/10 mt-1">
+                      <div>
+                        <span className="text-[10px] text-muted-foreground block font-semibold uppercase tracking-wider">Próximo Total Cobrado</span>
+                        <span className="text-lg font-mono font-black text-brand-400">${nextInvoiceTotal.toFixed(2)}</span>
+                      </div>
+                      <div className="text-left sm:text-right shrink-0">
+                        <span className="text-[10px] text-muted-foreground block font-semibold uppercase tracking-wider">Mensualidad Recurrente Posterior</span>
+                        <span className="text-sm font-mono font-bold text-brand-300">${futureMonthlyTotal.toFixed(2)}/mes</span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
 
                 {/* Router asignado y Tipo de Conexión */}
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 border-t border-border/40 pt-4">
                   <div>
                     <label className="block text-sm font-medium text-foreground mb-1.5">Router asignado *</label>
                     <select {...register('router_id')} className="input-field cursor-pointer">

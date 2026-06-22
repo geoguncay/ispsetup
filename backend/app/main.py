@@ -10,7 +10,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 
 
-from app.api import auth, routers_api, users, company, clients, plans, traffic_api, custom_services, sites_api
+from app.api import auth, routers_api, users, company, clients, plans, traffic_api, custom_services, sites_api, invoices, payments
 from app.core.config import settings
 from app.core.database import Base, engine, run_migrations
 from app.core.seed import run_seed
@@ -70,6 +70,8 @@ app.include_router(plans.router, prefix="/api")
 app.include_router(traffic_api.router, prefix="/api")
 app.include_router(custom_services.router, prefix="/api")
 app.include_router(sites_api.router, prefix="/api")
+app.include_router(invoices.router, prefix="/api")
+app.include_router(payments.router, prefix="/api")
 
 
 

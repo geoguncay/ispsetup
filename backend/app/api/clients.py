@@ -19,6 +19,8 @@ from app.models.ticket import ClientTicket
 from app.models.suspension_log import SuspensionLog
 from app.models.pppoe_secret import PPPoESecret
 from app.models.pppoe_profile import PPPoEProfile
+from app.models.invoice import Invoice
+from app.models.custom_service import CustomService
 from app.services.mikrotik.pppoe import (
     sync_pppoe_secret_in_router,
     remove_pppoe_secret_from_router,
@@ -50,6 +52,7 @@ from app.schemas.client import (
 from app.schemas.payment import PaymentResponse
 from app.schemas.ticket import TicketCreate, TicketResponse
 from app.schemas.traffic import TrafficResponse
+from app.schemas.invoice import InvoiceResponse
 
 logger = logging.getLogger(__name__)
 
@@ -323,6 +326,8 @@ def create_client(payload: ClientCreate, db: DBSession, _: AdminOrTecnico) -> di
         activo=True,
         email=payload.email,
     )
+    if payload.custom_service_ids:
+        client.custom_services = db.query(CustomService).filter(CustomService.id.in_(payload.custom_service_ids)).all()
     if payload.created_at:
         client.created_at = payload.created_at
     db.add(client)
@@ -699,8 +704,14 @@ def update_client(
 
     # Actualizar campos básicos
     for field, value in update_data.items():
-        if field not in ("ip", "mac", "notas_ip", "usuario_ppp", "contraseña_ppp", "perfil_id"):
+        if field not in ("ip", "mac", "notas_ip", "usuario_ppp", "contraseña_ppp", "perfil_id", "custom_service_ids"):
             setattr(client, field, value)
+
+    if "custom_service_ids" in update_data:
+        if update_data["custom_service_ids"]:
+            client.custom_services = db.query(CustomService).filter(CustomService.id.in_(update_data["custom_service_ids"])).all()
+        else:
+            client.custom_services = []
 
     db.commit()
     db.refresh(client)
@@ -1136,44 +1147,34 @@ def get_client_suspension_history(
 
 @router.get("/{client_id}/payments", response_model=list[PaymentResponse])
 def get_client_payments(client_id: uuid.UUID, db: DBSession, _: AdminOrTecnico) -> list[ClientPayment]:
-    """Obtiene el historial de pagos del cliente, sembrando mocks si está vacío."""
+    """Obtiene el historial de pagos real del cliente ordenado por fecha de pago desc."""
     client = db.get(Client, client_id)
     if not client:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Cliente no encontrado")
         
-    payments = db.query(ClientPayment).filter(ClientPayment.cliente_id == client_id).all()
-    
-    if not payments:
-        from datetime import datetime, timedelta
-        
-        p1 = ClientPayment(
-            cliente_id=client_id,
-            monto=22.40,
-            fecha_pago=datetime.now() - timedelta(days=5),
-            metodo="transferencia",
-            estado="completado"
-        )
-        p2 = ClientPayment(
-            cliente_id=client_id,
-            monto=22.40,
-            fecha_pago=datetime.now() - timedelta(days=35),
-            metodo="efectivo",
-            estado="completado"
-        )
-        p3 = ClientPayment(
-            cliente_id=client_id,
-            monto=22.40,
-            fecha_pago=datetime.now() - timedelta(days=65),
-            metodo="deposito",
-            estado="completado"
-        )
-        db.add(p1)
-        db.add(p2)
-        db.add(p3)
-        db.commit()
-        payments = [p1, p2, p3]
-        
+    payments = (
+        db.query(ClientPayment)
+        .filter(ClientPayment.cliente_id == client_id)
+        .order_by(ClientPayment.fecha_pago.desc())
+        .all()
+    )
     return payments
+
+
+@router.get("/{client_id}/invoices", response_model=list[InvoiceResponse])
+def get_client_invoices(client_id: uuid.UUID, db: DBSession, _: AdminOrTecnico) -> list[Invoice]:
+    """Obtiene el historial de facturas emitidas al cliente ordenado por fecha de emisión desc."""
+    client = db.get(Client, client_id)
+    if not client:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Cliente no encontrado")
+        
+    invoices = (
+        db.query(Invoice)
+        .filter(Invoice.cliente_id == client_id)
+        .order_by(Invoice.fecha_emision.desc())
+        .all()
+    )
+    return invoices
 
 
 @router.get("/{client_id}/tickets", response_model=list[TicketResponse])

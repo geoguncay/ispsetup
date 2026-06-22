@@ -9,6 +9,7 @@ from app.core.validators import validate_ecuadorian_cedula
 from app.schemas.plan import PlanResponse
 from app.schemas.static_ip import StaticIPResponse
 from app.schemas.pppoe import PPPoESecretRead
+from app.schemas.custom_service import CustomServiceResponse
 
 
 class ClientBase(BaseModel):
@@ -33,6 +34,7 @@ class ClientBase(BaseModel):
 
 class ClientCreate(ClientBase):
     plan_id: uuid.UUID | None = None
+    custom_service_ids: list[uuid.UUID] | None = None
     ip: str | None = Field(default=None, min_length=7, max_length=45)
     mac: str | None = Field(default=None, min_length=17, max_length=17)
     notas_ip: str | None = None
@@ -50,6 +52,7 @@ class ClientCreate(ClientBase):
 
 class ClientUpdate(BaseModel):
     nombre: str | None = Field(default=None, min_length=2, max_length=120)
+    custom_service_ids: list[uuid.UUID] | None = None
     cedula: str | None = Field(default=None, min_length=10, max_length=20)
     telefono: str | None = Field(default=None, min_length=5, max_length=40)
     direccion: str | None = Field(default=None, min_length=5, max_length=255)
@@ -125,6 +128,7 @@ class ClientResponse(ClientBase):
     pppoe_secret: PPPoESecretRead | None = None
     site_id: uuid.UUID | None = None
     site_nombre: str | None = None
+    custom_services: list[CustomServiceResponse] = []
 
 
 # Schema de respuesta de listado de clientes con paginación

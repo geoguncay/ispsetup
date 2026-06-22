@@ -173,14 +173,14 @@ isp-platform/
 
 ### 4.1 Facturación y pagos
 
-- [ ] Modelo `Invoice`: cliente_id, plan_id, período (mes/año), monto, fecha_emisión, fecha_vencimiento, estado (pendiente/pagado/vencido)
-- [ ] Modelo `Payment`: invoice_id, fecha_pago, monto, método (efectivo/transferencia/tarjeta), usuario_id, notas
-- [ ] Cron mensual (Celery Beat): generar facturas automáticas para todos los clientes activos
-- [ ] Endpoint `POST /payments`: registrar pago manual + reactivación automática si estaba suspendido
-- [ ] Endpoint `GET /invoices?status=pending&overdue=true`: listado para cobranza
-- [ ] UI: módulo de cobranza — facturas pendientes, vencidas, historial por cliente
-- [ ] UI: caja del día — resumen de pagos recibidos con totales por método
-- [ ] UI: recibo de pago en PDF descargable
+- [x] Modelo `Invoice`: cliente_id, plan_id, período (mes/año), monto, fecha_emisión, fecha_vencimiento, estado (pendiente/pagado/vencido)
+- [x] Modelo `Payment`: invoice_id, fecha_pago, monto, método (efectivo/transferencia/tarjeta), usuario_id, notas
+- [x] Cron mensual (Celery Beat): generar facturas automáticas para todos los clientes activos
+- [x] Endpoint `POST /payments`: registrar pago manual + reactivación automática si estaba suspendido
+- [x] Endpoint `GET /invoices?status=pending&overdue=true`: listado para cobranza
+- [x] UI: módulo de cobranza — facturas pendientes, vencidas, historial por cliente
+- [x] UI: caja del día — resumen de pagos recibidos con totales por método
+- [x] UI: recibo de pago en PDF descargable
 
 ### 4.2 Integración SRI Ecuador
 

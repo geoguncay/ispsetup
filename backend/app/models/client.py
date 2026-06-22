@@ -4,10 +4,18 @@ Modelo SQLAlchemy: Client
 import uuid
 from datetime import datetime
 
-from sqlalchemy import Boolean, DateTime, Float, ForeignKey, String, Uuid, func
+from sqlalchemy import Boolean, DateTime, Float, ForeignKey, String, Uuid, func, Table, Column
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.core.database import Base
+
+
+client_custom_services_association = Table(
+    "client_custom_services",
+    Base.metadata,
+    Column("cliente_id", Uuid(native_uuid=False), ForeignKey("clients.id", ondelete="CASCADE"), primary_key=True),
+    Column("custom_service_id", Uuid(native_uuid=False), ForeignKey("custom_services.id", ondelete="CASCADE"), primary_key=True),
+)
 
 
 class Client(Base):
@@ -44,7 +52,9 @@ class Client(Base):
     static_ip = relationship("StaticIP", back_populates="client", uselist=False, cascade="all, delete-orphan")
     pppoe_secret = relationship("PPPoESecret", back_populates="client", uselist=False, cascade="all, delete-orphan")
     payments = relationship("ClientPayment", back_populates="client", cascade="all, delete-orphan")
+    invoices = relationship("Invoice", back_populates="client", cascade="all, delete-orphan")
     tickets = relationship("ClientTicket", back_populates="client", cascade="all, delete-orphan")
+    custom_services = relationship("CustomService", secondary=client_custom_services_association)
 
     @property
     def site_id(self) -> uuid.UUID | None:

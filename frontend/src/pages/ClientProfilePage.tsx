@@ -7,13 +7,15 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import {
   ArrowLeft, RefreshCw, MapPin, Phone, Shield, User,
   Wifi, Calendar, CheckCircle2, XCircle, AlertCircle, Loader2, X, Mail, Plus, MessageSquare,
-  Edit2, Trash2, FileText, Download, UploadCloud
+  Edit2, Trash2, FileText, Download, UploadCloud, CreditCard, Wallet
 } from 'lucide-react'
 import { MapContainer, TileLayer, Marker } from 'react-leaflet'
 import L from 'leaflet'
 import 'leaflet/dist/leaflet.css'
 import api from '@/services/api'
 import { ClientFormDialog } from '@/components/ClientFormDialog'
+import { PaymentRegisterDialog } from '@/components/PaymentRegisterDialog'
+import { InvoiceCreateDialog } from '@/components/InvoiceCreateDialog'
 import TrafficChart from '@/components/TrafficChart'
 
 // Icono personalizado SVG de Leaflet para evitar problemas de rutas de Vite
@@ -56,6 +58,34 @@ export function ClientProfilePage() {
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
   const [suspendOpen, setSuspendOpen] = useState(false)
   const [suspensionReason, setSuspensionReason] = useState('')
+
+  // Facturas y Recibos
+  const [selectedInvoice, setSelectedInvoice] = useState<any>(null)
+  const [receiptLoadingMap, setReceiptLoadingMap] = useState<Record<string, boolean>>({})
+  const [manualInvoiceOpen, setManualInvoiceOpen] = useState(false)
+
+  // Descargar Recibo PDF mediante Fetch de Blob
+  const handleDownloadReceipt = async (pagoId: string) => {
+    if (!pagoId) return
+    setReceiptLoadingMap(prev => ({ ...prev, [pagoId]: true }))
+    try {
+      const response = await api.get(`/payments/${pagoId}/receipt`, { responseType: 'blob' })
+      const blob = new Blob([response.data], { type: 'application/pdf' })
+      const url = window.URL.createObjectURL(blob)
+      const link = document.createElement('a')
+      link.href = url
+      link.setAttribute('download', `recibo_${pagoId.substring(0, 8).toUpperCase()}.pdf`)
+      document.body.appendChild(link)
+      link.click()
+      link.remove()
+      window.URL.revokeObjectURL(url)
+    } catch (err) {
+      console.error(err)
+      alert('Error al descargar el comprobante en PDF')
+    } finally {
+      setReceiptLoadingMap(prev => ({ ...prev, [pagoId]: false }))
+    }
+  }
 
 
   // Ticket creation form state
@@ -137,6 +167,15 @@ export function ClientProfilePage() {
     queryKey: ['client-payments', id],
     queryFn: async () => {
       const { data } = await api.get(`/clients/${id}/payments`)
+      return data
+    }
+  })
+
+  // Consultar Facturas del Cliente
+  const { data: invoices = [], isLoading: isLoadingInvoices } = useQuery({
+    queryKey: ['client-invoices', id],
+    queryFn: async () => {
+      const { data } = await api.get(`/clients/${id}/invoices`)
       return data
     }
   })
@@ -491,6 +530,37 @@ export function ClientProfilePage() {
                     </p>
                   </div>
                 </div>
+
+                {/* Valores Agregados */}
+                <div className="flex items-start gap-3 col-span-1 sm:col-span-2 border-t border-border/30 pt-3 mt-1 font-sans">
+                  <Shield className="w-4 h-4 text-brand-400 mt-1 flex-shrink-0" />
+                  <div className="w-full">
+                    <p className="text-xs text-muted-foreground">Servicios Adicionales (Valores Agregados)</p>
+                    <div className="flex flex-wrap gap-2 mt-1.5">
+                      {client.custom_services && client.custom_services.length > 0 ? (
+                        client.custom_services.map((cs: any) => (
+                          <span
+                            key={cs.id}
+                            className={`inline-flex items-center gap-1.5 text-xs font-semibold px-2.5 py-1 rounded border ${
+                              cs.recurrente
+                                ? 'bg-brand-500/10 text-brand-400 border-brand-500/20'
+                                : 'bg-purple-500/10 text-purple-400 border-purple-500/20'
+                            }`}
+                            title={cs.descripcion || ''}
+                          >
+                            <span className={`w-1.5 h-1.5 rounded-full animate-pulse ${
+                              cs.recurrente ? 'bg-brand-400' : 'bg-purple-400'
+                            }`} />
+                            {cs.nombre} (${Number(cs.precio).toFixed(2)})
+                            {!cs.recurrente && <span className="text-[9px] uppercase font-bold tracking-wider ml-1 bg-purple-500/20 px-1 py-0.2 rounded border border-purple-500/30">Único</span>}
+                          </span>
+                        ))
+                      ) : (
+                        <span className="text-xs text-muted-foreground italic">Ningún servicio adicional asignado</span>
+                      )}
+                    </div>
+                  </div>
+                </div>
               </div>
 
               {/* Información de Red (solo si es estática) */}
@@ -727,93 +797,291 @@ export function ClientProfilePage() {
               )}
 
               {activeTab === 'payments' && (
-                isLoadingPayments ? (
-                  <div className="text-center py-6 text-xs text-muted-foreground flex items-center justify-center gap-2">
-                    <RefreshCw className="w-4 h-4 animate-spin" /> Cargando pagos...
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+                  {/* Columna Facturas */}
+                  <div className="space-y-4">
+                    <div className="flex items-center justify-between border-b border-border/40 pb-2">
+                      <h3 className="text-sm font-bold text-muted-foreground uppercase tracking-wider flex items-center gap-2">
+                        <FileText className="w-4 h-4 text-primary" /> Facturas Emitidas
+                      </h3>
+                      <button
+                        onClick={() => setManualInvoiceOpen(true)}
+                        className="btn-primary text-[10px] py-1 px-2.5 h-auto flex items-center gap-1 font-semibold"
+                      >
+                        <Plus className="w-3 h-3" /> Nueva Factura
+                      </button>
+                    </div>
+                    {isLoadingInvoices ? (
+                      <div className="text-center py-6 text-xs text-muted-foreground flex items-center justify-center gap-2">
+                        <RefreshCw className="w-4 h-4 animate-spin text-primary" /> Cargando facturas...
+                      </div>
+                    ) : invoices.length === 0 ? (
+                      <p className="text-center py-6 text-sm text-muted-foreground bg-secondary/10 rounded-lg border border-border/50">Sin facturas emitidas.</p>
+                    ) : (
+                      <div className="overflow-x-auto font-sans glass-card p-2 border-border/40">
+                        <table className="data-table text-xs">
+                          <thead>
+                            <tr>
+                              <th>Periodo</th>
+                              <th>Monto</th>
+                              <th>Vence</th>
+                              <th>Estado</th>
+                              <th className="text-right">Acción</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {invoices.map((inv: any) => (
+                              <tr key={inv.id} className="hover:bg-secondary/20 transition-all">
+                                <td className="font-bold text-foreground">{inv.periodo}</td>
+                                <td className="font-bold text-brand-400 font-mono">${Number(inv.monto).toFixed(2)}</td>
+                                <td className="text-muted-foreground font-mono">{new Date(inv.fecha_vencimiento).toLocaleDateString()}</td>
+                                <td>
+                                  <span className={`text-[9px] px-1.5 py-0.5 rounded-full font-bold border ${
+                                    inv.estado === 'pagado'
+                                      ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/25'
+                                      : inv.estado === 'pendiente'
+                                        ? 'bg-amber-500/10 text-amber-400 border-amber-500/25'
+                                        : 'bg-rose-500/10 text-rose-400 border-rose-500/25'
+                                  }`}>
+                                    {inv.estado.toUpperCase()}
+                                  </span>
+                                </td>
+                                <td className="text-right">
+                                  {inv.estado !== 'pagado' ? (
+                                    <button
+                                      onClick={() => setSelectedInvoice({
+                                        ...inv,
+                                        cliente_nombre: client?.nombre ?? 'Cliente',
+                                        cliente_cedula: client?.cedula ?? 'N/A'
+                                      })}
+                                      className="bg-emerald-600 hover:bg-emerald-700 text-white font-semibold text-[10px] px-2 py-1 rounded cursor-pointer transition-all flex items-center gap-1 w-fit ml-auto"
+                                    >
+                                      <CreditCard className="w-3 h-3" /> Cobrar
+                                    </button>
+                                  ) : inv.pago_id ? (
+                                    <button
+                                      disabled={receiptLoadingMap[inv.pago_id]}
+                                      onClick={() => handleDownloadReceipt(inv.pago_id)}
+                                      className="bg-primary/20 hover:bg-primary/30 text-primary border border-primary/30 font-semibold text-[10px] px-2 py-1 rounded cursor-pointer transition-all flex items-center gap-1 w-fit ml-auto disabled:opacity-50"
+                                    >
+                                      {receiptLoadingMap[inv.pago_id] ? (
+                                        <RefreshCw className="w-3 h-3 animate-spin" />
+                                      ) : (
+                                        <Download className="w-3 h-3" />
+                                      )}
+                                      PDF
+                                    </button>
+                                  ) : (
+                                    <span className="text-muted-foreground text-[10px]">-</span>
+                                  )}
+                                </td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    )}
                   </div>
-                ) : payments.length === 0 ? (
-                  <p className="text-center py-6 text-sm text-muted-foreground">Sin pagos registrados.</p>
-                ) : (
-                  <div className="overflow-x-auto font-sans">
-                    <table className="data-table">
-                      <thead>
-                        <tr>
-                          <th>Fecha</th>
-                          <th>Monto</th>
-                          <th>Método</th>
-                          <th>Estado</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {payments.map((p: any) => (
-                          <tr key={p.id}>
-                            <td className="text-xs text-muted-foreground font-mono">
-                              {new Date(p.fecha_pago).toLocaleDateString()} {new Date(p.fecha_pago).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                            </td>
-                            <td className="font-mono text-sm font-bold text-brand-400">${Number(p.monto).toFixed(2)}</td>
-                            <td className="text-xs capitalize text-foreground font-medium">{p.metodo}</td>
-                            <td>
-                              <span className={`text-xs px-2 py-0.5 rounded-full font-semibold ${p.estado === 'completado'
-                                ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/25'
-                                : p.estado === 'pendiente'
-                                  ? 'bg-amber-500/10 text-amber-400 border border-amber-500/25'
-                                  : 'bg-rose-500/10 text-rose-400 border border-rose-500/25'
-                                }`}>
-                                {p.estado}
-                              </span>
-                            </td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
+
+                  {/* Columna Historial Pagos */}
+                  <div className="space-y-4">
+                    <h3 className="text-sm font-bold text-muted-foreground uppercase tracking-wider flex items-center gap-2">
+                      <Wallet className="w-4 h-4 text-emerald-400" /> Historial de Pagos
+                    </h3>
+                    {isLoadingPayments ? (
+                      <div className="text-center py-6 text-xs text-muted-foreground flex items-center justify-center gap-2">
+                        <RefreshCw className="w-4 h-4 animate-spin text-primary" /> Cargando pagos...
+                      </div>
+                    ) : payments.length === 0 ? (
+                      <p className="text-center py-6 text-sm text-muted-foreground bg-secondary/10 rounded-lg border border-border/50">Sin cobros registrados.</p>
+                    ) : (
+                      <div className="overflow-x-auto font-sans glass-card p-2 border-border/40">
+                        <table className="data-table text-xs">
+                          <thead>
+                            <tr>
+                              <th>Fecha</th>
+                              <th>Monto</th>
+                              <th>Método</th>
+                              <th>Notas</th>
+                              <th className="text-right">Comprobante</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {payments.map((p: any) => (
+                              <tr key={p.id} className="hover:bg-secondary/20 transition-all">
+                                <td className="text-muted-foreground font-mono">
+                                  {new Date(p.fecha_pago).toLocaleDateString()}
+                                </td>
+                                <td className="font-bold text-emerald-400 font-mono">${Number(p.monto).toFixed(2)}</td>
+                                <td className="capitalize font-medium text-foreground">{p.metodo}</td>
+                                <td className="text-muted-foreground truncate max-w-[100px]" title={p.notas}>{p.notas ?? '-'}</td>
+                                <td className="text-right">
+                                  <button
+                                    disabled={receiptLoadingMap[p.id]}
+                                    onClick={() => handleDownloadReceipt(p.id)}
+                                    className="bg-primary/20 hover:bg-primary/30 text-primary border border-primary/30 font-semibold text-[10px] px-2 py-1 rounded cursor-pointer transition-all flex items-center gap-1.5 ml-auto disabled:opacity-50"
+                                  >
+                                    {receiptLoadingMap[p.id] ? (
+                                      <RefreshCw className="w-3 h-3 animate-spin" />
+                                    ) : (
+                                      <Download className="w-3 h-3" />
+                                    )}
+                                    Recibo
+                                  </button>
+                                </td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    )}
                   </div>
-                )
+                </div>
               )}
 
               {activeTab === 'plans' && (
-                isLoadingHistory ? (
-                  <div className="text-center py-6 text-xs text-muted-foreground flex items-center justify-center gap-2">
-                    <RefreshCw className="w-4 h-4 animate-spin" /> Cargando historial...
-                  </div>
-                ) : planHistory.length === 0 ? (
-                  <p className="text-center py-6 text-sm text-muted-foreground">Sin historial de planes asignados.</p>
-                ) : (
-                  <div className="overflow-x-auto">
-                    <table className="data-table">
-                      <thead>
-                        <tr>
-                          <th>Plan</th>
-                          <th>Precio</th>
-                          <th>Fecha Inicio</th>
-                          <th>Fecha Fin</th>
-                          <th>Estado</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {planHistory.map((ph) => (
-                          <tr key={ph.id}>
-                            <td className="font-semibold text-foreground text-sm">{ph.plan?.nombre ?? 'Plan Eliminado'}</td>
-                            <td className="font-mono text-xs">${ph.plan ? Number(ph.plan.precio).toFixed(2) : '0.00'}</td>
-                            <td className="text-xs text-muted-foreground">{new Date(ph.fecha_inicio).toLocaleDateString()}</td>
-                            <td className="text-xs text-muted-foreground">
-                              {ph.fecha_fin ? new Date(ph.fecha_fin).toLocaleDateString() : <span className="text-emerald-400 font-medium">Actual</span>}
-                            </td>
-                            <td>
-                              <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${ph.estado === 'activo'
-                                ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20'
-                                : ph.estado === 'suspendido'
-                                  ? 'bg-amber-500/10 text-amber-400 border border-amber-500/20'
-                                  : 'bg-muted text-muted-foreground border border-border'
-                                }`}>
-                                {ph.estado}
+                <div className="space-y-6 font-sans">
+                  {/* Sección destacada de Servicios Activos */}
+                  <div className="glass-card p-5 border border-brand-500/20 bg-brand-500/5 space-y-4">
+                    <h3 className="text-sm font-bold text-brand-300 uppercase tracking-wider flex items-center gap-2">
+                      <Shield className="w-4 h-4 text-brand-400" /> Servicios Contratados en Curso
+                    </h3>
+                    <div className="divide-y divide-border/40 text-xs">
+                      {/* Plan Base */}
+                      <div className="flex justify-between py-2.5 items-center">
+                        <div>
+                          <span className="font-semibold text-foreground text-sm block">
+                            {client.plan_activo?.nombre ?? 'Sin plan activo contratado'}
+                          </span>
+                          <span className="text-muted-foreground text-[11px]">Plan de Internet base</span>
+                        </div>
+                        <span className="font-bold text-brand-400 font-mono text-sm">
+                          ${client.plan_activo ? Number(client.plan_activo.precio).toFixed(2) : '0.00'} /mes
+                        </span>
+                      </div>
+
+                      {/* Servicios Adicionales */}
+                      {client.custom_services && client.custom_services.map((cs: any) => (
+                        <div key={cs.id} className="flex justify-between py-2.5 items-center">
+                          <div>
+                            <span className="font-semibold text-foreground text-sm flex items-center gap-2">
+                              {cs.nombre}
+                              <span className={`text-[9px] font-bold uppercase px-1.5 py-0.1 rounded border ${
+                                cs.recurrente
+                                  ? 'bg-blue-500/10 border-blue-500/20 text-blue-400'
+                                  : 'bg-purple-500/10 border-purple-500/20 text-purple-400'
+                              }`}>
+                                {cs.recurrente ? 'Mensual' : 'Pago Único'}
                               </span>
-                            </td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
+                            </span>
+                            <span className="text-muted-foreground text-[11px]">{cs.descripcion || 'Servicio de valor agregado'}</span>
+                          </div>
+                          <span className="font-bold text-brand-400 font-mono text-sm">
+                            +${Number(cs.precio).toFixed(2)} {cs.recurrente ? '/mes' : ''}
+                          </span>
+                        </div>
+                      ))}
+
+                      {/* Totales Desglosados */}
+                      {client.custom_services && client.custom_services.some((cs: any) => !cs.recurrente) ? (
+                        <>
+                          <div className="flex justify-between py-2 border-t border-border/40 font-semibold text-muted-foreground">
+                            <span>Total Mensual Recurrente:</span>
+                            <span className="font-mono text-foreground">
+                              ${(
+                                (client.plan_activo ? Number(client.plan_activo.precio) : 0) +
+                                (client.custom_services ? client.custom_services.reduce((acc: number, cs: any) => acc + (cs.recurrente ? Number(cs.precio) : 0), 0) : 0)
+                              ).toFixed(2)} /mes
+                            </span>
+                          </div>
+                          <div className="flex justify-between py-2 font-semibold text-purple-400">
+                            <span>Cargos Únicos Pendientes:</span>
+                            <span className="font-mono text-purple-400">
+                              +${(
+                                client.custom_services ? client.custom_services.reduce((acc: number, cs: any) => acc + (!cs.recurrente ? Number(cs.precio) : 0), 0) : 0
+                              ).toFixed(2)}
+                            </span>
+                          </div>
+                          <div className="flex justify-between py-3 items-center border-t border-border font-bold">
+                            <div>
+                              <span className="text-sm text-foreground uppercase tracking-wider block">Monto Próxima Factura</span>
+                              <span className="text-[10px] text-muted-foreground font-normal">Suma de mensualidad y cargos únicos pendientes</span>
+                            </div>
+                            <span className="text-lg font-mono font-black text-brand-400">
+                              ${(
+                                (client.plan_activo ? Number(client.plan_activo.precio) : 0) +
+                                (client.custom_services ? client.custom_services.reduce((acc: number, cs: any) => acc + Number(cs.precio), 0) : 0)
+                              ).toFixed(2)}
+                            </span>
+                          </div>
+                        </>
+                      ) : (
+                        <div className="flex justify-between py-3 items-center border-t border-border font-bold">
+                          <div>
+                            <span className="text-sm text-foreground uppercase tracking-wider block">Total de Facturación Mensual</span>
+                            <span className="text-[10px] text-muted-foreground font-normal">Valor aproximado antes de impuestos adicionales</span>
+                          </div>
+                          <span className="text-lg font-mono font-black text-brand-400">
+                            ${(
+                              (client.plan_activo ? Number(client.plan_activo.precio) : 0) +
+                              (client.custom_services ? client.custom_services.reduce((acc: number, cs: any) => acc + Number(cs.precio), 0) : 0)
+                            ).toFixed(2)} /mes
+                          </span>
+                        </div>
+                      )}
+                    </div>
                   </div>
-                )
+
+                  {/* Historial de Planes Asignados */}
+                  <div className="space-y-3">
+                    <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+                      Historial de Asignación de Planes
+                    </h3>
+                    {isLoadingHistory ? (
+                      <div className="text-center py-6 text-xs text-muted-foreground flex items-center justify-center gap-2">
+                        <RefreshCw className="w-4 h-4 animate-spin" /> Cargando historial...
+                      </div>
+                    ) : planHistory.length === 0 ? (
+                      <p className="text-center py-6 text-sm text-muted-foreground bg-secondary/10 rounded-lg border border-border/50">Sin historial de planes asignados.</p>
+                    ) : (
+                      <div className="overflow-x-auto glass-card p-2 border-border/40">
+                        <table className="data-table text-xs">
+                          <thead>
+                            <tr>
+                              <th>Plan</th>
+                              <th>Precio</th>
+                              <th>Fecha Inicio</th>
+                              <th>Fecha Fin</th>
+                              <th>Estado</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {planHistory.map((ph) => (
+                              <tr key={ph.id}>
+                                <td className="font-semibold text-foreground text-sm">{ph.plan?.nombre ?? 'Plan Eliminado'}</td>
+                                <td className="font-mono text-xs">${ph.plan ? Number(ph.plan.precio).toFixed(2) : '0.00'}</td>
+                                <td className="text-xs text-muted-foreground font-mono">{new Date(ph.fecha_inicio).toLocaleDateString()}</td>
+                                <td className="text-xs text-muted-foreground font-mono">
+                                  {ph.fecha_fin ? new Date(ph.fecha_fin).toLocaleDateString() : <span className="text-emerald-400 font-medium">Actual</span>}
+                                </td>
+                                <td>
+                                  <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-bold border ${ph.estado === 'activo'
+                                    ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/25'
+                                    : ph.estado === 'suspendido'
+                                      ? 'bg-amber-500/10 text-amber-400 border-amber-500/25'
+                                      : 'bg-muted text-muted-foreground border border-border'
+                                    }`}>
+                                    {ph.estado.toUpperCase()}
+                                  </span>
+                                </td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    )}
+                  </div>
+                </div>
               )}
 
               {activeTab === 'suspensions' && (
@@ -1373,6 +1641,31 @@ export function ClientProfilePage() {
           </div>
         </div>
       )}
+
+      {/* Modal Registrar Pago */}
+      <PaymentRegisterDialog
+        isOpen={selectedInvoice !== null}
+        onClose={() => setSelectedInvoice(null)}
+        invoice={selectedInvoice}
+        onSuccess={() => {
+          refetch()
+          queryClient.invalidateQueries({ queryKey: ['client-invoices', id] })
+          queryClient.invalidateQueries({ queryKey: ['client-payments', id] })
+        }}
+      />
+
+      {/* Modal Crear Factura Manual */}
+      <InvoiceCreateDialog
+        isOpen={manualInvoiceOpen}
+        onClose={() => setManualInvoiceOpen(false)}
+        preselectedClientId={client.id}
+        preselectedClientName={client.nombre}
+        preselectedClientCedula={client.cedula}
+        onSuccess={() => {
+          refetch()
+          queryClient.invalidateQueries({ queryKey: ['client-invoices', id] })
+        }}
+      />
     </div>
   )
 }

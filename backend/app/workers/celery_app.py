@@ -10,7 +10,12 @@ celery_app = Celery(
     "isp_platform",
     broker=settings.REDIS_URL,
     backend=settings.REDIS_URL,
-    include=["app.workers.health_check", "app.workers.suspension", "app.workers.traffic"],
+    include=[
+        "app.workers.health_check",
+        "app.workers.suspension",
+        "app.workers.traffic",
+        "app.workers.billing"
+    ],
 )
 
 celery_app.conf.update(
@@ -36,6 +41,16 @@ celery_app.conf.update(
         "poll-traffic-5s": {
             "task": "app.workers.traffic.poll_traffic",
             "schedule": 5.0,  # segundos
+        },
+        # Generación de facturas el 1 de cada mes a las 00:00
+        "generate-monthly-invoices": {
+            "task": "app.workers.billing.generate_monthly_invoices",
+            "schedule": crontab(day_of_month=1, hour=0, minute=0),
+        },
+        # Verificación diaria de facturas vencidas a las 2:00 AM
+        "check-overdue-invoices": {
+            "task": "app.workers.billing.check_overdue_invoices",
+            "schedule": crontab(hour=2, minute=0),
         },
     },
 )
