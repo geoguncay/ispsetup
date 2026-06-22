@@ -3,7 +3,7 @@
  */
 import { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { Plus, RefreshCw, Wifi, Server, Clock, Download, X, Loader2 } from 'lucide-react'
+import { Plus, RefreshCw, Wifi, Server, Clock, Download, X, Loader2, SlidersHorizontal } from 'lucide-react'
 import api from '@/services/api'
 import { RouterStatusBadge } from '@/components/RouterStatusBadge'
 import { RouterFormDialog } from '@/components/RouterFormDialog'
@@ -27,6 +27,8 @@ interface Router {
   control_velocidad: boolean
   sincronizar_logs: boolean
   notificaciones_alertas: boolean
+  site_id?: string | null
+  site_nombre?: string | null
 }
 
 async function fetchRouters(): Promise<Router[]> {
@@ -105,8 +107,24 @@ export function RoutersPage() {
     importMutation.mutate({ routerId: importingRouter.id, listName })
   }
 
-  const onlineCount = routers.filter((r) => r.status === 'online').length
-  const offlineCount = routers.filter((r) => r.status === 'offline').length
+  const [selectedSiteId, setSelectedSiteId] = useState('')
+
+  // Consultar lista de Sitios para el filtro
+  const { data: sites = [] } = useQuery<any[]>({
+    queryKey: ['sites-list'],
+    queryFn: async () => {
+      const { data } = await api.get('/sites')
+      return data
+    },
+  })
+
+  const filteredRouters = routers.filter((r) => {
+    if (selectedSiteId === '') return true
+    return r.site_id === selectedSiteId
+  })
+
+  const onlineCount = filteredRouters.filter((r) => r.status === 'online').length
+  const offlineCount = filteredRouters.filter((r) => r.status === 'offline').length
 
   if (isLoading) {
     return (
@@ -152,10 +170,10 @@ export function RoutersPage() {
       {/* ── Stats cards ── */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         {[
-          { label: 'Total', value: routers.length, icon: Server, color: 'text-brand-400' },
+          { label: 'Total', value: filteredRouters.length, icon: Server, color: 'text-brand-400' },
           { label: 'En línea', value: onlineCount, icon: Wifi, color: 'text-emerald-400' },
           { label: 'Fuera de línea', value: offlineCount, icon: Wifi, color: 'text-red-400' },
-          { label: 'Desconocido', value: routers.length - onlineCount - offlineCount, icon: Clock, color: 'text-slate-400' },
+          { label: 'Desconocido', value: filteredRouters.length - onlineCount - offlineCount, icon: Clock, color: 'text-slate-400' },
         ].map(({ label, value, icon: Icon, color }) => (
           <div key={label} className="glass-card p-4">
             <div className="flex items-center justify-between mb-2">
@@ -183,59 +201,104 @@ export function RoutersPage() {
           )}
         </div>
       ) : (
-        <div className="glass-card overflow-hidden">
-          <table className="data-table">
-            <thead>
-              <tr>
-                <th>Router</th>
-                <th className="hidden md:table-cell">IP / Host</th>
-                <th>Estado</th>
-                <th className="hidden lg:table-cell">Versión ROS</th>
-                <th className="hidden lg:table-cell">Uptime</th>
-              </tr>
-            </thead>
-            <tbody>
-              {routers.map((router) => (
-                <tr
-                  key={router.id}
-                  onClick={() => navigate(`/routers/${router.id}`)}
-                  className="group cursor-pointer hover:bg-secondary/40 transition-colors"
-                >
-                  <td>
-                    <div className="flex items-center gap-3">
-                      <div className="w-8 h-8 bg-brand-900/50 rounded-lg flex items-center justify-center border border-brand-800/50">
-                        <Server className="w-4 h-4 text-brand-400" />
-                      </div>
-                      <div>
-                        <p className="font-medium text-foreground text-sm">{router.nombre}</p>
-                        {router.modelo_hw && (
-                          <p className="text-xs text-muted-foreground">{router.modelo_hw}</p>
+        <div className="space-y-4">
+          {/* ── Filtros ── */}
+          <div className="glass-card p-4 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+            <div className="flex items-center gap-2 text-xs font-semibold text-brand-400 tracking-wider uppercase">
+              <SlidersHorizontal className="w-3.5 h-3.5" />
+              Filtros de búsqueda
+            </div>
+            <div className="w-full sm:w-64">
+              <select
+                id="filter-router-site"
+                value={selectedSiteId}
+                onChange={(e) => setSelectedSiteId(e.target.value)}
+                className="input-field cursor-pointer font-medium"
+              >
+                <option value="">Todos los Sitios</option>
+                {sites.map((site: any) => (
+                  <option key={site.id} value={site.id}>
+                    {site.nombre}
+                  </option>
+                ))}
+              </select>
+            </div>
+          </div>
+
+          {filteredRouters.length === 0 ? (
+            <div className="glass-card p-12 text-center">
+              <Server className="w-12 h-12 text-muted-foreground mx-auto mb-4" />
+              <h3 className="text-lg font-semibold text-foreground mb-2">Sin routers en este sitio</h3>
+              <p className="text-muted-foreground text-sm">
+                No hay ningún router MikroTik asociado al sitio seleccionado.
+              </p>
+            </div>
+          ) : (
+            <div className="glass-card overflow-hidden">
+              <table className="data-table">
+                <thead>
+                  <tr>
+                    <th>Router</th>
+                    <th>Sitio</th>
+                    <th className="hidden md:table-cell">IP / Host</th>
+                    <th>Estado</th>
+                    <th className="hidden lg:table-cell">Versión ROS</th>
+                    <th className="hidden lg:table-cell">Uptime</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {filteredRouters.map((router) => (
+                    <tr
+                      key={router.id}
+                      onClick={() => navigate(`/routers/${router.id}`)}
+                      className="group cursor-pointer hover:bg-secondary/40 transition-colors"
+                    >
+                      <td>
+                        <div className="flex items-center gap-3">
+                          <div className="w-8 h-8 bg-brand-900/50 rounded-lg flex items-center justify-center border border-brand-800/50">
+                            <Server className="w-4 h-4 text-brand-400" />
+                          </div>
+                          <div>
+                            <p className="font-medium text-foreground text-sm">{router.nombre}</p>
+                            {router.modelo_hw && (
+                              <p className="text-xs text-muted-foreground">{router.modelo_hw}</p>
+                            )}
+                          </div>
+                        </div>
+                      </td>
+                      <td>
+                        {router.site_nombre ? (
+                          <span className="inline-flex items-center text-xs font-semibold px-2 py-0.5 rounded bg-brand-500/10 text-brand-400 border border-brand-500/20">
+                            {router.site_nombre}
+                          </span>
+                        ) : (
+                          <span className="text-xs text-muted-foreground italic">Sin Sitio</span>
                         )}
-                      </div>
-                    </div>
-                  </td>
-                  <td className="hidden md:table-cell">
-                    <code className="text-xs bg-secondary/50 px-2 py-1 rounded text-muted-foreground font-mono">
-                      {router.ip}:{router.puerto_api}
-                    </code>
-                  </td>
-                  <td>
-                    <RouterStatusBadge status={router.status ?? 'unknown'} />
-                  </td>
-                  <td className="hidden lg:table-cell">
-                    <span className="text-xs text-muted-foreground font-mono">
-                      {router.ros_version ?? '—'}
-                    </span>
-                  </td>
-                  <td className="hidden lg:table-cell">
-                    <span className="text-xs text-muted-foreground">
-                      {formatUptime(router.uptime)}
-                    </span>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+                      </td>
+                      <td className="hidden md:table-cell">
+                        <code className="text-xs bg-secondary/50 px-2 py-1 rounded text-muted-foreground font-mono">
+                          {router.ip}:{router.puerto_api}
+                        </code>
+                      </td>
+                      <td>
+                        <RouterStatusBadge status={router.status ?? 'unknown'} />
+                      </td>
+                      <td className="hidden lg:table-cell">
+                        <span className="text-xs text-muted-foreground font-mono">
+                          {router.ros_version ?? '—'}
+                        </span>
+                      </td>
+                      <td className="hidden lg:table-cell">
+                        <span className="text-xs text-muted-foreground">
+                          {formatUptime(router.uptime)}
+                        </span>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
         </div>
       )}
 

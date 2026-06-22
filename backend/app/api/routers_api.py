@@ -10,6 +10,7 @@ from app.core.deps import AdminOnly, AdminOrTecnico, CurrentUser, DBSession
 from app.core.security import decrypt_secret, encrypt_secret
 from app.models.router import Router
 from app.models.client import Client
+from app.models.site import Site
 from app.models.static_ip import StaticIP
 from app.models.pppoe_profile import PPPoEProfile
 from app.schemas.pppoe import PPPoEProfileRead, PPPoESessionActive
@@ -37,6 +38,8 @@ router = APIRouter(prefix="/routers", tags=["routers"])
 def _enrich_with_status(r: Router, cached: RouterStatus | None) -> dict:
     """Combina datos del modelo con el estado cacheado de Redis."""
     data = RouterRead.model_validate(r).model_dump()
+    data["site_id"] = r.site_id
+    data["site_nombre"] = r.site_nombre
     if cached:
         data["status"] = cached.status
         data["uptime"] = cached.uptime
@@ -75,6 +78,19 @@ def create_router(payload: RouterCreate, db: DBSession, _: AdminOnly) -> Router:
     elif not address_list_name.startswith("isp_"):
         address_list_name = f"isp_{address_list_name}"
 
+    # Manejar creación o asignación de Sitio
+    site_id = payload.site_id
+    if payload.new_site_nombre and payload.new_site_nombre.strip():
+        new_site_name = payload.new_site_nombre.strip()
+        existing_site = db.query(Site).filter(Site.nombre == new_site_name).first()
+        if existing_site:
+            site_id = existing_site.id
+        else:
+            new_site = Site(nombre=new_site_name)
+            db.add(new_site)
+            db.flush()
+            site_id = new_site.id
+
     r = Router(
         nombre=payload.nombre,
         ip=payload.ip,
@@ -94,6 +110,7 @@ def create_router(payload: RouterCreate, db: DBSession, _: AdminOnly) -> Router:
         address_list=address_list_name,
         ancho_banda_up=payload.ancho_banda_up or 0,
         ancho_banda_down=payload.ancho_banda_down or 0,
+        site_id=site_id,
     )
     db.add(r)
     db.commit()
@@ -193,6 +210,22 @@ def update_router(
     update_data = payload.model_dump(exclude_unset=True)
     if "password_api" in update_data:
         update_data["password_enc"] = encrypt_secret(update_data.pop("password_api"))
+
+    # Manejar creación o asignación de Sitio
+    if "new_site_nombre" in update_data and update_data["new_site_nombre"] and update_data["new_site_nombre"].strip():
+        new_site_name = update_data.pop("new_site_nombre").strip()
+        existing_site = db.query(Site).filter(Site.nombre == new_site_name).first()
+        if existing_site:
+            r.site_id = existing_site.id
+        else:
+            new_site = Site(nombre=new_site_name)
+            db.add(new_site)
+            db.flush()
+            r.site_id = new_site.id
+        # Remover site_id si también viene en el dict para evitar sobreescribir
+        update_data.pop("site_id", None)
+    elif "site_id" in update_data:
+        r.site_id = update_data.pop("site_id")
 
     for field, value in update_data.items():
         setattr(r, field, value)

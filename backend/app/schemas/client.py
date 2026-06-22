@@ -123,6 +123,8 @@ class ClientResponse(ClientBase):
     router_nombre: str | None = None
     static_ip: StaticIPResponse | None = None
     pppoe_secret: PPPoESecretRead | None = None
+    site_id: uuid.UUID | None = None
+    site_nombre: str | None = None
 
 
 # Schema de respuesta de listado de clientes con paginación

@@ -12,6 +12,7 @@ from app.models.traffic_sample import TrafficSample
 from app.models.pppoe_profile import PPPoEProfile
 from app.models.pppoe_secret import PPPoESecret
 from app.models.custom_service import CustomService
+from app.models.site import Site
 
 
 

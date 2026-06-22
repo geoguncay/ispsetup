@@ -4,7 +4,7 @@ Modelo SQLAlchemy: Router
 import uuid
 from datetime import datetime
 
-from sqlalchemy import Boolean, DateTime, Float, Integer, String, Text, Uuid, func
+from sqlalchemy import Boolean, DateTime, Float, ForeignKey, Integer, String, Text, Uuid, func
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.core.database import Base
@@ -51,6 +51,16 @@ class Router(Base):
     # Relaciones PPPoE
     pppoe_profiles = relationship("PPPoEProfile", back_populates="router", cascade="all, delete-orphan")
     pppoe_secrets = relationship("PPPoESecret", back_populates="router", cascade="all, delete-orphan")
+
+    # Relación con Site
+    site_id: Mapped[uuid.UUID | None] = mapped_column(
+        Uuid(native_uuid=False), ForeignKey("sites.id"), nullable=True
+    )
+    site = relationship("Site", back_populates="routers")
+
+    @property
+    def site_nombre(self) -> str | None:
+        return self.site.nombre if self.site else None
 
     def __repr__(self) -> str:
         return f"<Router id={self.id} nombre={self.nombre} ip={self.ip}>"

@@ -74,8 +74,12 @@ def _enrich_client(client: Client, db: Session) -> dict:
 
     if client.router:
         data["router_nombre"] = client.router.nombre
+        data["site_id"] = client.router.site_id
+        data["site_nombre"] = client.router.site_nombre
     else:
         data["router_nombre"] = None
+        data["site_id"] = None
+        data["site_nombre"] = None
 
     # Static IP
     if client.static_ip:
@@ -112,6 +116,7 @@ def list_clients(
     _: AdminOrTecnico,
     router_id: uuid.UUID | None = None,
     plan_id: uuid.UUID | None = None,
+    site_id: uuid.UUID | None = None,
     activo: bool | None = None,
     tipo: str | None = None,
     search: str | None = None,
@@ -121,13 +126,16 @@ def list_clients(
     limit: int = 10,
 ) -> ClientListResponse:
     """
-    Lista clientes con filtros dinámicos (router, plan, estado, tipo de conexión, búsqueda por texto)
+    Lista clientes con filtros dinámicos (router, plan, estado, tipo de conexión, búsqueda por texto, sitio)
     y paginación.
     """
     query = db.query(Client)
 
     if router_id:
         query = query.filter(Client.router_id == router_id)
+
+    if site_id:
+        query = query.join(Router, Client.router_id == Router.id).filter(Router.site_id == site_id)
 
     if activo is not None:
         query = query.filter(Client.activo == activo)

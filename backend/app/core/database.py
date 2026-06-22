@@ -47,6 +47,15 @@ def run_migrations(bind_engine) -> None:
                 updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
             );
             """))
+            conn.execute(text("""
+            CREATE TABLE IF NOT EXISTS sites (
+                id VARCHAR(36) PRIMARY KEY,
+                nombre VARCHAR(120) NOT NULL UNIQUE,
+                created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+            );
+            """))
+            conn.execute(text("ALTER TABLE routers ADD COLUMN IF NOT EXISTS site_id VARCHAR(36) REFERENCES sites(id);"))
             conn.commit()
 
 

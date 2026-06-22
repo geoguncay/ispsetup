@@ -30,6 +30,8 @@ interface Client {
   static_ip?: { ip: string } | null
   email?: string | null
   created_at: string
+  site_id?: string | null
+  site_nombre?: string | null
 }
 
 interface Router {
@@ -66,6 +68,7 @@ export function ClientsPage() {
   const [search, setSearch] = useState('')
   const [routerId, setRouterId] = useState('')
   const [planId, setPlanId] = useState('')
+  const [siteId, setSiteId] = useState('')
   const [activo, setActivo] = useState('')
   const [tipo, setTipo] = useState('')
   const [page, setPage] = useState(1)
@@ -80,7 +83,7 @@ export function ClientsPage() {
   const [formOpen, setFormOpen] = useState(false)
   const [editingClient, setEditingClient] = useState<Client | null>(null)
 
-  // Consultar Routers y Planes para los dropdowns
+  // Consultar Routers, Planes y Sitios para los dropdowns
   const { data: routers = [] } = useQuery<Router[]>({
     queryKey: ['routers-list-dropdown'],
     queryFn: async () => {
@@ -97,9 +100,17 @@ export function ClientsPage() {
     }
   })
 
+  const { data: sites = [] } = useQuery<any[]>({
+    queryKey: ['sites-list-dropdown'],
+    queryFn: async () => {
+      const { data } = await api.get('/sites')
+      return data
+    }
+  })
+
   // Consultar Clientes
   const { data: clientsData = { items: [], total: 0 }, isLoading, isFetching, refetch } = useQuery({
-    queryKey: ['clients', page, search, routerId, planId, activo, tipo, sortField, sortDir],
+    queryKey: ['clients', page, search, routerId, planId, siteId, activo, tipo, sortField, sortDir],
     queryFn: async () => {
       const params: any = {
         skip: (page - 1) * limit,
@@ -110,6 +121,7 @@ export function ClientsPage() {
       if (search.trim()) params.search = search
       if (routerId) params.router_id = routerId
       if (planId) params.plan_id = planId
+      if (siteId) params.site_id = siteId
       if (activo) params.activo = activo === 'true'
       if (tipo) params.tipo = tipo
 
@@ -198,7 +210,7 @@ export function ClientsPage() {
           <SlidersHorizontal className="w-3.5 h-3.5" />
           Filtros de búsqueda
         </div>
-        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-5 gap-3">
+        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-6 gap-3">
           {/* Búsqueda */}
           <div className="relative col-span-1 sm:col-span-2 md:col-span-1">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
@@ -210,6 +222,19 @@ export function ClientsPage() {
               className="input-field pl-9"
             />
           </div>
+
+          {/* Sitio */}
+          <select
+            id="filter-client-site"
+            value={siteId}
+            onChange={(e) => { setSiteId(e.target.value); setPage(1) }}
+            className="input-field cursor-pointer"
+          >
+            <option value="">Todos los sitios</option>
+            {sites.map((s: any) => (
+              <option key={s.id} value={s.id}>{s.nombre}</option>
+            ))}
+          </select>
 
           {/* Router */}
           <select
@@ -428,6 +453,9 @@ export function ClientsPage() {
                           )}
                         </div>
                       </th>
+                      <th className="hidden lg:table-cell">
+                        Sitio
+                      </th>
                       <th onClick={() => handleSort('router')} className="hidden lg:table-cell cursor-pointer select-none hover:bg-secondary/20 transition-colors">
                         <div className="flex items-center gap-1">
                           <span>Router</span>
@@ -503,6 +531,15 @@ export function ClientsPage() {
                             }`}>
                             {client.tipo === 'static' ? 'Estática' : 'PPPoE'}
                           </span>
+                        </td>
+                        <td className="hidden lg:table-cell">
+                          {client.site_nombre ? (
+                            <span className="inline-flex items-center text-xs font-semibold px-2 py-0.5 rounded bg-brand-500/10 text-brand-400 border border-brand-500/20">
+                              {client.site_nombre}
+                            </span>
+                          ) : (
+                            <span className="text-xs text-muted-foreground italic">Sin Sitio</span>
+                          )}
                         </td>
                         <td className="hidden lg:table-cell">
                           <span className="text-xs text-muted-foreground font-medium">

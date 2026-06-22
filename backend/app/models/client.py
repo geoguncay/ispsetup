@@ -46,5 +46,13 @@ class Client(Base):
     payments = relationship("ClientPayment", back_populates="client", cascade="all, delete-orphan")
     tickets = relationship("ClientTicket", back_populates="client", cascade="all, delete-orphan")
 
+    @property
+    def site_id(self) -> uuid.UUID | None:
+        return self.router.site_id if self.router else None
+
+    @property
+    def site_nombre(self) -> str | None:
+        return self.router.site.nombre if (self.router and self.router.site) else None
+
     def __repr__(self) -> str:
         return f"<Client id={self.id} nombre={self.nombre} cedula={self.cedula}>"

@@ -33,6 +33,10 @@ class RouterCreate(BaseModel):
     address_list: str | None = Field(default=None, max_length=100)
     ancho_banda_up: int | None = Field(default=0, ge=0)
     ancho_banda_down: int | None = Field(default=0, ge=0)
+    
+    # Campos de Sitios
+    site_id: uuid.UUID | None = None
+    new_site_nombre: str | None = Field(default=None, max_length=120)
 
 
 
@@ -57,6 +61,10 @@ class RouterUpdate(BaseModel):
     address_list: str | None = None
     ancho_banda_up: int | None = None
     ancho_banda_down: int | None = None
+
+    # Campos de Sitios
+    site_id: uuid.UUID | None = None
+    new_site_nombre: str | None = Field(default=None, max_length=120)
 
 
 
@@ -83,6 +91,10 @@ class RouterRead(BaseModel):
     address_list: str | None
     ancho_banda_up: int | None
     ancho_banda_down: int | None
+
+    # Campos de Sitios
+    site_id: uuid.UUID | None = None
+    site_nombre: str | None = None
 
     created_at: datetime
     updated_at: datetime

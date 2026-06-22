@@ -656,3 +656,100 @@ def test_create_and_update_client_custom_created_at(client: TestClient):
     assert "2024-12-25" in update_data["created_at"]
 
 
+def test_client_site_filtering(client: TestClient):
+    login = client.post(
+        "/api/auth/login",
+        json={"email": "tecnico@test.com", "password": "tecnicopass123"},
+    )
+    token = login.json()["access_token"]
+
+    db = TestingSessionLocal()
+    from app.models.site import Site
+    site1 = Site(nombre="Site A")
+    site2 = Site(nombre="Site B")
+    db.add(site1)
+    db.add(site2)
+    db.commit()
+
+    router1 = Router(
+        nombre="Router Site A",
+        ip="10.0.0.10",
+        puerto_api=8728,
+        usuario_api="admin",
+        password_enc="encrypted_pass",
+        activo=True,
+        site_id=site1.id,
+    )
+    router2 = Router(
+        nombre="Router Site B",
+        ip="10.0.0.20",
+        puerto_api=8728,
+        usuario_api="admin",
+        password_enc="encrypted_pass",
+        activo=True,
+        site_id=site2.id,
+    )
+    db.add(router1)
+    db.add(router2)
+    db.commit()
+
+    # Cliente en Site A
+    response_a = client.post(
+        "/api/clients",
+        headers={"Authorization": f"Bearer {token}"},
+        json={
+            "nombre": "Client Site A",
+            "cedula": "1724024888",
+            "telefono": "0999999999",
+            "direccion": "Quito A",
+            "router_id": str(router1.id),
+            "tipo": "static",
+            "ip": "192.168.10.10",
+        },
+    )
+    assert response_a.status_code == 201
+
+    # Cliente en Site B
+    response_b = client.post(
+        "/api/clients",
+        headers={"Authorization": f"Bearer {token}"},
+        json={
+            "nombre": "Client Site B",
+            "cedula": "0926079971",
+            "telefono": "0988888888",
+            "direccion": "Guayaquil B",
+            "router_id": str(router2.id),
+            "tipo": "static",
+            "ip": "192.168.10.20",
+        },
+    )
+    assert response_b.status_code == 201
+
+    # Consultar clientes filtrando por Site A
+    response_filter_a = client.get(
+        f"/api/clients?site_id={site1.id}",
+        headers={"Authorization": f"Bearer {token}"},
+    )
+    assert response_filter_a.status_code == 200
+    data_a = response_filter_a.json()
+    assert data_a["total"] == 1
+    assert data_a["items"][0]["nombre"] == "Client Site A"
+    assert data_a["items"][0]["site_nombre"] == "Site A"
+    assert data_a["items"][0]["site_id"] == str(site1.id)
+
+    # Consultar clientes filtrando por Site B
+    response_filter_b = client.get(
+        f"/api/clients?site_id={site2.id}",
+        headers={"Authorization": f"Bearer {token}"},
+    )
+    assert response_filter_b.status_code == 200
+    data_b = response_filter_b.json()
+    assert data_b["total"] == 1
+    assert data_b["items"][0]["nombre"] == "Client Site B"
+    assert data_b["items"][0]["site_nombre"] == "Site B"
+    assert data_b["items"][0]["site_id"] == str(site2.id)
+
+    db.close()
+
+
+

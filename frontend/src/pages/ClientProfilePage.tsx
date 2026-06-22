@@ -459,9 +459,25 @@ export function ClientProfilePage() {
                   <Wifi className="w-4 h-4 text-brand-400 mt-1 flex-shrink-0" />
                   <div>
                     <p className="text-xs text-muted-foreground">Tipo de Conexión</p>
-                    <p className="text-sm font-semibold text-foreground">
+                    <p className="text-sm font-semibold text-foreground font-sans">
                       <span className="capitalize">{client.tipo === 'static' ? 'IP Estática' : 'PPPoE'}</span>
                       <span className="text-muted-foreground text-xs font-normal"> en {client.router_nombre ?? 'Router Desconocido'}</span>
+                    </p>
+                  </div>
+                </div>
+
+                <div className="flex items-start gap-3">
+                  <MapPin className="w-4 h-4 text-brand-400 mt-1 flex-shrink-0" />
+                  <div>
+                    <p className="text-xs text-muted-foreground">Sitio / Ubicación</p>
+                    <p className="text-sm font-semibold text-foreground">
+                      {client.site_nombre ? (
+                        <span className="inline-flex items-center text-xs font-semibold px-2 py-0.5 rounded bg-brand-500/10 text-brand-400 border border-brand-500/20">
+                          {client.site_nombre}
+                        </span>
+                      ) : (
+                        <span className="text-xs text-muted-foreground italic">Sin Sitio</span>
+                      )}
                     </p>
                   </div>
                 </div>

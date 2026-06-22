@@ -6,7 +6,7 @@ import { useForm, Resolver } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
 import { X, Loader2, CheckCircle2, XCircle, Plug, Eye, EyeOff, Trash2, MapPin, Server, Key, Activity, Check } from 'lucide-react'
-import { useMutation } from '@tanstack/react-query'
+import { useMutation, useQuery } from '@tanstack/react-query'
 import { MapContainer, TileLayer, Marker, useMapEvents, useMap } from 'react-leaflet'
 import L from 'leaflet'
 import 'leaflet/dist/leaflet.css'
@@ -48,6 +48,8 @@ const routerSchema = z.object({
   address_list: z.string().max(100).optional().nullable(),
   ancho_banda_up: z.coerce.number().min(0).default(0),
   ancho_banda_down: z.coerce.number().min(0).default(0),
+  site_id: z.string().optional().nullable(),
+  new_site_nombre: z.string().max(120).optional().nullable(),
 }).refine(
   (data) => {
     // La contraseña es obligatoria solo si es un router nuevo (no hay id)
@@ -59,6 +61,18 @@ const routerSchema = z.object({
   {
     message: 'Requerido',
     path: ['password_api'],
+  }
+).refine(
+  (data) => {
+    // Si site_id es 'new', new_site_nombre es obligatorio
+    if (data.site_id === 'new' && (!data.new_site_nombre || data.new_site_nombre.trim() === '')) {
+      return false
+    }
+    return true
+  },
+  {
+    message: 'Ingrese el nombre del nuevo sitio',
+    path: ['new_site_nombre'],
   }
 )
 
@@ -86,6 +100,8 @@ interface RouterFormDialogProps {
     address_list?: string | null;
     ancho_banda_up?: number | null;
     ancho_banda_down?: number | null;
+    site_id?: string | null;
+    site_nombre?: string | null;
   } | null
   onSuccess: () => void
   onDelete?: (id: string) => void
@@ -103,6 +119,16 @@ export function RouterFormDialog({ open, onClose, router, onSuccess, onDelete }:
   const isEdit = !!router
   const [testResult, setTestResult] = useState<TestResult | null>(null)
   const [isTesting, setIsTesting] = useState(false)
+
+  // Consultar lista de Sitios
+  const { data: sites = [] } = useQuery<any[]>({
+    queryKey: ['sites-list'],
+    queryFn: async () => {
+      const { data } = await api.get('/sites')
+      return data
+    },
+    enabled: open,
+  })
   const [showPassword, setShowPassword] = useState(false)
   const [step, setStep] = useState<1 | 2 | 3>(1)
 
@@ -174,6 +200,8 @@ export function RouterFormDialog({ open, onClose, router, onSuccess, onDelete }:
           address_list: router.address_list ?? '',
           ancho_banda_up: router.ancho_banda_up ?? 0,
           ancho_banda_down: router.ancho_banda_down ?? 0,
+          site_id: router.site_id ?? '',
+          new_site_nombre: '',
         })
       } else {
         reset({
@@ -193,6 +221,8 @@ export function RouterFormDialog({ open, onClose, router, onSuccess, onDelete }:
           ancho_banda_down: 0,
           cola_padre: '',
           address_list: '',
+          site_id: '',
+          new_site_nombre: '',
         })
         handleGetLocation()
       }
@@ -201,6 +231,8 @@ export function RouterFormDialog({ open, onClose, router, onSuccess, onDelete }:
 
   // Lógica reactiva: autocompletar cola padre y address list a partir del nombre del router
   const nombreVal = watch('nombre')
+  const selectedSiteId = watch('site_id')
+  
   useEffect(() => {
     if (!isEdit && nombreVal) {
       const limpio = nombreVal
@@ -223,6 +255,16 @@ export function RouterFormDialog({ open, onClose, router, onSuccess, onDelete }:
       }
       if (payload.latitud === 0 || isNaN(Number(payload.latitud))) payload.latitud = null
       if (payload.longitud === 0 || isNaN(Number(payload.longitud))) payload.longitud = null
+
+      // Saneamiento de campos de Sitios
+      if (payload.site_id === 'new') {
+        payload.site_id = null
+      } else {
+        payload.new_site_nombre = null
+      }
+      if (payload.site_id === '') {
+        payload.site_id = null
+      }
 
       if (isEdit) {
         await api.put(`/routers/${router!.id}`, payload)
@@ -405,7 +447,7 @@ export function RouterFormDialog({ open, onClose, router, onSuccess, onDelete }:
                   <Server className="w-4 h-4" /> Especificaciones del Router
                 </div>
 
-                {/* Nombre */}
+                 {/* Nombre */}
                 <div>
                   <label className="block text-sm font-medium text-foreground mb-1.5">
                     Nombre del router *
@@ -419,6 +461,47 @@ export function RouterFormDialog({ open, onClose, router, onSuccess, onDelete }:
                   />
                   {errors.nombre && <p className="text-xs text-destructive mt-1">{errors.nombre.message}</p>}
                 </div>
+
+                {/* Sitio / Ubicación */}
+                <div>
+                  <label className="block text-sm font-medium text-foreground mb-1.5">
+                    Sitio / Ubicación
+                  </label>
+                  <select
+                    id="router-site"
+                    {...register('site_id')}
+                    className="input-field cursor-pointer font-medium"
+                  >
+                    <option value="">Sin Sitio (General)</option>
+                    {sites.map((site: any) => (
+                      <option key={site.id} value={site.id}>
+                        {site.nombre}
+                      </option>
+                    ))}
+                    <option value="new">+ Crear nuevo sitio...</option>
+                  </select>
+                </div>
+
+                {/* Nuevo Sitio Campo de texto (Condicional) */}
+                {selectedSiteId === 'new' && (
+                  <div className="animate-fade-in space-y-1">
+                    <label className="block text-xs font-semibold text-brand-400">
+                      Nombre del nuevo sitio *
+                    </label>
+                    <input
+                      id="router-new-site"
+                      type="text"
+                      placeholder="Ej. Torre Central, Nodo Norte"
+                      {...register('new_site_nombre')}
+                      className="input-field"
+                    />
+                    {errors.new_site_nombre && (
+                      <p className="text-xs text-destructive mt-1">
+                        {errors.new_site_nombre.message}
+                      </p>
+                    )}
+                  </div>
+                )}
 
                 {/* Modelo HW (opcional) */}
                 <div>
