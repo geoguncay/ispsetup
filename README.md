@@ -1,10 +1,7 @@
-# ISP Platform 🌐
+# 📡 Sistema de Gestión de Red ISP – Administración de Redes de Nueva Generación
+
 
 > **Sistema de gestión centralizada para ISPs / WISPs** con integración MikroTik RouterOS API, facturación electrónica ecuatoriana (SRI) y monitoreo en tiempo real.
-
-## Documentación
-
-- [Guía del proyecto](docs/GUIA_DEL_PROYECTO.md): visión general, stack, módulos, variables de entorno y arranque.
 
 ---
 
@@ -25,29 +22,6 @@ A continuación se detallan los diagramas de arquitectura utilizando el flujo de
 ### 3. Lógica Interna del Backend
 
 ![Lógica del Backend](architecture/isp_arch_backend_internals.svg)
-
----
-
-## ✨ Características y Módulos Recientes
-
-La plataforma ha sido mejorada recientemente con varias características premium y de alto nivel:
-
-1. **Monitoreo de Tráfico Consolidado y Dinámico**
-   - **Gráfico Unificado**: Integra en un solo panel interactivo el tráfico **En vivo** (telemetría vía WebSockets de Redis) y el **historial de consumo** agrupado por temporalidades (1 hora, 24 horas, 7 días, 30 días).
-   - **Indicadores en Cabecera**: Muestra de forma dinámica la tasa de velocidad actual/promedio de descarga y subida, así como el **volumen total de datos descargados** calculado por integración matemática en base a las tasas de la temporalidad.
-   - **Listado de Clientes Expandido**: Tabla detallada de clientes activos que incluye velocidades de transmisión y columnas de volumen (**Vol. Descarga**, **Vol. Subida** y **Vol. Total**) perfectamente alineadas a la derecha con estilos responsivos.
-
-2. **Personalización de Marca y Carga de Logotipo**
-   - Panel dinámico para la actualización del nombre comercial de la empresa y carga del logotipo (formatos JPG, PNG, WEBP, SVG) con almacenamiento local y preview en tiempo real en la barra lateral.
-
-3. **Seguridad y Control de Sesión**
-   - Opción para configurar desconexión automática por inactividad del usuario (**Timeout de Inactividad**) en minutos, cerrando la sesión de forma proactiva al detectar desuso del mouse o teclado.
-
-4. **Gestión de Servicios Personalizados**
-   - Módulo completo para administrar cobros adicionales a clientes (soporte técnico, alquiler de enrutadores, servicios adicionales) con impuestos integrados y estado activo/inactivo.
-
-5. **Gestión PPPoE Automatizada**
-   - Creación y mapeo dinámico de perfiles PPPoE directamente en base al plan de ancho de banda seleccionado, evitando dependencias externas de sincronización manual de MikroTik.
 
 ---
 
