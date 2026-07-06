@@ -54,7 +54,7 @@ def get_current_user(
         raise credentials_exception
 
     user = db.query(User).filter(User.id == user_id).first()
-    if user is None or not user.activo:
+    if user is None or not user.active:
         raise credentials_exception
 
     return user
@@ -67,10 +67,10 @@ CurrentUser = Annotated[User, Depends(get_current_user)]
 def require_role(*roles: str):
     """
     Dependency factory que valida que el usuario tenga uno de los roles indicados.
-    Uso: Depends(require_role("admin", "tecnico"))
+    Uso: Depends(require_role("admin", "technician"))
     """
     def _checker(current_user: CurrentUser) -> User:
-        if current_user.rol not in roles:
+        if current_user.role not in roles:
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
                 detail=f"Se requiere rol: {' o '.join(roles)}",
@@ -81,4 +81,4 @@ def require_role(*roles: str):
 
 
 AdminOnly = Annotated[User, Depends(require_role("admin"))]
-AdminOrTecnico = Annotated[User, Depends(require_role("admin", "tecnico"))]
+AdminOrTechnician = Annotated[User, Depends(require_role("admin", "technician"))]

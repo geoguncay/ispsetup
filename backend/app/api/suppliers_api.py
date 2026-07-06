@@ -5,7 +5,7 @@ import uuid
 from fastapi import APIRouter, HTTPException, status
 from sqlalchemy.orm import Session
 
-from app.core.deps import AdminOrTecnico, DBSession
+from app.core.deps import AdminOrTechnician, DBSession
 from app.models.supplier import Supplier
 from app.schemas.supplier_schema import SupplierCreate, SupplierUpdate, SupplierResponse
 
@@ -15,7 +15,7 @@ router = APIRouter(prefix="/suppliers", tags=["suppliers"])
 @router.get("", response_model=list[SupplierResponse])
 def list_suppliers(
     db: DBSession,
-    _: AdminOrTecnico,
+    _: AdminOrTechnician,
     search: str | None = None,
 ) -> list[Supplier]:
     """Lista todos los proveedores con buscador opcional."""
@@ -23,18 +23,18 @@ def list_suppliers(
     if search:
         search_filter = f"%{search}%"
         query = query.filter(
-            (Supplier.nombre.ilike(search_filter))
+            (Supplier.name.ilike(search_filter))
             | (Supplier.ruc.ilike(search_filter))
-            | (Supplier.telefono.ilike(search_filter))
+            | (Supplier.phone.ilike(search_filter))
         )
-    return query.order_by(Supplier.nombre.asc()).all()
+    return query.order_by(Supplier.name.asc()).all()
 
 
 @router.get("/{supplier_id}", response_model=SupplierResponse)
 def get_supplier(
     supplier_id: uuid.UUID,
     db: DBSession,
-    _: AdminOrTecnico,
+    _: AdminOrTechnician,
 ) -> Supplier:
     """Obtiene el detalle de un proveedor."""
     supplier = db.get(Supplier, supplier_id)
@@ -47,7 +47,7 @@ def get_supplier(
 def create_supplier(
     payload: SupplierCreate,
     db: DBSession,
-    _: AdminOrTecnico,
+    _: AdminOrTechnician,
 ) -> Supplier:
     """Crea un nuevo proveedor."""
     exists = db.query(Supplier).filter(Supplier.ruc == payload.ruc).first()
@@ -68,7 +68,7 @@ def update_supplier(
     supplier_id: uuid.UUID,
     payload: SupplierUpdate,
     db: DBSession,
-    _: AdminOrTecnico,
+    _: AdminOrTechnician,
 ) -> Supplier:
     """Edita un proveedor."""
     supplier = db.get(Supplier, supplier_id)
@@ -97,7 +97,7 @@ def update_supplier(
 def delete_supplier(
     supplier_id: uuid.UUID,
     db: DBSession,
-    _: AdminOrTecnico,
+    _: AdminOrTechnician,
 ) -> None:
     """Elimina un proveedor de la base de datos."""
     supplier = db.get(Supplier, supplier_id)

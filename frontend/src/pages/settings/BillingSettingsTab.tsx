@@ -12,8 +12,8 @@ function BillingGeneralForm({
   data, onSaved, setStatusMessage,
 }: { data: BillingSettings; onSaved: () => void; setStatusMessage: StatusSetter }) {
   const [dirty, setDirty] = useState(false)
-  const [generacionModo, setGeneracionModo] = useState<'dia_fijo' | 'fecha_corte' | 'inicio_facturacion'>(data.billing_generacion_modo || 'dia_fijo')
-  const [vencimientoModo, setVencimientoModo] = useState<'plazo_fijo' | 'fecha_corte'>(data.billing_vencimiento_modo || 'plazo_fijo')
+  const [generationMode, setGenerationMode] = useState<'fixed_day' | 'cutoff_date' | 'billing_start'>(data.billing_generation_mode || 'fixed_day')
+  const [dueMode, setDueMode] = useState<'fixed_term' | 'cutoff_date'>(data.billing_due_mode || 'fixed_term')
 
   const mutation = useMutation({
     mutationFn: updateBilling,
@@ -42,22 +42,22 @@ function BillingGeneralForm({
           e.preventDefault()
           const target = e.currentTarget as any
           mutation.mutate({
-            billing_hora_generacion: target.horaGeneracion.value,
-            billing_ciclo: target.cicloFacturacion.value,
-            billing_modo_precio: target.modoPrecio.value,
-            billing_generacion_modo: target.generacionModo.value,
-            ...(target.diaFijoGeneracion ? { billing_default_dia_pago: parseInt(target.diaFijoGeneracion.value, 10) } : {}),
-            billing_auto_aprobar_enviar: target.autoAprobarEnviar.checked,
-            billing_detener_suspendidos: target.detenerSuspendidos.checked,
+            billing_generation_time: target.generationTime.value,
+            billing_cycle: target.billingCycle.value,
+            billing_price_mode: target.priceMode.value,
+            billing_generation_mode: target.generationMode.value,
+            ...(target.fixedDayGeneration ? { billing_default_payment_day: parseInt(target.fixedDayGeneration.value, 10) } : {}),
+            billing_auto_approve_send: target.autoApproveSend.checked,
+            billing_stop_suspended: target.stopSuspended.checked,
             billing_notify_new_invoice: target.notifyNewInvoice.checked,
             billing_attach_pdf_receipt: target.attachPdfReceipt.checked,
-            billing_vencimiento_modo: target.vencimientoModo.value,
-            billing_vencimiento_hora: target.vencimientoHora.value,
-            ...(target.defaultDiasGracia ? { billing_default_dias_gracia: parseInt(target.defaultDiasGracia.value, 10) } : {}),
-            billing_aviso_nueva_factura: target.avisoNuevaFactura.checked,
-            billing_aviso_previo_dias: parseInt(target.avisoPrevioDias.value, 10),
-            billing_recordatorios_pago: target.recordatoriosPago.checked,
-            billing_recordatorio_frecuencia_dias: parseInt(target.recordatorioFrecuenciaDias.value, 10),
+            billing_due_mode: target.dueMode.value,
+            billing_due_time: target.dueTime.value,
+            ...(target.defaultGraceDays ? { billing_default_grace_days: parseInt(target.defaultGraceDays.value, 10) } : {}),
+            billing_advance_notice_enabled: target.advanceNoticeEnabled.checked,
+            billing_advance_notice_days: parseInt(target.advanceNoticeDays.value, 10),
+            billing_payment_reminders: target.paymentReminders.checked,
+            billing_reminder_frequency_days: parseInt(target.reminderFrequencyDays.value, 10),
           })
         }}
         onChange={() => setDirty(true)}
@@ -69,15 +69,15 @@ function BillingGeneralForm({
               Ciclo de facturación por defecto
             </label>
             <select
-              name="cicloFacturacion"
-              defaultValue={data.billing_ciclo || 'mensual'}
+              name="billingCycle"
+              defaultValue={data.billing_cycle || 'monthly'}
               className="input-field"
             >
-              <option value="mensual">Mensual</option>
-              <option value="bimestral">Bimestral</option>
-              <option value="trimestral">Trimestral</option>
-              <option value="semestral">Semestral</option>
-              <option value="anual">Anual</option>
+              <option value="monthly">Mensual</option>
+              <option value="bimonthly">Bimestral</option>
+              <option value="quarterly">Trimestral</option>
+              <option value="biannual">Semestral</option>
+              <option value="annual">Anual</option>
             </select>
           </div>
 
@@ -86,12 +86,12 @@ function BillingGeneralForm({
               Modo de precio
             </label>
             <select
-              name="modoPrecio"
-              defaultValue={data.billing_modo_precio || 'incluido'}
+              name="priceMode"
+              defaultValue={data.billing_price_mode || 'included'}
               className="input-field"
             >
-              <option value="incluido">Precios incluyendo impuestos</option>
-              <option value="excluido">Precios excluyendo impuestos</option>
+              <option value="included">Precios incluyendo impuestos</option>
+              <option value="excluded">Precios excluyendo impuestos</option>
             </select>
           </div>
         </div>
@@ -105,55 +105,55 @@ function BillingGeneralForm({
 
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
             <div className="space-y-1.5">
-              <label htmlFor="generacionModo" className="text-xs font-semibold text-muted-foreground uppercase tracking-wider block">
+              <label htmlFor="generationMode" className="text-xs font-semibold text-muted-foreground uppercase tracking-wider block">
                 Determina el día
               </label>
               <select
-                id="generacionModo"
-                name="generacionModo"
-                defaultValue={data.billing_generacion_modo || 'dia_fijo'}
-                onChange={(e) => setGeneracionModo(e.target.value as 'dia_fijo' | 'fecha_corte' | 'inicio_facturacion')}
+                id="generationMode"
+                name="generationMode"
+                defaultValue={data.billing_generation_mode || 'fixed_day'}
+                onChange={(e) => setGenerationMode(e.target.value as 'fixed_day' | 'cutoff_date' | 'billing_start')}
                 className="input-field"
               >
-                <option value="dia_fijo">Día fijo del mes</option>
-                <option value="fecha_corte">Día de corte del cliente</option>
-                <option value="inicio_facturacion">Inicio de facturación del cliente</option>
+                <option value="fixed_day">Día fijo del mes</option>
+                <option value="cutoff_date">Día de corte del cliente</option>
+                <option value="billing_start">Inicio de facturación del cliente</option>
               </select>
               <span className="text-[11px] text-muted-foreground block">
-                {generacionModo === 'fecha_corte'
+                {generationMode === 'cutoff_date'
                   ? 'La factura se genera el mismo día de corte configurado en el perfil de cada cliente.'
-                  : generacionModo === 'inicio_facturacion'
+                  : generationMode === 'billing_start'
                   ? 'La factura se genera el mismo día del mes en que inició la facturación de cada cliente.'
                   : 'La factura se genera el mismo día del mes para todos los clientes (configurable a la derecha).'}
               </span>
             </div>
 
-            {generacionModo === 'dia_fijo' && (
+            {generationMode === 'fixed_day' && (
               <div className="space-y-1.5">
-                <label htmlFor="diaFijoGeneracion" className="text-xs font-semibold text-muted-foreground uppercase tracking-wider block">
+                <label htmlFor="fixedDayGeneration" className="text-xs font-semibold text-muted-foreground uppercase tracking-wider block">
                   Día del mes
                 </label>
                 <input
-                  id="diaFijoGeneracion"
-                  name="diaFijoGeneracion"
+                  id="fixedDayGeneration"
+                  name="fixedDayGeneration"
                   type="number"
                   min="1"
                   max="28"
-                  defaultValue={String(data.billing_default_dia_pago ?? 5)}
+                  defaultValue={String(data.billing_default_payment_day ?? 5)}
                   className="input-field font-mono"
                 />
               </div>
             )}
 
             <div className="space-y-1.5">
-              <label htmlFor="horaGeneracion" className="text-xs font-semibold text-muted-foreground uppercase tracking-wider block">
+              <label htmlFor="generationTime" className="text-xs font-semibold text-muted-foreground uppercase tracking-wider block">
                 Hora de generación
               </label>
               <input
-                id="horaGeneracion"
-                name="horaGeneracion"
+                id="generationTime"
+                name="generationTime"
                 type="time"
-                defaultValue={data.billing_hora_generacion || '08:00'}
+                defaultValue={data.billing_generation_time || '08:00'}
                 className="input-field font-mono"
               />
             </div>
@@ -169,54 +169,54 @@ function BillingGeneralForm({
 
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
             <div className="space-y-1.5">
-              <label htmlFor="vencimientoModo" className="text-xs font-semibold text-muted-foreground uppercase tracking-wider block">
+              <label htmlFor="dueMode" className="text-xs font-semibold text-muted-foreground uppercase tracking-wider block">
                 Cómo se calcula el vencimiento
               </label>
               <select
-                id="vencimientoModo"
-                name="vencimientoModo"
-                defaultValue={data.billing_vencimiento_modo || 'plazo_fijo'}
-                onChange={(e) => setVencimientoModo(e.target.value as 'plazo_fijo' | 'fecha_corte')}
+                id="dueMode"
+                name="dueMode"
+                defaultValue={data.billing_due_mode || 'fixed_term'}
+                onChange={(e) => setDueMode(e.target.value as 'fixed_term' | 'cutoff_date')}
                 className="input-field"
               >
-                <option value="plazo_fijo">Plazo fijo desde la emisión</option>
-                <option value="fecha_corte">Fecha de corte del cliente</option>
+                <option value="fixed_term">Plazo fijo desde la emisión</option>
+                <option value="cutoff_date">Fecha de corte del cliente</option>
               </select>
               <span className="text-[11px] text-muted-foreground block">
-                {vencimientoModo === 'fecha_corte'
+                {dueMode === 'cutoff_date'
                   ? 'La factura vence el mismo día de corte configurado en el perfil del cliente.'
                   : 'La factura vence N días después de emitida (configurable a la derecha).'}
               </span>
             </div>
 
-            {vencimientoModo === 'plazo_fijo' && (
+            {dueMode === 'fixed_term' && (
               <div className="space-y-1.5">
-                <label htmlFor="defaultDiasGracia" className="text-xs font-semibold text-muted-foreground uppercase tracking-wider block">
+                <label htmlFor="defaultGraceDays" className="text-xs font-semibold text-muted-foreground uppercase tracking-wider block">
                   Días de plazo
                 </label>
                 <input
-                  id="defaultDiasGracia"
-                  name="defaultDiasGracia"
+                  id="defaultGraceDays"
+                  name="defaultGraceDays"
                   type="number"
                   min="0"
-                  defaultValue={String(data.billing_default_dias_gracia ?? 10)}
+                  defaultValue={String(data.billing_default_grace_days ?? 10)}
                   className="input-field font-mono"
                 />
               </div>
             )}
 
             <div className="space-y-1.5">
-              <label htmlFor="vencimientoHora" className="text-xs font-semibold text-muted-foreground uppercase tracking-wider block">
+              <label htmlFor="dueTime" className="text-xs font-semibold text-muted-foreground uppercase tracking-wider block">
                 Hora del vencimiento
               </label>
               <select
-                id="vencimientoHora"
-                name="vencimientoHora"
-                defaultValue={data.billing_vencimiento_hora || 'fin_dia'}
+                id="dueTime"
+                name="dueTime"
+                defaultValue={data.billing_due_time || 'end_of_day'}
                 className="input-field"
               >
-                <option value="fin_dia">Fin del día (23:59:59)</option>
-                <option value="inicio_dia">Inicio del día (00:00:00)</option>
+                <option value="end_of_day">Fin del día (23:59:59)</option>
+                <option value="start_of_day">Inicio del día (00:00:00)</option>
               </select>
             </div>
           </div>
@@ -236,7 +236,7 @@ function BillingGeneralForm({
           <div className="space-y-3">
             <div className="flex items-center gap-4">
               <label className="relative inline-flex items-center cursor-pointer select-none flex-shrink-0">
-                <input name="autoAprobarEnviar" type="checkbox" defaultChecked={data.billing_auto_aprobar_enviar ?? true} className="sr-only peer" />
+                <input name="autoApproveSend" type="checkbox" defaultChecked={data.billing_auto_approve_send ?? true} className="sr-only peer" />
                 <div className="w-11 h-6 bg-secondary peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-muted-foreground after:border-border after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-brand-500 peer-checked:after:bg-white peer-checked:after:border-brand-500"></div>
               </label>
               <div>
@@ -251,7 +251,7 @@ function BillingGeneralForm({
 
             <div className="flex items-center gap-4">
               <label className="relative inline-flex items-center cursor-pointer select-none flex-shrink-0">
-                <input name="detenerSuspendidos" type="checkbox" defaultChecked={data.billing_detener_suspendidos ?? true} className="sr-only peer" />
+                <input name="stopSuspended" type="checkbox" defaultChecked={data.billing_stop_suspended ?? true} className="sr-only peer" />
                 <div className="w-11 h-6 bg-secondary peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-muted-foreground after:border-border after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-brand-500 peer-checked:after:bg-white peer-checked:after:border-brand-500"></div>
               </label>
               <div>
@@ -308,7 +308,7 @@ function BillingGeneralForm({
               <div className="space-y-3">
                 <div className="flex items-center gap-3">
                   <label className="relative inline-flex items-center cursor-pointer select-none flex-shrink-0">
-                    <input name="avisoNuevaFactura" type="checkbox" defaultChecked={data.billing_aviso_nueva_factura ?? true} className="sr-only peer" />
+                    <input name="advanceNoticeEnabled" type="checkbox" defaultChecked={data.billing_advance_notice_enabled ?? true} className="sr-only peer" />
                     <div className="w-11 h-6 bg-secondary peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-muted-foreground after:border-border after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-brand-500 peer-checked:after:bg-white peer-checked:after:border-brand-500"></div>
                   </label>
                   <div>
@@ -319,10 +319,10 @@ function BillingGeneralForm({
                 <div className="space-y-1">
                   <label className="text-[10px] font-bold text-muted-foreground block uppercase">Días de aviso previo</label>
                   <input
-                    name="avisoPrevioDias"
+                    name="advanceNoticeDays"
                     type="number"
                     min="1"
-                    defaultValue={String(data.billing_aviso_previo_dias ?? 5)}
+                    defaultValue={String(data.billing_advance_notice_days ?? 5)}
                     className="input-field py-1 px-2 text-xs font-mono w-24"
                   />
                 </div>
@@ -331,7 +331,7 @@ function BillingGeneralForm({
               <div className="space-y-3">
                 <div className="flex items-center gap-3">
                   <label className="relative inline-flex items-center cursor-pointer select-none flex-shrink-0">
-                    <input name="recordatoriosPago" type="checkbox" defaultChecked={data.billing_recordatorios_pago ?? true} className="sr-only peer" />
+                    <input name="paymentReminders" type="checkbox" defaultChecked={data.billing_payment_reminders ?? true} className="sr-only peer" />
                     <div className="w-11 h-6 bg-secondary peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-muted-foreground after:border-border after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-brand-500 peer-checked:after:bg-white peer-checked:after:border-brand-500"></div>
                   </label>
                   <div>
@@ -342,10 +342,10 @@ function BillingGeneralForm({
                 <div className="space-y-1">
                   <label className="text-[10px] font-bold text-muted-foreground block uppercase">Enviar recordatorio cada (días)</label>
                   <input
-                    name="recordatorioFrecuenciaDias"
+                    name="reminderFrequencyDays"
                     type="number"
                     min="1"
-                    defaultValue={String(data.billing_recordatorio_frecuencia_dias ?? 3)}
+                    defaultValue={String(data.billing_reminder_frequency_days ?? 3)}
                     className="input-field py-1 px-2 text-xs font-mono w-24"
                   />
                 </div>

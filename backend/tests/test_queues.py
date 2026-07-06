@@ -11,7 +11,7 @@ from app.core.deps import get_db
 from app.core.security import hash_password
 from app.main import app
 from app.models.user import User
-from app.models.router import Router
+from app.models.gateway import Gateway
 from app.models.client import Client
 from app.models.plan import Plan
 from app.models.client_plan import ClientPlan
@@ -52,29 +52,29 @@ def setup_db(monkeypatch):
     db = TestingSessionLocal()
     # Agregar un administrador
     db.add(User(
-        nombre="Test Admin",
+        name="Test Admin",
         email="admin@test.com",
         hashed_password=hash_password("adminpass123"),
-        rol="admin",
-        activo=True,
+        role="admin",
+        active=True,
     ))
-    # Agregar un router
-    r = Router(
-        nombre="Router Central",
+    # Agregar un gateway
+    r = Gateway(
+        name="Router Central",
         ip="10.0.0.1",
-        puerto_api=8728,
-        usuario_api="admin",
+        api_port=8728,
+        api_username="admin",
         password_enc="enc_pass",
-        activo=True,
+        active=True,
     )
     db.add(r)
     p = Plan(
-        nombre="Plan Fibra 20M",
-        velocidad_down_mbps=20,
-        velocidad_up_mbps=10,
-        velocidad_down_kbps=20000,
-        velocidad_up_kbps=10000,
-        precio=22.40,
+        name="Plan Fibra 20M",
+        speed_down_mbps=20,
+        speed_up_mbps=10,
+        speed_down_kbps=20000,
+        speed_up_kbps=10000,
+        price=22.40,
     )
     db.add(p)
     db.commit()
@@ -103,9 +103,9 @@ def test_create_client_creates_queue(mock_sync_queue, mock_sync_ip, client: Test
     token = login.json()["access_token"]
 
     db = TestingSessionLocal()
-    router = db.query(Router).first()
+    gateway = db.query(Gateway).first()
     plan = db.query(Plan).first()
-    router_id = str(router.id)
+    gateway_id = str(gateway.id)
     plan_id = str(plan.id)
     db.close()
 
@@ -113,12 +113,12 @@ def test_create_client_creates_queue(mock_sync_queue, mock_sync_ip, client: Test
         "/api/clients",
         headers={"Authorization": f"Bearer {token}"},
         json={
-            "nombre": "Juan Valdes",
+            "name": "Juan Valdes",
             "cedula": "1724024888",
-            "telefono": "0999999999",
-            "direccion": "Quito",
-            "router_id": router_id,
-            "tipo": "static",
+            "phone": "0999999999",
+            "address": "Quito",
+            "gateway_id": gateway_id,
+            "connection_type": "static",
             "ip": "192.168.10.15",
             "plan_id": plan_id
         },
@@ -126,7 +126,7 @@ def test_create_client_creates_queue(mock_sync_queue, mock_sync_ip, client: Test
     assert response.status_code == 201
     assert mock_sync_queue.call_count == 1
     mock_sync_queue.assert_called_with(
-        router=ANY,
+        gateway=ANY,
         client_name="Juan Valdes",
         ip="192.168.10.15",
         speed_up=10000,
@@ -136,7 +136,7 @@ def test_create_client_creates_queue(mock_sync_queue, mock_sync_ip, client: Test
         limit_at_down=None,
         burst_threshold_up=None,
         burst_threshold_down=None,
-        prioridad=8,
+        priority=8,
         parent="isp_padre"
     )
 
@@ -151,22 +151,22 @@ def test_assign_plan_updates_queue(mock_sync_queue, mock_sync_ip, client: TestCl
     token = login.json()["access_token"]
 
     db = TestingSessionLocal()
-    router = db.query(Router).first()
+    gateway = db.query(Gateway).first()
     plan = db.query(Plan).first()
-    
+
     # Crear cliente manualmente
     c = Client(
-        nombre="Pepe Lucho",
+        name="Pepe Lucho",
         cedula="1724024888",
-        telefono="0999999999",
-        direccion="Quito",
-        router_id=router.id,
-        tipo="static",
-        activo=True
+        phone="0999999999",
+        address="Quito",
+        gateway_id=gateway.id,
+        connection_type="static",
+        active=True
     )
     db.add(c)
     db.flush()
-    ip = StaticIP(cliente_id=c.id, ip="192.168.10.20", router_id=router.id)
+    ip = StaticIP(client_id=c.id, ip="192.168.10.20", gateway_id=gateway.id)
     db.add(ip)
     db.commit()
     client_id = str(c.id)
@@ -193,19 +193,19 @@ def test_toggle_client_queue_endpoint(mock_toggle_queue, client: TestClient):
     token = login.json()["access_token"]
 
     db = TestingSessionLocal()
-    router = db.query(Router).first()
+    gateway = db.query(Gateway).first()
     c = Client(
-        nombre="Maria C",
+        name="Maria C",
         cedula="1724024888",
-        telefono="0999999999",
-        direccion="Quito",
-        router_id=router.id,
-        tipo="static",
-        activo=True
+        phone="0999999999",
+        address="Quito",
+        gateway_id=gateway.id,
+        connection_type="static",
+        active=True
     )
     db.add(c)
     db.flush()
-    ip = StaticIP(cliente_id=c.id, ip="192.168.10.30", router_id=router.id)
+    ip = StaticIP(client_id=c.id, ip="192.168.10.30", gateway_id=gateway.id)
     db.add(ip)
     db.commit()
     client_id = str(c.id)
@@ -222,7 +222,7 @@ def test_toggle_client_queue_endpoint(mock_toggle_queue, client: TestClient):
     mock_toggle_queue.assert_called_with(ANY, "192.168.10.30", True)
 
 
-@patch("app.api.routers_api.fetch_queues")
+@patch("app.api.gateways_api.fetch_queues")
 def test_get_router_queues_enriched(mock_fetch_queues, client: TestClient):
     login = client.post(
         "/api/auth/login",
@@ -231,25 +231,25 @@ def test_get_router_queues_enriched(mock_fetch_queues, client: TestClient):
     token = login.json()["access_token"]
 
     db = TestingSessionLocal()
-    router = db.query(Router).first()
+    gateway = db.query(Gateway).first()
     plan = db.query(Plan).first()
     c = Client(
-        nombre="Jose Ortiz",
+        name="Jose Ortiz",
         cedula="1724024888",
-        telefono="0999999999",
-        direccion="Quito",
-        router_id=router.id,
-        tipo="static",
-        activo=True
+        phone="0999999999",
+        address="Quito",
+        gateway_id=gateway.id,
+        connection_type="static",
+        active=True
     )
     db.add(c)
     db.flush()
-    ip = StaticIP(cliente_id=c.id, ip="192.168.10.40", router_id=router.id)
+    ip = StaticIP(client_id=c.id, ip="192.168.10.40", gateway_id=gateway.id)
     db.add(ip)
     cp = ClientPlan(cliente_id=c.id, plan_id=plan.id, estado="activo")
     db.add(cp)
     db.commit()
-    router_id = str(router.id)
+    gateway_id = str(gateway.id)
     client_id = str(c.id)
     db.close()
 
@@ -278,26 +278,26 @@ def test_get_router_queues_enriched(mock_fetch_queues, client: TestClient):
     ]
 
     response = client.get(
-        f"/api/routers/{router_id}/queues",
+        f"/api/gateways/{gateway_id}/queues",
         headers={"Authorization": f"Bearer {token}"}
     )
     assert response.status_code == 200
     data = response.json()
     assert len(data) == 2
-    
+
     # First queue should be enriched with db client data
-    assert data[0]["cliente_id"] == client_id
-    assert data[0]["cliente_nombre"] == "Jose Ortiz"
-    assert data[0]["plan_activo"]["nombre"] == "Plan Fibra 20M"
+    assert data[0]["client_id"] == client_id
+    assert data[0]["client_name"] == "Jose Ortiz"
+    assert data[0]["plan_activo"]["name"] == "Plan Fibra 20M"
     assert "↑ 12.3 Kbps / ↓ 67.9 Kbps" in data[0]["rate_human"]
-    
+
     # Second queue has no db client matching IP
-    assert data[1]["cliente_id"] is None
-    assert data[1]["cliente_nombre"] is None
+    assert data[1]["client_id"] is None
+    assert data[1]["client_name"] is None
     assert data[1]["plan_activo"] is None
 
 
-@patch("app.api.routers_api.get_parent_queue_limit")
+@patch("app.api.gateways_api.get_parent_queue_limit")
 def test_get_parent_queue(mock_get_limit, client: TestClient):
     login = client.post(
         "/api/auth/login",
@@ -306,14 +306,14 @@ def test_get_parent_queue(mock_get_limit, client: TestClient):
     token = login.json()["access_token"]
 
     db = TestingSessionLocal()
-    router = db.query(Router).first()
-    router_id = str(router.id)
+    gateway = db.query(Gateway).first()
+    gateway_id = str(gateway.id)
     db.close()
 
     mock_get_limit.return_value = {"name": "PADRE", "limit_up": 50, "limit_down": 100}
 
     response = client.get(
-        f"/api/routers/{router_id}/parent-queue",
+        f"/api/gateways/{gateway_id}/parent-queue",
         headers={"Authorization": f"Bearer {token}"}
     )
     assert response.status_code == 200
@@ -324,7 +324,7 @@ def test_get_parent_queue(mock_get_limit, client: TestClient):
     mock_get_limit.assert_called_once()
 
 
-@patch("app.api.routers_api.update_parent_queue_limit")
+@patch("app.api.gateways_api.update_parent_queue_limit")
 def test_set_parent_queue_limit(mock_update_limit, client: TestClient):
     login = client.post(
         "/api/auth/login",
@@ -333,12 +333,12 @@ def test_set_parent_queue_limit(mock_update_limit, client: TestClient):
     token = login.json()["access_token"]
 
     db = TestingSessionLocal()
-    router = db.query(Router).first()
-    router_id = str(router.id)
+    gateway = db.query(Gateway).first()
+    gateway_id = str(gateway.id)
     db.close()
 
     response = client.post(
-        f"/api/routers/{router_id}/parent-queue",
+        f"/api/gateways/{gateway_id}/parent-queue",
         headers={"Authorization": f"Bearer {token}"},
         params={"limit_up_mbps": 50, "limit_down_mbps": 100}
     )

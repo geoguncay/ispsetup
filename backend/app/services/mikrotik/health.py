@@ -51,7 +51,7 @@ async def check_gateway_health(gateway: Gateway) -> GatewayStatus:
         error_msg = None
 
     except GatewayConnectionError as e:
-        logger.warning(f"Router {gateway.nombre} offline: {e}")
+        logger.warning(f"Router {gateway.name} offline: {e}")
         new_status_val = "offline"
         error_msg = str(e)
         ros_version = None
@@ -60,7 +60,7 @@ async def check_gateway_health(gateway: Gateway) -> GatewayStatus:
 
     except Exception as e:
         # Cualquier otro error de librouteros (conexión caída mid-command, etc.)
-        logger.warning(f"Router {gateway.nombre} error inesperado: {e}")
+        logger.warning(f"Router {gateway.name} error inesperado: {e}")
         new_status_val = "offline"
         error_msg = str(e)
         ros_version = None
@@ -74,22 +74,22 @@ async def check_gateway_health(gateway: Gateway) -> GatewayStatus:
             old_cached = GatewayStatus.model_validate_json(old_data)
             if old_cached.status != new_status_val:
                 from app.services.audit_service import AuditAction, log_connectivity_change
-                accion = AuditAction.GATEWAY_ONLINE if new_status_val == "online" else AuditAction.GATEWAY_OFFLINE
+                action = AuditAction.GATEWAY_ONLINE if new_status_val == "online" else AuditAction.GATEWAY_OFFLINE
                 import asyncio
                 await asyncio.to_thread(
                     log_connectivity_change,
                     str(gateway.id),
-                    gateway.nombre,
-                    accion,
+                    gateway.name,
+                    action,
                 )
-                logger.info(f"Connectivity change logged: {gateway.nombre} {old_cached.status} → {new_status_val}")
+                logger.info(f"Connectivity change logged: {gateway.name} {old_cached.status} → {new_status_val}")
 
                 # ── Al recuperar conexión, procesar la cola de sync pendiente ──
                 if new_status_val == "online":
                     await asyncio.to_thread(_process_sync_queue_for_gateway, gateway)
 
         except Exception as exc:
-            logger.error(f"Error al registrar cambio de conectividad para {gateway.nombre}: {exc}")
+            logger.error(f"Error al registrar cambio de conectividad para {gateway.name}: {exc}")
 
     status = GatewayStatus(
         gateway_id=gateway.id,
@@ -132,15 +132,9 @@ def _process_sync_queue_for_gateway(gateway: Gateway) -> None:
             result = process_pending_queue(gateway, db)
             if result["total"] > 0:
                 logger.info(
-                    f"[SyncQueue auto] {gateway.nombre}: "
+                    f"[SyncQueue auto] {gateway.name}: "
                     f"{result['processed']} procesados, {result['failed']} fallidos de {result['total']}"
                 )
     except Exception as exc:
-        logger.error(f"[SyncQueue auto] Error procesando cola para {gateway.nombre}: {exc}")
-
-
-# Compatibility aliases for legacy code
-RouterStatus = GatewayStatus
-check_router_health = check_gateway_health
-get_cached_router_status = get_cached_gateway_status
+        logger.error(f"[SyncQueue auto] Error procesando cola para {gateway.name}: {exc}")
 

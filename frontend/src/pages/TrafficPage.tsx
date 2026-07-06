@@ -12,11 +12,11 @@ import api from '@/services/api'
 import TrafficChart, { formatSpeed } from '@/components/TrafficChart'
 import { GatewayStatusBadge } from '@/components/GatewayStatusBadge'
 
-interface Router {
+interface Gateway {
   id: string
-  nombre: string
+  name: string
   ip: string
-  activo: boolean
+  active: boolean
   status: 'online' | 'offline' | 'degraded' | 'unknown' | null
 }
 
@@ -62,7 +62,7 @@ export function TrafficPage() {
   const navigate = useNavigate()
 
   // ── Router Selector States ──
-  const [selectedRouterId, setSelectedRouterId] = useState<string>('')
+  const [selectedGatewayId, setSelectedGatewayId] = useState<string>('')
   const [liveTraffic, setLiveTraffic] = useState<any[]>([])
   const [liveClients, setLiveClients] = useState<any[]>([])
   const [wsStatus, setWsStatus] = useState<'connecting' | 'connected' | 'disconnected' | 'idle'>('idle')
@@ -70,8 +70,8 @@ export function TrafficPage() {
   const [timeframe, setTimeframe] = useState<'live' | '1h' | '24h' | '7d' | '30d'>('live')
 
   // ── Fetch Routers ──
-  const { data: routers = [], isLoading: isLoadingRouters, refetch: refetchRouters } = useQuery<Router[]>({
-    queryKey: ['routers'],
+  const { data: gateways = [], isLoading: isLoadingGateways, refetch: refetchGateways } = useQuery<Gateway[]>({
+    queryKey: ['gateways'],
     queryFn: async () => {
       const { data } = await api.get('/gateways')
       return data
@@ -80,34 +80,34 @@ export function TrafficPage() {
 
   // ── Fetch Router Traffic History ──
   const { data: historyTraffic = [], isLoading: isLoadingHistory } = useQuery({
-    queryKey: ['router-traffic-history', selectedRouterId, timeframe],
+    queryKey: ['gateway-traffic-history', selectedGatewayId, timeframe],
     queryFn: async () => {
-      if (timeframe === 'live' || !selectedRouterId) return []
-      const { data } = await api.get(`/traffic/router/${selectedRouterId}?range=${timeframe}`)
+      if (timeframe === 'live' || !selectedGatewayId) return []
+      const { data } = await api.get(`/traffic/gateway/${selectedGatewayId}?range=${timeframe}`)
       return data
     },
-    enabled: timeframe !== 'live' && !!selectedRouterId,
+    enabled: timeframe !== 'live' && !!selectedGatewayId,
   })
 
-  const selectedRouter = useMemo(() => {
-    return routers.find(r => r.id === selectedRouterId)
-  }, [routers, selectedRouterId])
+  const selectedGateway = useMemo(() => {
+    return gateways.find(r => r.id === selectedGatewayId)
+  }, [gateways, selectedGatewayId])
 
   // Automatically select the first online router if none is selected
   useEffect(() => {
-    if (routers.length > 0 && !selectedRouterId) {
-      const firstOnline = routers.find(r => r.status === 'online')
+    if (gateways.length > 0 && !selectedGatewayId) {
+      const firstOnline = gateways.find(r => r.status === 'online')
       if (firstOnline) {
-        setSelectedRouterId(firstOnline.id)
+        setSelectedGatewayId(firstOnline.id)
       } else {
-        setSelectedRouterId(routers[0].id)
+        setSelectedGatewayId(gateways[0].id)
       }
     }
-  }, [routers, selectedRouterId])
+  }, [gateways, selectedGatewayId])
 
   // ── WebSocket live traffic connection ──
   useEffect(() => {
-    if (!selectedRouterId) {
+    if (!selectedGatewayId) {
       setLiveTraffic([])
       setLiveClients([])
       setWsStatus('idle')
@@ -130,7 +130,7 @@ export function TrafficPage() {
           wsHost = url.host
         } catch { }
       }
-      return `${wsProtocol}//${wsHost}/api/traffic/ws/${selectedRouterId}?token=${token}`
+      return `${wsProtocol}//${wsHost}/api/traffic/ws/${selectedGatewayId}?token=${token}`
     })()
 
     const ws = new WebSocket(wsUrl)
@@ -182,12 +182,12 @@ export function TrafficPage() {
     return () => {
       ws.close()
     }
-  }, [selectedRouterId])
+  }, [selectedGatewayId])
 
   // Filter clients list
   const filteredClients = useMemo(() => {
     return liveClients.filter(client =>
-      client.nombre.toLowerCase().includes(searchTerm.toLowerCase())
+      client.name.toLowerCase().includes(searchTerm.toLowerCase())
     )
   }, [liveClients, searchTerm])
 
@@ -224,12 +224,12 @@ export function TrafficPage() {
     }
   }, [timeframe, liveTraffic, historyTraffic])
 
-  if (isLoadingRouters) {
+  if (isLoadingGateways) {
     return (
       <div className="flex items-center justify-center h-64">
         <div className="flex items-center gap-3 text-muted-foreground">
           <RefreshCw className="w-5 h-5 animate-spin text-primary" />
-          <span>Cargando routers para monitoreo...</span>
+          <span>Cargando gateways para monitoreo...</span>
         </div>
       </div>
     )
@@ -250,22 +250,22 @@ export function TrafficPage() {
         <div className="flex items-center gap-3">
           <Server className="w-4 h-4 text-muted-foreground flex-shrink-0" />
           <select
-            value={selectedRouterId}
-            onChange={(e) => setSelectedRouterId(e.target.value)}
+            value={selectedGatewayId}
+            onChange={(e) => setSelectedGatewayId(e.target.value)}
             className="input-field max-w-[240px] cursor-pointer"
           >
             <option value="">-- Seleccionar Router --</option>
-            {routers.map((router) => (
+            {gateways.map((router) => (
               <option key={router.id} value={router.id}>
-                {router.nombre} ({router.status === 'online' ? 'En línea' : 'Desconectado'})
+                {router.name} ({router.status === 'online' ? 'En línea' : 'Desconectado'})
               </option>
             ))}
           </select>
 
           <button
-            onClick={() => refetchRouters()}
+            onClick={() => refetchGateways()}
             className="btn-secondary p-2.5"
-            title="Actualizar lista de routers"
+            title="Actualizar lista de gateways"
           >
             <RefreshCcw className="w-4 h-4" />
           </button>
@@ -273,14 +273,14 @@ export function TrafficPage() {
       </div>
 
       {/* Empty State */}
-      {!selectedRouterId ? (
+      {!selectedGatewayId ? (
         <div className="glass-card p-12 text-center max-w-xl mx-auto mt-12 space-y-4">
           <div className="w-16 h-16 bg-cyan-500/10 rounded-full flex items-center justify-center mx-auto border border-cyan-500/25">
             <Activity className="w-8 h-8 text-cyan-400 animate-pulse" />
           </div>
           <h3 className="text-lg font-semibold text-foreground">Ningún Router Seleccionado</h3>
           <p className="text-muted-foreground text-sm">
-            Para iniciar el monitoreo de tráfico en tiempo real, selecciona uno de los routers activos en la esquina superior derecha.
+            Para iniciar el monitoreo de tráfico en tiempo real, selecciona uno de los gateways activos en la esquina superior derecha.
           </p>
         </div>
       ) : (
@@ -289,7 +289,7 @@ export function TrafficPage() {
           {wsStatus === 'connecting' && (
             <div className="bg-cyan-500/10 border border-cyan-500/20 rounded-xl p-4 flex items-center gap-3 text-cyan-400 text-sm font-medium">
               <RefreshCw className="w-4 h-4 animate-spin flex-shrink-0" />
-              <span>Conectando con el colector de tráfico del router {selectedRouter?.nombre}...</span>
+              <span>Conectando con el colector de tráfico del router {selectedGateway?.name}...</span>
             </div>
           )}
           {wsStatus === 'disconnected' && (
@@ -494,13 +494,13 @@ export function TrafficPage() {
                         const isTransmitting = (client.rx_rate > 1000 || client.tx_rate > 1000)
 
                         return (
-                          <tr key={client.cliente_id} className="hover:bg-secondary/20 transition-colors group">
+                          <tr key={client.client_id} className="hover:bg-secondary/20 transition-colors group">
                             <td>
                               <div className="flex items-center gap-2.5">
                                 <div className={`w-1.5 h-1.5 rounded-full ${isTransmitting ? 'bg-emerald-500 animate-pulse' : 'bg-slate-600'}`} />
                                 <div className="min-w-0">
                                   <p className="font-semibold text-foreground text-sm truncate max-w-[180px] sm:max-w-[240px]">
-                                    {client.nombre}
+                                    {client.name}
                                   </p>
                                 </div>
                               </div>
@@ -528,7 +528,7 @@ export function TrafficPage() {
                             </td>
                             <td>
                               <button
-                                onClick={() => navigate(`/clients/${client.cliente_id}`)}
+                                onClick={() => navigate(`/clients/${client.client_id}`)}
                                 className="group-hover:opacity-100 p-1 rounded hover:bg-secondary/50 text-muted-foreground hover:text-foreground transition-all"
                                 title="Ver Ficha de Cliente"
                               >

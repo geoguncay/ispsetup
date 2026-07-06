@@ -5,7 +5,7 @@ import uuid
 from fastapi import APIRouter, HTTPException, status
 from sqlalchemy.orm import Session
 
-from app.core.deps import AdminOrTecnico, DBSession
+from app.core.deps import AdminOrTechnician, DBSession
 from app.models.inventory import InventoryItem
 from app.models.supplier import Supplier
 from app.models.product_category import ProductCategory
@@ -18,25 +18,25 @@ router = APIRouter(prefix="/inventory", tags=["inventory"])
 # ── Categorías ────────────────────────────────────────────────────────────────
 
 @router.get("/categories", response_model=list[ProductCategoryResponse])
-def list_categories(db: DBSession, _: AdminOrTecnico) -> list[ProductCategory]:
+def list_categories(db: DBSession, _: AdminOrTechnician) -> list[ProductCategory]:
     """Lista todas las categorías de productos ordenadas por nombre."""
-    return db.query(ProductCategory).order_by(ProductCategory.nombre.asc()).all()
+    return db.query(ProductCategory).order_by(ProductCategory.name.asc()).all()
 
 
 @router.post("/categories", response_model=ProductCategoryResponse, status_code=status.HTTP_201_CREATED)
 def create_category(
     payload: ProductCategoryCreate,
     db: DBSession,
-    _: AdminOrTecnico,
+    _: AdminOrTechnician,
 ) -> ProductCategory:
     """Crea una nueva categoría de producto."""
-    exists = db.query(ProductCategory).filter(ProductCategory.nombre == payload.nombre).first()
+    exists = db.query(ProductCategory).filter(ProductCategory.name == payload.name).first()
     if exists:
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
-            detail=f"Ya existe la categoría '{payload.nombre}'.",
+            detail=f"Ya existe la categoría '{payload.name}'.",
         )
-    cat = ProductCategory(nombre=payload.nombre)
+    cat = ProductCategory(name=payload.name)
     db.add(cat)
     db.commit()
     db.refresh(cat)
@@ -48,15 +48,15 @@ def update_category(
     category_id: uuid.UUID,
     payload: ProductCategoryUpdate,
     db: DBSession,
-    _: AdminOrTecnico,
+    _: AdminOrTechnician,
 ) -> ProductCategory:
     """Renombra una categoría y actualiza todos los artículos que la usaban."""
     cat = db.get(ProductCategory, category_id)
     if not cat:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Categoría no encontrada")
-    old_nombre = cat.nombre
-    cat.nombre = payload.nombre
-    db.query(InventoryItem).filter(InventoryItem.categoria == old_nombre).update({"categoria": payload.nombre})
+    old_name = cat.name
+    cat.name = payload.name
+    db.query(InventoryItem).filter(InventoryItem.category == old_name).update({"category": payload.name})
     db.commit()
     db.refresh(cat)
     return cat
@@ -67,7 +67,7 @@ def update_category(
 @router.get("", response_model=list[InventoryItemResponse])
 def list_inventory_items(
     db: DBSession,
-    _: AdminOrTecnico,
+    _: AdminOrTechnician,
     search: str | None = None,
 ) -> list[InventoryItem]:
     """Lista todos los artículos en inventario con buscador opcional."""
@@ -75,17 +75,17 @@ def list_inventory_items(
     if search:
         search_filter = f"%{search}%"
         query = query.filter(
-            (InventoryItem.nombre.ilike(search_filter))
-            | (InventoryItem.codigo.ilike(search_filter))
+            (InventoryItem.name.ilike(search_filter))
+            | (InventoryItem.code.ilike(search_filter))
         )
-    return query.order_by(InventoryItem.nombre.asc()).all()
+    return query.order_by(InventoryItem.name.asc()).all()
 
 
 @router.get("/{item_id}", response_model=InventoryItemResponse)
 def get_inventory_item(
     item_id: uuid.UUID,
     db: DBSession,
-    _: AdminOrTecnico,
+    _: AdminOrTechnician,
 ) -> InventoryItem:
     """Obtiene el detalle de un artículo de inventario."""
     item = db.get(InventoryItem, item_id)
@@ -98,18 +98,18 @@ def get_inventory_item(
 def create_inventory_item(
     payload: InventoryItemCreate,
     db: DBSession,
-    _: AdminOrTecnico,
+    _: AdminOrTechnician,
 ) -> InventoryItem:
     """Crea un nuevo artículo de inventario."""
-    exists = db.query(InventoryItem).filter(InventoryItem.codigo == payload.codigo).first()
+    exists = db.query(InventoryItem).filter(InventoryItem.code == payload.code).first()
     if exists:
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
-            detail=f"Ya existe un artículo en inventario con el código o SKU {payload.codigo}.",
+            detail=f"Ya existe un artículo en inventario con el código o SKU {payload.code}.",
         )
-        
-    if payload.proveedor_id:
-        supplier = db.get(Supplier, payload.proveedor_id)
+
+    if payload.supplier_id:
+        supplier = db.get(Supplier, payload.supplier_id)
         if not supplier:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
@@ -128,7 +128,7 @@ def update_inventory_item(
     item_id: uuid.UUID,
     payload: InventoryItemUpdate,
     db: DBSession,
-    _: AdminOrTecnico,
+    _: AdminOrTechnician,
 ) -> InventoryItem:
     """Edita un artículo de inventario."""
     item = db.get(InventoryItem, item_id)
@@ -136,17 +136,17 @@ def update_inventory_item(
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Artículo no encontrado")
         
     update_data = payload.model_dump(exclude_unset=True)
-    
-    if "codigo" in update_data and update_data["codigo"] != item.codigo:
-        exists = db.query(InventoryItem).filter(InventoryItem.codigo == update_data["codigo"]).first()
+
+    if "code" in update_data and update_data["code"] != item.code:
+        exists = db.query(InventoryItem).filter(InventoryItem.code == update_data["code"]).first()
         if exists:
             raise HTTPException(
                 status_code=status.HTTP_409_CONFLICT,
-                detail=f"Ya existe un artículo con el código o SKU {update_data['codigo']}.",
+                detail=f"Ya existe un artículo con el código o SKU {update_data['code']}.",
             )
-            
-    if "proveedor_id" in update_data and update_data["proveedor_id"]:
-        supplier = db.get(Supplier, update_data["proveedor_id"])
+
+    if "supplier_id" in update_data and update_data["supplier_id"]:
+        supplier = db.get(Supplier, update_data["supplier_id"])
         if not supplier:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
@@ -165,7 +165,7 @@ def update_inventory_item(
 def delete_inventory_item(
     item_id: uuid.UUID,
     db: DBSession,
-    _: AdminOrTecnico,
+    _: AdminOrTechnician,
 ) -> None:
     """Elimina un artículo de inventario."""
     item = db.get(InventoryItem, item_id)
@@ -179,7 +179,7 @@ def delete_inventory_item(
 def import_inventory_items(
     payload: list[dict],
     db: DBSession,
-    _: AdminOrTecnico,
+    _: AdminOrTechnician,
 ) -> dict:
     """
     Importa artículos de inventario desde datos JSON (parseados de un CSV en el frontend).
@@ -187,110 +187,110 @@ def import_inventory_items(
     """
     successes = []
     failures = []
-    seen_codigos: set[str] = set()
+    seen_codes: set[str] = set()
 
     # Pre-load suppliers for name-matching
     all_suppliers = db.query(Supplier).all()
-    supplier_map = {s.nombre.strip().lower(): s for s in all_suppliers}
+    supplier_map = {s.name.strip().lower(): s for s in all_suppliers}
 
     for idx, row in enumerate(payload):
         try:
-            nombre = (row.get("nombre") or "").strip()
-            codigo = (row.get("codigo") or "").strip()
-            cantidad_raw = row.get("cantidad", "0")
-            minimo_alerta_raw = row.get("minimo_alerta", "5")
-            precio_compra_raw = row.get("precio_compra", "0")
-            precio_venta_raw = row.get("precio_venta", "0")
-            descripcion = (row.get("descripcion") or "").strip() or None
-            categoria = (row.get("categoria") or "").strip() or None
-            modelo = (row.get("modelo") or "").strip() or None
-            proveedor_raw = (row.get("proveedor") or "").strip()
+            name = (row.get("nombre") or "").strip()
+            code = (row.get("codigo") or "").strip()
+            quantity_raw = row.get("cantidad", "0")
+            min_alert_raw = row.get("minimo_alerta", "5")
+            purchase_price_raw = row.get("precio_compra", "0")
+            sale_price_raw = row.get("precio_venta", "0")
+            description = (row.get("descripcion") or "").strip() or None
+            category = (row.get("categoria") or "").strip() or None
+            model = (row.get("modelo") or "").strip() or None
+            supplier_raw = (row.get("proveedor") or "").strip()
 
             errors = []
-            if not nombre:
+            if not name:
                 errors.append("El nombre del producto es requerido.")
-            if not codigo:
+            if not code:
                 errors.append("El código/SKU es requerido.")
 
             # Parse numeric fields safely
             try:
-                cantidad = int(float(cantidad_raw)) if cantidad_raw else 0
+                quantity = int(float(quantity_raw)) if quantity_raw else 0
             except (ValueError, TypeError):
-                errors.append(f"Cantidad inválida: '{cantidad_raw}'.")
-                cantidad = 0
+                errors.append(f"Cantidad inválida: '{quantity_raw}'.")
+                quantity = 0
 
             try:
-                minimo_alerta = int(float(minimo_alerta_raw)) if minimo_alerta_raw else 5
+                min_alert = int(float(min_alert_raw)) if min_alert_raw else 5
             except (ValueError, TypeError):
-                errors.append(f"Mínimo alerta inválido: '{minimo_alerta_raw}'.")
-                minimo_alerta = 5
+                errors.append(f"Mínimo alerta inválido: '{min_alert_raw}'.")
+                min_alert = 5
 
             try:
-                precio_compra = float(precio_compra_raw) if precio_compra_raw else 0.0
+                purchase_price = float(purchase_price_raw) if purchase_price_raw else 0.0
             except (ValueError, TypeError):
-                errors.append(f"Precio compra inválido: '{precio_compra_raw}'.")
-                precio_compra = 0.0
+                errors.append(f"Precio compra inválido: '{purchase_price_raw}'.")
+                purchase_price = 0.0
 
             try:
-                precio_venta = float(precio_venta_raw) if precio_venta_raw else 0.0
+                sale_price = float(sale_price_raw) if sale_price_raw else 0.0
             except (ValueError, TypeError):
-                errors.append(f"Precio venta inválido: '{precio_venta_raw}'.")
-                precio_venta = 0.0
+                errors.append(f"Precio venta inválido: '{sale_price_raw}'.")
+                sale_price = 0.0
 
-            # Check duplicate codigo within file
-            if codigo:
-                if codigo in seen_codigos:
-                    errors.append(f"El código '{codigo}' está duplicado dentro del archivo.")
+            # Check duplicate code within file
+            if code:
+                if code in seen_codes:
+                    errors.append(f"El código '{code}' está duplicado dentro del archivo.")
                 else:
-                    seen_codigos.add(codigo)
-                    exists = db.query(InventoryItem).filter(InventoryItem.codigo == codigo).first()
+                    seen_codes.add(code)
+                    exists = db.query(InventoryItem).filter(InventoryItem.code == code).first()
                     if exists:
-                        errors.append(f"Ya existe un artículo con el código '{codigo}' en el sistema.")
+                        errors.append(f"Ya existe un artículo con el código '{code}' en el sistema.")
 
             # Resolve supplier by name
-            proveedor_id = None
-            if proveedor_raw:
-                supplier = supplier_map.get(proveedor_raw.lower())
+            supplier_id = None
+            if supplier_raw:
+                supplier = supplier_map.get(supplier_raw.lower())
                 if supplier:
-                    proveedor_id = supplier.id
+                    supplier_id = supplier.id
                 else:
-                    errors.append(f"El proveedor '{proveedor_raw}' no fue encontrado en el sistema.")
+                    errors.append(f"El proveedor '{supplier_raw}' no fue encontrado en el sistema.")
 
             if errors:
                 failures.append({
-                    "fila": idx + 1,
-                    "codigo": codigo,
-                    "nombre": nombre,
-                    "errores": errors
+                    "row": idx + 1,
+                    "code": code,
+                    "name": name,
+                    "errors": errors
                 })
                 continue
 
             item = InventoryItem(
-                nombre=nombre,
-                codigo=codigo,
-                cantidad=cantidad,
-                minimo_alerta=minimo_alerta,
-                precio_compra=precio_compra,
-                precio_venta=precio_venta,
-                descripcion=descripcion,
-                categoria=categoria,
-                modelo=modelo,
-                proveedor_id=proveedor_id,
+                name=name,
+                code=code,
+                quantity=quantity,
+                min_alert=min_alert,
+                purchase_price=purchase_price,
+                sale_price=sale_price,
+                description=description,
+                category=category,
+                model=model,
+                supplier_id=supplier_id,
             )
             db.add(item)
             db.flush()
             successes.append({
-                "fila": idx + 1,
-                "codigo": codigo,
-                "nombre": nombre
+                "row": idx + 1,
+                "code": code,
+                "name": name
             })
         except Exception as e:
             db.rollback()
             failures.append({
-                "fila": idx + 1,
-                "codigo": (row.get("codigo") or ""),
-                "nombre": (row.get("nombre") or ""),
-                "errores": [str(e)]
+                "row": idx + 1,
+                "code": (row.get("codigo") or ""),
+                "name": (row.get("nombre") or ""),
+                "errors": [str(e)]
             })
 
     if successes:

@@ -1,5 +1,5 @@
 /**
- * InvoicesPage — Portal global de gestión de facturas y cobros para WISP.
+ * InvoicesPage — Portal global de gestión de facturas y cobros para ISP.
  */
 import { useState } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
@@ -23,7 +23,7 @@ export function InvoicesPage() {
   // Filtros locales
   const [search, setSearch] = useState('')
   const [invoiceCreateOpen, setInvoiceCreateOpen] = useState(false)
-  const [statusFilter, setStatusFilter] = useState<'all' | 'pendiente' | 'vencido' | 'pagado'>('all')
+  const [statusFilter, setStatusFilter] = useState<'all' | 'pending' | 'overdue' | 'paid'>('all')
   const [onlyOverdue, setOnlyOverdue] = useState(false)
 
   // Estado para Diálogo de Cobro
@@ -36,7 +36,7 @@ export function InvoicesPage() {
     queryFn: async () => {
       const params: any = {}
       if (statusFilter !== 'all') {
-        params.estado = statusFilter
+        params.status = statusFilter
       }
       if (onlyOverdue) {
         params.overdue = true
@@ -47,18 +47,18 @@ export function InvoicesPage() {
   })
 
   // Descargar Recibo PDF mediante Fetch de Blob
-  const handleDownloadReceipt = async (pagoId: string) => {
-    if (!pagoId) return
+  const handleDownloadReceipt = async (paymentId: string) => {
+    if (!paymentId) return
 
-    setReceiptLoadingMap(prev => ({ ...prev, [pagoId]: true }))
+    setReceiptLoadingMap(prev => ({ ...prev, [paymentId]: true }))
     try {
-      const response = await api.get(`/payments/${pagoId}/receipt`, { responseType: 'blob' })
+      const response = await api.get(`/payments/${paymentId}/receipt`, { responseType: 'blob' })
       const blob = new Blob([response.data], { type: 'application/pdf' })
       const url = window.URL.createObjectURL(blob)
 
       const link = document.createElement('a')
       link.href = url
-      link.setAttribute('download', `recibo_${pagoId.substring(0, 8).toUpperCase()}.pdf`)
+      link.setAttribute('download', `recibo_${paymentId.substring(0, 8).toUpperCase()}.pdf`)
       document.body.appendChild(link)
       link.click()
       link.remove()
@@ -67,24 +67,24 @@ export function InvoicesPage() {
       console.error(err)
       alert('Error al descargar el comprobante en PDF')
     } finally {
-      setReceiptLoadingMap(prev => ({ ...prev, [pagoId]: false }))
+      setReceiptLoadingMap(prev => ({ ...prev, [paymentId]: false }))
     }
   }
 
   // Filtrado por búsqueda en cliente o cédula
   const filteredInvoices = invoices.filter((inv: any) => {
     const term = search.toLowerCase()
-    const name = (inv.cliente_nombre ?? '').toLowerCase()
-    const doc = (inv.cliente_cedula ?? '').toLowerCase()
+    const name = (inv.client_name ?? '').toLowerCase()
+    const doc = (inv.client_cedula ?? '').toLowerCase()
     return name.includes(term) || doc.includes(term)
   })
 
   // Calcular métricas rápidas basadas en el listado completo consultado
   const totalInvoices = invoices.length
-  const totalAmount = invoices.reduce((sum: number, i: any) => sum + Number(i.monto), 0)
-  const pendingAmount = invoices.filter((i: any) => i.estado === 'pendiente').reduce((sum: number, i: any) => sum + Number(i.monto), 0)
-  const overdueAmount = invoices.filter((i: any) => i.estado === 'vencido').reduce((sum: number, i: any) => sum + Number(i.monto), 0)
-  const collectedAmount = invoices.filter((i: any) => i.estado === 'pagado').reduce((sum: number, i: any) => sum + Number(i.monto), 0)
+  const totalAmount = invoices.reduce((sum: number, i: any) => sum + Number(i.amount), 0)
+  const pendingAmount = invoices.filter((i: any) => i.status === 'pending').reduce((sum: number, i: any) => sum + Number(i.amount), 0)
+  const overdueAmount = invoices.filter((i: any) => i.status === 'overdue').reduce((sum: number, i: any) => sum + Number(i.amount), 0)
+  const collectedAmount = invoices.filter((i: any) => i.status === 'paid').reduce((sum: number, i: any) => sum + Number(i.amount), 0)
 
   return (
     <div className="space-y-6">
@@ -177,7 +177,7 @@ export function InvoicesPage() {
         <div className="flex flex-wrap items-center gap-3 w-full lg:w-auto justify-end">
           {/* Selector Estado */}
           <div className="flex bg-secondary/30 border border-border p-1 rounded-lg">
-            {(['all', 'pendiente', 'vencido', 'pagado'] as const).map((st) => (
+            {(['all', 'pending', 'overdue', 'paid'] as const).map((st) => (
               <button
                 key={st}
                 onClick={() => setStatusFilter(st)}
@@ -241,40 +241,40 @@ export function InvoicesPage() {
                   <tr key={inv.id} className="hover:bg-secondary/20 transition-all">
                     <td>
                       <Link
-                        to={`/clients/${inv.cliente_id}`}
+                        to={`/clients/${inv.client_id}`}
                         className="font-bold text-foreground hover:text-primary transition-colors flex items-center gap-1.5"
                       >
                         <User className="w-3.5 h-3.5 text-muted-foreground flex-shrink-0" />
-                        <span>{inv.cliente_nombre ?? 'Cliente N/A'}</span>
+                        <span>{inv.client_name ?? 'Cliente N/A'}</span>
                       </Link>
                     </td>
-                    <td className="font-mono text-xs text-muted-foreground">{inv.cliente_cedula ?? 'N/A'}</td>
-                    <td className="font-semibold text-foreground text-xs">{inv.periodo}</td>
+                    <td className="font-mono text-xs text-muted-foreground">{inv.client_cedula ?? 'N/A'}</td>
+                    <td className="font-semibold text-foreground text-xs">{inv.period}</td>
                     <td>
                       <span className="text-xs bg-secondary/50 px-2 py-0.5 rounded border border-border text-foreground font-medium">
-                        {inv.plan_nombre ?? 'Plan Eliminado'}
+                        {inv.plan_name ?? 'Plan Eliminado'}
                       </span>
                     </td>
-                    <td className="font-black text-brand-300 font-mono text-sm">${Number(inv.monto).toFixed(2)}</td>
+                    <td className="font-black text-brand-300 font-mono text-sm">${Number(inv.amount).toFixed(2)}</td>
                     <td className="text-xs text-muted-foreground font-mono">
-                      {formatDate(inv.fecha_emision, dateFormat)}
+                      {formatDate(inv.issue_date, dateFormat)}
                     </td>
                     <td className="text-xs text-muted-foreground font-mono">
-                      {formatDate(inv.fecha_vencimiento, dateFormat)}
+                      {formatDate(inv.due_date, dateFormat)}
                     </td>
                     <td>
-                      <span className={`text-[10px] px-2 py-0.5 rounded-full font-bold border ${inv.estado === 'pagado'
+                      <span className={`text-[10px] px-2 py-0.5 rounded-full font-bold border ${inv.status === 'paid'
                           ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/25'
-                          : inv.estado === 'pendiente'
+                          : inv.status === 'pending'
                             ? 'bg-amber-500/10 text-amber-400 border-amber-500/25'
                             : 'bg-rose-500/10 text-rose-400 border-rose-500/25'
                         }`}>
-                        {inv.estado.toUpperCase()}
+                        {inv.status.toUpperCase()}
                       </span>
                     </td>
                     <td className="text-right">
                       <div className="flex gap-2 justify-end">
-                        {(inv.estado === 'pendiente' || inv.estado === 'vencido') && (
+                        {(inv.status === 'pending' || inv.status === 'overdue') && (
                           <button
                             onClick={() => setSelectedInvoice(inv)}
                             className="bg-emerald-600 hover:bg-emerald-700 text-white font-semibold text-xs px-2.5 py-1.5 rounded-md flex items-center gap-1 cursor-pointer transition-all shadow-sm shadow-emerald-600/10"
@@ -282,13 +282,13 @@ export function InvoicesPage() {
                             <CreditCard className="w-3.5 h-3.5" /> Registrar Cobro
                           </button>
                         )}
-                        {inv.estado === 'pagado' && inv.pago_id && (
+                        {inv.status === 'paid' && inv.payment_id && (
                           <button
-                            disabled={receiptLoadingMap[inv.pago_id]}
-                            onClick={() => handleDownloadReceipt(inv.pago_id)}
+                            disabled={receiptLoadingMap[inv.payment_id]}
+                            onClick={() => handleDownloadReceipt(inv.payment_id)}
                             className="bg-primary/20 hover:bg-primary/30 text-primary border border-primary/30 font-semibold text-xs px-2.5 py-1.5 rounded-md flex items-center gap-1 cursor-pointer transition-all disabled:opacity-50"
                           >
-                            {receiptLoadingMap[inv.pago_id] ? (
+                            {receiptLoadingMap[inv.payment_id] ? (
                               <RefreshCw className="w-3.5 h-3.5 animate-spin" />
                             ) : (
                               <Download className="w-3.5 h-3.5" />

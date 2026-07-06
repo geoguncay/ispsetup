@@ -8,12 +8,12 @@ from pydantic import BaseModel, EmailStr, Field
 
 
 class CompanyBase(BaseModel):
-    nombre: str = Field(min_length=2, max_length=120)
+    name: str = Field(min_length=2, max_length=120)
     ruc: str | None = Field(default=None, max_length=20)
-    direccion: str | None = Field(default=None, max_length=255)
-    telefono: str | None = Field(default=None, max_length=40)
+    address: str | None = Field(default=None, max_length=255)
+    phone: str | None = Field(default=None, max_length=40)
     email: EmailStr | None = Field(default=None)
-    sitio_web: str | None = Field(default=None, max_length=255)
+    website: str | None = Field(default=None, max_length=255)
     logo_url: str | None = Field(default=None, max_length=255)
     use_logo_on_login: bool = False
     login_bg_url: str | None = Field(default=None, max_length=255)
@@ -21,12 +21,12 @@ class CompanyBase(BaseModel):
 
 
 class CompanyUpdate(BaseModel):
-    nombre: str | None = Field(default=None, min_length=2, max_length=120)
+    name: str | None = Field(default=None, min_length=2, max_length=120)
     ruc: str | None = Field(default=None, max_length=20)
-    direccion: str | None = Field(default=None, max_length=255)
-    telefono: str | None = Field(default=None, max_length=40)
+    address: str | None = Field(default=None, max_length=255)
+    phone: str | None = Field(default=None, max_length=40)
     email: EmailStr | None = Field(default=None)
-    sitio_web: str | None = Field(default=None, max_length=255)
+    website: str | None = Field(default=None, max_length=255)
     logo_url: str | None = Field(default=None, max_length=255)
     use_logo_on_login: bool | None = None
     login_bg_url: str | None = Field(default=None, max_length=255)
@@ -44,7 +44,7 @@ class CompanyRead(CompanyBase):
 class CompanyPublic(BaseModel):
     model_config = {"from_attributes": True}
 
-    nombre: str
+    name: str
     logo_url: str | None
     use_logo_on_login: bool
     login_bg_url: str | None

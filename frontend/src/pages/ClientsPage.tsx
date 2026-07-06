@@ -1,6 +1,6 @@
 // -- Active: 1782457342014@@127.0.0.1@5432@isp_platform
 /**
- * ClientsPage — Gestión de clientes del WISP con filtros dinámicos y paginación.
+ * ClientsPage — Gestión de clientes del ISP con filtros dinámicos y paginación.
  */
 import { useState, useRef, useEffect } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
@@ -22,38 +22,38 @@ import { formatDate } from '@/lib/utils'
 
 interface Client {
   id: string
-  nombre: string
-  apellidos: string | null
-  nombres: string | null
+  name: string
+  last_name: string | null
+  first_name: string | null
   cedula: string
-  telefono: string
-  direccion: string
-  latitud: number | null
-  longitud: number | null
+  phone: string
+  address: string
+  latitude: number | null
+  longitude: number | null
   gateway_id: string
-  tipo: 'static' | 'pppoe'
-  activo: boolean
-  suspension_programada?: string | null
-  reactivacion_programada?: string | null
-  plan_activo: { id: string; nombre: string; velocidad_down_mbps: number; velocidad_up_mbps: number; precio: number } | null
-  router_nombre: string | null
+  connection_type: 'static' | 'pppoe'
+  active: boolean
+  scheduled_suspension?: string | null
+  scheduled_reactivation?: string | null
+  plan_activo: { id: string; name: string; speed_down_mbps: number; speed_up_mbps: number; price: number } | null
+  gateway_name: string | null
   static_ip?: { ip: string } | null
   email?: string | null
   created_at: string
   site_id?: string | null
-  site_nombre?: string | null
+  site_name?: string | null
 }
 
-interface Router {
+interface GatewayOption {
   id: string
-  nombre: string
-  latitud?: number | null
-  longitud?: number | null
+  name: string
+  latitude?: number | null
+  longitude?: number | null
 }
 
 interface Plan {
   id: string
-  nombre: string
+  name: string
 }
 
 // Icono personalizado SVG de Leaflet para evitar problemas de rutas de Vite
@@ -90,7 +90,7 @@ const gatewayMarkerIcon = L.divIcon({
 
 function MapController({ clients, selectedGateway, filterKey }: {
   clients: Client[]
-  selectedGateway: Router | undefined
+  selectedGateway: GatewayOption | undefined
   filterKey: string
 }) {
   const map = useMap()
@@ -100,11 +100,11 @@ function MapController({ clients, selectedGateway, filterKey }: {
     if (lastKey.current === filterKey) return
     lastKey.current = filterKey
 
-    if (selectedGateway?.latitud != null && selectedGateway?.longitud != null) {
-      map.flyTo([selectedGateway.latitud, selectedGateway.longitud], 14, { duration: 0.8 })
+    if (selectedGateway?.latitude != null && selectedGateway?.longitude != null) {
+      map.flyTo([selectedGateway.latitude, selectedGateway.longitude], 14, { duration: 0.8 })
     } else {
-      const first = clients.find(c => c.latitud && c.longitud)
-      if (first) map.flyTo([first.latitud!, first.longitud!], 14, { duration: 0.8 })
+      const first = clients.find(c => c.latitude && c.longitude)
+      if (first) map.flyTo([first.latitude!, first.longitude!], 14, { duration: 0.8 })
     }
   }, [filterKey, selectedGateway, clients, map])
 
@@ -132,17 +132,17 @@ export function ClientsPage() {
 
   // State de filtros y paginación
   const [search, setSearch] = useState('')
-  const [routerId, setRouterId] = useState('')
+  const [gatewayId, setGatewayId] = useState('')
   const [planId, setPlanId] = useState('')
   const [siteId, setSiteId] = useState('')
-  const [activo, setActivo] = useState('')
-  const [tipo, setTipo] = useState('')
+  const [active, setActive] = useState('')
+  const [connectionType, setConnectionType] = useState('')
   const [page, setPage] = useState(1)
   const [viewMode, setViewMode] = useState<'list' | 'map'>('list')
   const limit = 10
 
   // Estados para ordenamiento
-  const [sortField, setSortField] = useState<string>('apellidos')
+  const [sortField, setSortField] = useState<string>('last_name')
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('asc')
 
   // Modales
@@ -151,8 +151,8 @@ export function ClientsPage() {
   const [importOpen, setImportOpen] = useState(false)
 
   // Consultar Routers, Planes y Sitios para los dropdowns
-  const { data: routers = [] } = useQuery<Router[]>({
-    queryKey: ['routers-list-dropdown'],
+  const { data: gateways = [] } = useQuery<GatewayOption[]>({
+    queryKey: ['gateways-list-dropdown'],
     queryFn: async () => {
       const { data } = await api.get('/gateways')
       return data
@@ -177,7 +177,7 @@ export function ClientsPage() {
 
   // Consultar Clientes
   const { data: clientsData = { items: [], total: 0 }, isLoading, isFetching, refetch } = useQuery({
-    queryKey: ['clients', page, search, routerId, planId, siteId, activo, tipo, sortField, sortDir],
+    queryKey: ['clients', page, search, gatewayId, planId, siteId, active, connectionType, sortField, sortDir],
     queryFn: async () => {
       const params: any = {
         skip: (page - 1) * limit,
@@ -186,11 +186,11 @@ export function ClientsPage() {
         sort_dir: sortDir,
       }
       if (search.trim()) params.search = search
-      if (routerId) params.gateway_id = routerId
+      if (gatewayId) params.gateway_id = gatewayId
       if (planId) params.plan_id = planId
       if (siteId) params.site_id = siteId
-      if (activo) params.activo = activo === 'true'
-      if (tipo) params.tipo = tipo
+      if (active) params.active = active === 'true'
+      if (connectionType) params.connection_type = connectionType
 
       const { data } = await api.get('/clients', { params })
       return data
@@ -286,7 +286,7 @@ export function ClientsPage() {
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
             <input
               type="text"
-              placeholder="Buscar nombre o cédula..."
+              placeholder="Buscar name o cédula..."
               value={search}
               onChange={(e) => { setSearch(e.target.value); setPage(1) }}
               className="input-field pl-9"
@@ -295,13 +295,13 @@ export function ClientsPage() {
           
           {/* Gateway */}
           <select
-            value={routerId}
-            onChange={(e) => { setRouterId(e.target.value); setPage(1) }}
+            value={gatewayId}
+            onChange={(e) => { setGatewayId(e.target.value); setPage(1) }}
             className="input-field cursor-pointer"
           >
             <option value="">Todos los gateways</option>
-            {routers.map((r) => (
-              <option key={r.id} value={r.id}>{r.nombre}</option>
+            {gateways.map((r) => (
+              <option key={r.id} value={r.id}>{r.name}</option>
             ))}
           </select>
 
@@ -314,7 +314,7 @@ export function ClientsPage() {
           >
             <option value="">Todos los sitios</option>
             {sites.map((s: any) => (
-              <option key={s.id} value={s.id}>{s.nombre}</option>
+              <option key={s.id} value={s.id}>{s.name}</option>
             ))}
           </select>
 
@@ -326,14 +326,14 @@ export function ClientsPage() {
           >
             <option value="">Todos los planes</option>
             {plans.map((p) => (
-              <option key={p.id} value={p.id}>{p.nombre}</option>
+              <option key={p.id} value={p.id}>{p.name}</option>
             ))}
           </select>
 
           {/* Estado */}
           <select
-            value={activo}
-            onChange={(e) => { setActivo(e.target.value); setPage(1) }}
+            value={active}
+            onChange={(e) => { setActive(e.target.value); setPage(1) }}
             className="input-field cursor-pointer"
           >
             <option value="">Cualquier estado</option>
@@ -379,21 +379,21 @@ export function ClientsPage() {
                 />
                 <MapController
                   clients={clientsData.items}
-                  selectedGateway={routers.find(r => r.id === routerId)}
-                  filterKey={`${routerId}-${siteId}`}
+                  selectedGateway={gateways.find(r => r.id === gatewayId)}
+                  filterKey={`${gatewayId}-${siteId}`}
                 />
                 {/* Marcador del gateway seleccionado */}
                 {(() => {
-                  const gw = routers.find(r => r.id === routerId)
-                  if (!gw?.latitud || !gw?.longitud) return null
+                  const gw = gateways.find(r => r.id === gatewayId)
+                  if (!gw?.latitude || !gw?.longitude) return null
                   return (
-                    <Marker position={[gw.latitud, gw.longitud]} icon={gatewayMarkerIcon}>
+                    <Marker position={[gw.latitude, gw.longitude]} icon={gatewayMarkerIcon}>
                       <Popup>
                         <div className="p-1 font-sans min-w-[160px]">
-                          <p className="font-bold text-sm text-foreground m-0">{gw.nombre}</p>
+                          <p className="font-bold text-sm text-foreground m-0">{gw.name}</p>
                           <p className="text-[11px] text-muted-foreground mt-1 m-0">Gateway · Centro de referencia</p>
                           <p className="text-[10px] font-mono text-muted-foreground mt-0.5 m-0">
-                            {gw.latitud.toFixed(5)}, {gw.longitud.toFixed(5)}
+                            {gw.latitude.toFixed(5)}, {gw.longitude.toFixed(5)}
                           </p>
                         </div>
                       </Popup>
@@ -401,20 +401,20 @@ export function ClientsPage() {
                   )
                 })()}
                 {clientsData.items
-                  .filter((client: Client) => client.latitud && client.longitud)
+                  .filter((client: Client) => client.latitude && client.longitude)
                   .map((client: Client) => {
-                    let status: 'activo' | 'suspension_programada' | 'reactivacion_programada' | 'suspendido' = 'activo';
-                    if (client.activo) {
-                      if (client.suspension_programada) status = 'suspension_programada';
+                    let status: 'active' | 'scheduled_suspension' | 'scheduled_reactivation' | 'suspended' = 'active';
+                    if (client.active) {
+                      if (client.scheduled_suspension) status = 'scheduled_suspension';
                     } else {
-                      status = client.reactivacion_programada ? 'reactivacion_programada' : 'suspendido';
+                      status = client.scheduled_reactivation ? 'scheduled_reactivation' : 'suspended';
                     }
 
-                    const markerColor = status === 'activo'
+                    const markerColor = status === 'active'
                       ? '%2310b981'
-                      : status === 'suspension_programada'
+                      : status === 'scheduled_suspension'
                         ? '%230ea5e9'
-                        : status === 'reactivacion_programada'
+                        : status === 'scheduled_reactivation'
                           ? '%23a855f7'
                           : '%23f59e0b';
                     const customSvg = `data:image/svg+xml;utf8,${encodeURIComponent(`
@@ -432,32 +432,32 @@ export function ClientsPage() {
                     return (
                       <Marker
                         key={client.id}
-                        position={[client.latitud!, client.longitud!]}
+                        position={[client.latitude!, client.longitude!]}
                         icon={dynamicIcon}
                       >
                         <Popup>
                           <div className="p-1 space-y-2 text-foreground font-sans min-w-[200px]">
-                            <h4 className="font-bold text-sm text-foreground m-0">{client.nombre}</h4>
+                            <h4 className="font-bold text-sm text-foreground m-0">{client.name}</h4>
                             <p className="text-xs text-muted-foreground m-0">Cédula: {client.cedula}</p>
-                            <p className="text-xs text-muted-foreground m-0">Tel: {client.telefono}</p>
+                            <p className="text-xs text-muted-foreground m-0">Tel: {client.phone}</p>
                             <div className="flex items-center gap-1.5 text-xs mt-1">
                               <span className="font-semibold text-muted-foreground">IP:</span>
                               <span className="font-mono text-foreground font-semibold">{client.static_ip?.ip ?? '—'}</span>
                             </div>
                             <div className="flex items-center gap-1.5 text-xs">
                               <span className="font-semibold text-muted-foreground">Plan:</span>
-                              <span className="text-brand-400 font-medium">{client.plan_activo?.nombre ?? 'Sin plan'}</span>
+                              <span className="text-brand-400 font-medium">{client.plan_activo?.name ?? 'Sin plan'}</span>
                             </div>
                             <div className="flex items-center justify-between border-t border-border/40 pt-2 mt-2">
-                              <span className={`text-[10px] uppercase font-bold px-2 py-0.5 rounded-full ${status === 'activo'
+                              <span className={`text-[10px] uppercase font-bold px-2 py-0.5 rounded-full ${status === 'active'
                                 ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/25'
-                                : status === 'suspension_programada'
+                                : status === 'scheduled_suspension'
                                   ? 'bg-sky-500/10 text-sky-400 border border-sky-500/25'
-                                  : status === 'reactivacion_programada'
+                                  : status === 'scheduled_reactivation'
                                     ? 'bg-purple-500/10 text-purple-400 border border-purple-500/25'
                                     : 'bg-amber-500/10 text-amber-400 border border-amber-500/25'
                                 }`}>
-                                {status === 'activo' ? 'Activo' : status === 'suspension_programada' ? 'Aplazado' : status === 'reactivacion_programada' ? 'Reactivación prog.' : 'Suspendido'}
+                                {status === 'active' ? 'Activo' : status === 'scheduled_suspension' ? 'Aplazado' : status === 'scheduled_reactivation' ? 'Reactivación prog.' : 'Suspendido'}
                               </span>
                               <button
                                 type="button"
@@ -480,20 +480,20 @@ export function ClientsPage() {
                 <table className="data-table">
                   <thead>
                     <tr>
-                      <th onClick={() => handleSort('apellidos')} className="cursor-pointer select-none hover:bg-secondary/20 transition-colors">
+                      <th onClick={() => handleSort('last_name')} className="cursor-pointer select-none hover:bg-secondary/20 transition-colors">
                         <div className="flex items-center gap-1">
                           <span>Apellidos</span>
-                          {sortField === 'apellidos' ? (
+                          {sortField === 'last_name' ? (
                             sortDir === 'asc' ? <ChevronUp className="w-3.5 h-3.5 text-brand-400" /> : <ChevronDown className="w-3.5 h-3.5 text-brand-400" />
                           ) : (
                             <ArrowUpDown className="w-3 h-3 opacity-30" />
                           )}
                         </div>
                       </th>
-                      <th onClick={() => handleSort('nombres')} className="hidden sm:table-cell cursor-pointer select-none hover:bg-secondary/20 transition-colors">
+                      <th onClick={() => handleSort('first_name')} className="hidden sm:table-cell cursor-pointer select-none hover:bg-secondary/20 transition-colors">
                         <div className="flex items-center gap-1">
                           <span>Nombres</span>
-                          {sortField === 'nombres' ? (
+                          {sortField === 'first_name' ? (
                             sortDir === 'asc' ? <ChevronUp className="w-3.5 h-3.5 text-brand-400" /> : <ChevronDown className="w-3.5 h-3.5 text-brand-400" />
                           ) : (
                             <ArrowUpDown className="w-3 h-3 opacity-30" />
@@ -543,10 +543,10 @@ export function ClientsPage() {
                       <th className="hidden lg:table-cell">
                         Sitio
                       </th>
-                      <th onClick={() => handleSort('router')} className="hidden lg:table-cell cursor-pointer select-none hover:bg-secondary/20 transition-colors">
+                      <th onClick={() => handleSort('gateway')} className="hidden lg:table-cell cursor-pointer select-none hover:bg-secondary/20 transition-colors">
                         <div className="flex items-center gap-1">
                           <span>Gateway</span>
-                          {sortField === 'router' ? (
+                          {sortField === 'gateway' ? (
                             sortDir === 'asc' ? <ChevronUp className="w-3.5 h-3.5 text-brand-400" /> : <ChevronDown className="w-3.5 h-3.5 text-brand-400" />
                           ) : (
                             <ArrowUpDown className="w-3 h-3 opacity-30" />
@@ -563,10 +563,10 @@ export function ClientsPage() {
                           )}
                         </div>
                       </th>
-                      <th onClick={() => handleSort('activo')} className="cursor-pointer select-none hover:bg-secondary/20 transition-colors">
+                      <th onClick={() => handleSort('active')} className="cursor-pointer select-none hover:bg-secondary/20 transition-colors">
                         <div className="flex items-center gap-1">
                           <span>Estado</span>
-                          {sortField === 'activo' ? (
+                          {sortField === 'active' ? (
                             sortDir === 'asc' ? <ChevronUp className="w-3.5 h-3.5 text-brand-400" /> : <ChevronDown className="w-3.5 h-3.5 text-brand-400" />
                           ) : (
                             <ArrowUpDown className="w-3 h-3 opacity-30" />
@@ -588,12 +588,12 @@ export function ClientsPage() {
                               <Users className="w-4 h-4 text-brand-400" />
                             </div>
                             <span className="font-semibold text-foreground text-sm">
-                              {client.apellidos || client.nombre}
+                              {client.last_name || client.name}
                             </span>
                           </div>
                         </td>
                         <td className="hidden sm:table-cell text-sm text-muted-foreground">
-                          {client.nombres || <span className="italic opacity-40">—</span>}
+                          {client.first_name || <span className="italic opacity-40">—</span>}
                         </td>
                         <td className="hidden md:table-cell font-mono text-xs text-muted-foreground">
                           {client.cedula}
@@ -614,9 +614,9 @@ export function ClientsPage() {
                           )}
                         </td>
                         <td className="hidden lg:table-cell">
-                          {client.site_nombre ? (
+                          {client.site_name ? (
                             <span className="inline-flex items-center text-xs font-semibold px-2 py-0.5 rounded bg-brand-500/10 text-brand-400 border border-brand-500/20">
-                              {client.site_nombre}
+                              {client.site_name}
                             </span>
                           ) : (
                             <span className="text-xs text-muted-foreground italic">Sin Sitio</span>
@@ -624,14 +624,14 @@ export function ClientsPage() {
                         </td>
                         <td className="hidden lg:table-cell">
                           <span className="text-xs text-muted-foreground font-medium">
-                            {client.router_nombre ?? '—'}
+                            {client.gateway_name ?? '—'}
                           </span>
                         </td>
                         <td className="hidden lg:table-cell">
                           {client.plan_activo ? (
                             <div className="flex items-center gap-1.5">
                               <Wifi className="w-3.5 h-3.5 text-brand-400" />
-                              <span className="text-xs text-brand-300 font-medium">{client.plan_activo.nombre}</span>
+                              <span className="text-xs text-brand-300 font-medium">{client.plan_activo.name}</span>
                             </div>
                           ) : (
                             <span className="text-xs text-muted-foreground">Sin plan</span>
@@ -639,33 +639,33 @@ export function ClientsPage() {
                         </td>
                         <td onClick={(e) => e.stopPropagation()}>
                           {(() => {
-                            let status: 'activo' | 'suspension_programada' | 'reactivacion_programada' | 'suspendido' = 'activo';
-                            if (client.activo) {
-                              if (client.suspension_programada) status = 'suspension_programada';
+                            let status: 'active' | 'scheduled_suspension' | 'scheduled_reactivation' | 'suspended' = 'active';
+                            if (client.active) {
+                              if (client.scheduled_suspension) status = 'scheduled_suspension';
                             } else {
-                              status = client.reactivacion_programada ? 'reactivacion_programada' : 'suspendido';
+                              status = client.scheduled_reactivation ? 'scheduled_reactivation' : 'suspended';
                             }
 
-                            if (status === 'activo') {
+                            if (status === 'active') {
                               return (
                                 <span className="inline-flex items-center gap-1.5 text-xs font-semibold px-2.5 py-1 rounded-full bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
                                   <UserCheck className="w-3.5 h-3.5" /> Activo
                                 </span>
                               )
-                            } else if (status === 'suspension_programada') {
+                            } else if (status === 'scheduled_suspension') {
                               return (
                                 <span
                                   className="inline-flex items-center gap-1.5 text-xs font-semibold px-2.5 py-1 rounded-full bg-sky-500/10 text-sky-400 border border-sky-500/20"
-                                  title={`Suspensión programada: ${new Date(client.suspension_programada!).toLocaleString()}`}
+                                  title={`Suspensión programada: ${new Date(client.scheduled_suspension!).toLocaleString()}`}
                                 >
                                   <Clock className="w-3.5 h-3.5" /> Aplazado
                                 </span>
                               )
-                            } else if (status === 'reactivacion_programada') {
+                            } else if (status === 'scheduled_reactivation') {
                               return (
                                 <span
                                   className="inline-flex items-center gap-1.5 text-xs font-semibold px-2.5 py-1 rounded-full bg-purple-500/10 text-purple-400 border border-purple-500/20"
-                                  title={`Reactivación programada: ${new Date(client.reactivacion_programada!).toLocaleString()}`}
+                                  title={`Reactivación programada: ${new Date(client.scheduled_reactivation!).toLocaleString()}`}
                                 >
                                   <RotateCcw className="w-3.5 h-3.5" /> Reactivación programada
                                 </span>

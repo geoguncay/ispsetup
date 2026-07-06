@@ -52,13 +52,13 @@ class AuditAction:
 
 def log_event(
     db: Session,
-    accion: str,
-    entidad_tipo: str | None = None,
-    entidad_id: Any = None,
-    entidad_nombre: str | None = None,
-    usuario_id: Any = None,
-    usuario_nombre: str | None = None,
-    detalle: dict | None = None,
+    action: str,
+    entity_type: str | None = None,
+    entity_id: Any = None,
+    entity_name: str | None = None,
+    user_id: Any = None,
+    user_name: str | None = None,
+    detail: dict | None = None,
     ip_address: str | None = None,
 ) -> None:
     """
@@ -67,23 +67,23 @@ def log_event(
     """
     try:
         entry = AuditLog(
-            accion=accion,
-            entidad_tipo=entidad_tipo,
-            entidad_id=str(entidad_id) if entidad_id is not None else None,
-            entidad_nombre=entidad_nombre,
-            usuario_id=usuario_id,
-            usuario_nombre=usuario_nombre,
-            detalle=detalle,
+            action=action,
+            entity_type=entity_type,
+            entity_id=str(entity_id) if entity_id is not None else None,
+            entity_name=entity_name,
+            user_id=user_id,
+            user_name=user_name,
+            detail=detail,
             ip_address=ip_address,
         )
         db.add(entry)
         db.commit()
     except Exception as exc:
-        logger.error(f"Error al escribir audit log [{accion}]: {exc}")
+        logger.error(f"Error al escribir audit log [{action}]: {exc}")
         db.rollback()
 
 
-def log_connectivity_change(gateway_id: str, gateway_nombre: str, accion: str) -> None:
+def log_connectivity_change(gateway_id: str, gateway_name: str, action: str) -> None:
     """
     Registra cambios de conectividad de un gateway (online/offline).
     Abre su propia sesión de BD — seguro de llamar desde Celery workers.
@@ -93,11 +93,11 @@ def log_connectivity_change(gateway_id: str, gateway_nombre: str, accion: str) -
     try:
         log_event(
             db=db,
-            accion=accion,
-            entidad_tipo="Gateway",
-            entidad_id=gateway_id,
-            entidad_nombre=gateway_nombre,
-            detalle={"source": "health_check"},
+            action=action,
+            entity_type="Gateway",
+            entity_id=gateway_id,
+            entity_name=gateway_name,
+            detail={"source": "health_check"},
         )
     finally:
         db.close()

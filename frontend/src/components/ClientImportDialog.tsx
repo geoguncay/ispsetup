@@ -15,14 +15,14 @@ interface ClientImportDialogProps {
 
 interface GatewayOption {
   id: string
-  nombre: string
-  latitud: number | null
-  longitud: number | null
+  name: string
+  latitude: number | null
+  longitude: number | null
 }
 
 interface PlanOption {
   id: string
-  nombre: string
+  name: string
 }
 
 type ConnectionType = 'static' | 'pppoe' | 'mixto'
@@ -38,8 +38,8 @@ const SYSTEM_FIELDS = [
   { key: 'tipo',           label: 'Tipo de Conexión (static/pppoe)', showFor: ['mixto'] as ConnectionType[],                    requiredFor: [] as ConnectionType[] },
   { key: 'ip',             label: 'Dirección IP (Estático)',          showFor: ['static', 'mixto'] as ConnectionType[],          requiredFor: ['static'] as ConnectionType[] },
   { key: 'mac',            label: 'Dirección MAC',                    showFor: ['static', 'mixto'] as ConnectionType[],          requiredFor: [] as ConnectionType[] },
-  { key: 'usuario_ppp',    label: 'Usuario PPPoE',                    showFor: ['pppoe', 'mixto'] as ConnectionType[],            requiredFor: ['pppoe'] as ConnectionType[] },
-  { key: 'contraseña_ppp', label: 'Contraseña PPPoE',                 showFor: ['pppoe', 'mixto'] as ConnectionType[],            requiredFor: ['pppoe'] as ConnectionType[] },
+  { key: 'ppp_username',   label: 'Usuario PPPoE',                    showFor: ['pppoe', 'mixto'] as ConnectionType[],            requiredFor: ['pppoe'] as ConnectionType[] },
+  { key: 'ppp_password',   label: 'Contraseña PPPoE',                 showFor: ['pppoe', 'mixto'] as ConnectionType[],            requiredFor: ['pppoe'] as ConnectionType[] },
 ]
 
 const STEP_LABELS = ['Subir CSV', 'Configurar Lote', 'Mapear Columnas', 'Validar y Previsualizar', 'Finalizar']
@@ -48,8 +48,8 @@ function randomCoordNear(lat: number, lng: number, radiusM = 1000) {
   const r = radiusM * Math.sqrt(Math.random())
   const angle = Math.random() * 2 * Math.PI
   return {
-    latitud: lat + (r * Math.cos(angle)) / 111300,
-    longitud: lng + (r * Math.sin(angle)) / (111300 * Math.cos((lat * Math.PI) / 180)),
+    latitude: lat + (r * Math.cos(angle)) / 111300,
+    longitude: lng + (r * Math.sin(angle)) / (111300 * Math.cos((lat * Math.PI) / 180)),
   }
 }
 
@@ -110,7 +110,7 @@ export function ClientImportDialog({ isOpen, onClose, onSuccess }: ClientImportD
   }, [isOpen])
 
   const selectedGateway = dbGateways.find(g => g.id === selectedGatewayId) ?? null
-  const gatewayHasCoords = !!(selectedGateway?.latitud != null && selectedGateway?.longitud != null)
+  const gatewayHasCoords = !!(selectedGateway?.latitude != null && selectedGateway?.longitude != null)
 
   const requiredFields = SYSTEM_FIELDS.filter(f => f.showFor.includes(connectionType) && f.requiredFor.includes(connectionType))
   const optionalFields  = SYSTEM_FIELDS.filter(f => f.showFor.includes(connectionType) && !f.requiredFor.includes(connectionType))
@@ -180,7 +180,9 @@ export function ClientImportDialog({ isOpen, onClose, onSuccess }: ClientImportD
             return clean === key || clean.includes(key) ||
               (key === 'cedula' && (clean.includes('ruc') || clean.includes('identificacion'))) ||
               (key === 'telefono' && (clean.includes('phone') || clean.includes('celular') || clean.includes('movil'))) ||
-              (key === 'direccion' && clean.includes('address'))
+              (key === 'direccion' && clean.includes('address')) ||
+              (key === 'ppp_username' && clean.includes('usuario_ppp')) ||
+              (key === 'ppp_password' && clean.includes('contrasena_ppp'))
           })
           if (match) initialMapping[field.key] = match
         })
@@ -233,7 +235,7 @@ export function ClientImportDialog({ isOpen, onClose, onSuccess }: ClientImportD
       if (data.detected_plans.length > 0) {
         const initial: Record<string, string> = {}
         data.detected_plans.forEach((name: string) => {
-          const found = dbPlans.find(p => p.nombre.toLowerCase().trim() === name.toLowerCase().trim() || p.id === name)
+          const found = dbPlans.find(p => p.name.toLowerCase().trim() === name.toLowerCase().trim() || p.id === name)
           if (found) initial[name] = found.id
         })
         setPlanMappings(initial)
@@ -248,8 +250,8 @@ export function ClientImportDialog({ isOpen, onClose, onSuccess }: ClientImportD
     const finalized = mappedData.map(row => {
       const resolvedPlan = planMappings[row.plan] ?? ''
       const coords =
-        assignCoordinates && selectedGateway?.latitud != null && selectedGateway?.longitud != null
-          ? randomCoordNear(selectedGateway.latitud, selectedGateway.longitud)
+        assignCoordinates && selectedGateway?.latitude != null && selectedGateway?.longitude != null
+          ? randomCoordNear(selectedGateway.latitude, selectedGateway.longitude)
           : {}
       return { ...row, plan: resolvedPlan, ...coords }
     })
@@ -279,30 +281,30 @@ export function ClientImportDialog({ isOpen, onClose, onSuccess }: ClientImportD
         clients: clientsToImport.map(row => {
           // Coordenadas: usar las ya generadas o generar ahora si el path fue directo (static sin planes)
           const coords =
-            assignCoordinates && selectedGateway?.latitud != null && selectedGateway?.longitud != null && row.latitud == null
-              ? randomCoordNear(selectedGateway.latitud, selectedGateway.longitud)
-              : { latitud: row.latitud ?? null, longitud: row.longitud ?? null }
+            assignCoordinates && selectedGateway?.latitude != null && selectedGateway?.longitude != null && row.latitude == null
+              ? randomCoordNear(selectedGateway.latitude, selectedGateway.longitude)
+              : { latitude: row.latitude ?? null, longitude: row.longitude ?? null }
           return {
-            nombre: row.nombre || null,
-            apellidos: row.apellidos,
-            nombres: row.nombres,
+            name: row.nombre || null,
+            last_name: row.apellidos,
+            first_name: row.nombres,
             cedula: row.cedula,
-            telefono: row.telefono,
-            direccion: row.direccion,
+            phone: row.telefono,
+            address: row.direccion,
             email: row.email || null,
             gateway_id: selectedGatewayId,
             plan_id: row.plan || null,
-            tipo: row.tipo || (connectionType !== 'mixto' ? connectionType : 'static'),
+            connection_type: row.tipo || (connectionType !== 'mixto' ? connectionType : 'static'),
             ip: row.ip || null,
             mac: row.mac || null,
-            notas_ip: null,
-            usuario_ppp: row.usuario_ppp || null,
-            contraseña_ppp: row.contraseña_ppp || null,
-            inicio_facturacion: row.inicio_facturacion || null,
-            dia_inicio_periodo: row.dia_inicio_periodo ? parseInt(row.dia_inicio_periodo) : 1,
-            auto_aplicar_pago: true,
-            usar_credito_auto: true,
-            prorrateo_separado: true,
+            notes_ip: null,
+            ppp_username: row.ppp_username || null,
+            ppp_password: row.ppp_password || null,
+            billing_start: row.inicio_facturacion || null,
+            billing_period_start_day: row.dia_inicio_periodo ? parseInt(row.dia_inicio_periodo) : 1,
+            auto_apply_payment: true,
+            use_auto_credit: true,
+            separate_proration: true,
             ...coords,
           }
         }),
@@ -475,14 +477,14 @@ export function ClientImportDialog({ isOpen, onClose, onSuccess }: ClientImportD
                   >
                     <option value="">-- Seleccionar Gateway --</option>
                     {dbGateways.map(g => (
-                      <option key={g.id} value={g.id}>{g.nombre}</option>
+                      <option key={g.id} value={g.id}>{g.name}</option>
                     ))}
                   </select>
                   {selectedGateway && (
                     <p className={`text-xs flex items-center gap-1.5 mt-1 ${gatewayHasCoords ? 'text-brand-400' : 'text-amber-400'}`}>
                       <MapPin className="w-3.5 h-3.5 shrink-0" />
                       {gatewayHasCoords
-                        ? `Coordenadas: ${selectedGateway.latitud?.toFixed(5)}, ${selectedGateway.longitud?.toFixed(5)}`
+                        ? `Coordenadas: ${selectedGateway.latitude?.toFixed(5)}, ${selectedGateway.longitude?.toFixed(5)}`
                         : 'Este gateway no tiene coordenadas configuradas — ubicación aleatoria no disponible.'
                       }
                     </p>
@@ -755,7 +757,7 @@ export function ClientImportDialog({ isOpen, onClose, onSuccess }: ClientImportD
                           className="input-field w-64 text-xs cursor-pointer"
                         >
                           <option value="">-- No asignar plan --</option>
-                          {dbPlans.map(p => <option key={p.id} value={p.id}>{p.nombre}</option>)}
+                          {dbPlans.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
                         </select>
                       </div>
                     ))}
@@ -799,7 +801,7 @@ export function ClientImportDialog({ isOpen, onClose, onSuccess }: ClientImportD
                   {assignCoordinates && gatewayHasCoords && (
                     <div className="flex items-center gap-2 px-3 py-2 bg-brand-500/5 border border-brand-500/20 rounded-lg text-xs text-brand-300">
                       <MapPin className="w-3.5 h-3.5 shrink-0" />
-                      Se asignarán coordenadas aleatorias dentro de 1km de <span className="font-semibold ml-1">{selectedGateway?.nombre}</span> a cada cliente importado.
+                      Se asignarán coordenadas aleatorias dentro de 1km de <span className="font-semibold ml-1">{selectedGateway?.name}</span> a cada cliente importado.
                     </div>
                   )}
 
@@ -942,7 +944,7 @@ export function ClientImportDialog({ isOpen, onClose, onSuccess }: ClientImportD
                   <div className="divide-y divide-border/20 text-xs">
                     {importResult.failures.map((f: any, i: number) => (
                       <div key={i} className="py-2 flex justify-between gap-4">
-                        <span className="font-semibold text-foreground">{f.nombre} {f.cedula}</span>
+                        <span className="font-semibold text-foreground">{f.name} {f.cedula}</span>
                         <span className="text-red-400 font-medium">{f.error}</span>
                       </div>
                     ))}

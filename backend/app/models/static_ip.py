@@ -16,7 +16,7 @@ class StaticIP(Base):
     id: Mapped[uuid.UUID] = mapped_column(
         Uuid(native_uuid=False), primary_key=True, default=uuid.uuid4
     )
-    cliente_id: Mapped[uuid.UUID] = mapped_column(
+    client_id: Mapped[uuid.UUID] = mapped_column(
         Uuid(native_uuid=False), ForeignKey("clients.id", ondelete="CASCADE"), nullable=False, unique=True
     )
     ip: Mapped[str] = mapped_column(String(45), nullable=False)
@@ -24,7 +24,7 @@ class StaticIP(Base):
     gateway_id: Mapped[uuid.UUID] = mapped_column(
         Uuid(native_uuid=False), ForeignKey("gateways.id", ondelete="CASCADE"), nullable=False
     )
-    notas: Mapped[str | None] = mapped_column(Text, nullable=True)
+    notes: Mapped[str | None] = mapped_column(Text, nullable=True)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), nullable=False
     )

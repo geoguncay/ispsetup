@@ -26,43 +26,43 @@ def list_users(db: DBSession, _: AdminOnly) -> list[User]:
 @router.get("/stats", response_model=ClientStats)
 def get_client_stats(db: DBSession, _: AdminOnly) -> ClientStats:
     """
-    Retorna conteo de clientes WISP agrupados por estado:
-      - conectados, desconectados, suspendidos
+    Retorna conteo de clientes ISP agrupados por estado:
+      - connected, disconnected, suspended
     """
     clients = db.query(Client).all()
     total = len(clients)
-    conectados = 0
-    desconectados = 0
-    suspendidos = 0
+    connected = 0
+    disconnected = 0
+    suspended = 0
     for c in clients:
-        if not c.activo:
-            suspendidos += 1
+        if not c.active:
+            suspended += 1
         else:
             first_char = str(c.id)[0]
             if ord(first_char) % 7 == 0:
-                desconectados += 1
+                disconnected += 1
             else:
-                conectados += 1
+                connected += 1
     return ClientStats(
         total=total,
-        conectados=conectados,
-        desconectados=desconectados,
-        suspendidos=suspendidos,
+        connected=connected,
+        disconnected=disconnected,
+        suspended=suspended,
     )
 
 
 @router.post("", response_model=UserRead, status_code=status.HTTP_201_CREATED)
 def create_user(payload: UserCreate, db: DBSession, _: AdminOnly) -> User:
     user = User(
-        nombre=payload.nombre,
+        name=payload.name,
         email=payload.email,
         hashed_password=hash_password(payload.password),
-        rol=payload.rol,
-        activo=payload.activo,
-        tipo_operador=payload.tipo_operador,
-        permisos_router=payload.permisos_router,
-        horario_acceso=payload.horario_acceso,
-        permisos=payload.permisos,
+        role=payload.role,
+        active=payload.active,
+        operator_type=payload.operator_type,
+        gateway_permissions=payload.gateway_permissions,
+        access_schedule=payload.access_schedule,
+        permissions=payload.permissions,
     )
     db.add(user)
     try:
@@ -98,7 +98,7 @@ def update_user(
     current_user: CurrentUser,
 ) -> User:
     # Admin puede editar cualquier usuario; los demás solo su propio perfil
-    if current_user.rol != "admin" and current_user.id != user_id:
+    if current_user.role != "admin" and current_user.id != user_id:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Sin permisos")
 
     user = db.get(User, user_id)
@@ -110,16 +110,16 @@ def update_user(
         update_data["hashed_password"] = hash_password(update_data.pop("password"))
 
     # Proteger contra dejar el sistema sin admin activo
-    if user.rol == "admin":
-        desactivando = update_data.get("activo") is False
-        cambiando_rol = "rol" in update_data and update_data["rol"] != "admin"
-        if desactivando or cambiando_rol:
-            admins_activos = (
+    if user.role == "admin":
+        deactivating = update_data.get("active") is False
+        changing_role = "role" in update_data and update_data["role"] != "admin"
+        if deactivating or changing_role:
+            active_admins = (
                 db.query(User)
-                .filter(User.rol == "admin", User.activo == True, User.id != user.id)
+                .filter(User.role == "admin", User.active == True, User.id != user.id)
                 .count()
             )
-            if admins_activos == 0:
+            if active_admins == 0:
                 raise HTTPException(
                     status_code=status.HTTP_409_CONFLICT,
                     detail="No se puede desactivar o cambiar el rol de este administrador porque es el único activo en el sistema.",
@@ -145,7 +145,7 @@ def upload_user_avatar(
     current_user: CurrentUser,
     file: UploadFile = File(...),
 ) -> dict:
-    if current_user.rol != "admin" and current_user.id != user_id:
+    if current_user.role != "admin" and current_user.id != user_id:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Sin permisos")
 
     user = db.get(User, user_id)

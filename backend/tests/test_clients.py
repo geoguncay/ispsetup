@@ -12,7 +12,7 @@ from app.core.security import hash_password
 from app.main import app
 from app.models.user import User
 from app.models.plan import Plan
-from app.models.router import Router
+from app.models.gateway import Gateway
 from app.models.client import Client
 from app.models.client_plan import ClientPlan
 
@@ -51,37 +51,37 @@ def setup_db(monkeypatch):
     db = TestingSessionLocal()
     # Agregar un administrador
     db.add(User(
-        nombre="Test Admin",
+        name="Test Admin",
         email="admin@test.com",
         hashed_password=hash_password("adminpass123"),
-        rol="admin",
-        activo=True,
+        role="admin",
+        active=True,
     ))
     # Agregar un técnico
     db.add(User(
-        nombre="Test Tecnico",
+        name="Test Tecnico",
         email="tecnico@test.com",
         hashed_password=hash_password("tecnicopass123"),
-        rol="tecnico",
-        activo=True,
+        role="technician",
+        active=True,
     ))
-    # Agregar un router
-    db.add(Router(
-        nombre="Router Quito Central",
+    # Agregar un gateway
+    db.add(Gateway(
+        name="Router Quito Central",
         ip="10.0.0.1",
-        puerto_api=8728,
-        usuario_api="admin",
+        api_port=8728,
+        api_username="admin",
         password_enc="encrypted_pass",
-        activo=True,
+        active=True,
     ))
     # Agregar un plan
     db.add(Plan(
-        nombre="Plan Fibra 50 Mbps",
-        velocidad_down_mbps=50,
-        velocidad_up_mbps=25,
-        velocidad_down_kbps=50000,
-        velocidad_up_kbps=25000,
-        precio=22.40,
+        name="Plan Fibra 50 Mbps",
+        speed_down_mbps=50,
+        speed_up_mbps=25,
+        speed_down_kbps=50000,
+        speed_up_kbps=25000,
+        price=22.40,
     ))
     db.commit()
     db.close()
@@ -116,9 +116,9 @@ def test_create_client_invalid_cedula(client: TestClient):
     )
     token = login.json()["access_token"]
 
-    # Obtener router
+    # Obtener gateway
     db = TestingSessionLocal()
-    router = db.query(Router).first()
+    gateway = db.query(Gateway).first()
     db.close()
 
     # Cédula inválida (largo de 10 pero algoritmo incorrecto)
@@ -126,12 +126,12 @@ def test_create_client_invalid_cedula(client: TestClient):
         "/api/clients",
         headers={"Authorization": f"Bearer {token}"},
         json={
-            "nombre": "Juan Perez",
+            "name": "Juan Perez",
             "cedula": "1724024883",  # Inválido (10 dígitos pero verificador incorrecto)
-            "telefono": "0999999999",
-            "direccion": "Sector La Mariscal, Quito",
-            "router_id": str(router.id),
-            "tipo": "static",
+            "phone": "0999999999",
+            "address": "Sector La Mariscal, Quito",
+            "gateway_id": str(gateway.id),
+            "connection_type": "static",
             "ip": "192.168.10.10",
         },
     )
@@ -147,7 +147,7 @@ def test_create_client_valid_cedula_no_plan(client: TestClient):
     token = login.json()["access_token"]
 
     db = TestingSessionLocal()
-    router = db.query(Router).first()
+    gateway = db.query(Gateway).first()
     db.close()
 
     # Cédula ecuatoriana válida: 1724024888
@@ -155,20 +155,20 @@ def test_create_client_valid_cedula_no_plan(client: TestClient):
         "/api/clients",
         headers={"Authorization": f"Bearer {token}"},
         json={
-            "nombre": "Juan Perez",
+            "name": "Juan Perez",
             "cedula": "1724024888",
-            "telefono": "0999999999",
-            "direccion": "Sector La Mariscal, Quito",
-            "router_id": str(router.id),
-            "tipo": "static",
+            "phone": "0999999999",
+            "address": "Sector La Mariscal, Quito",
+            "gateway_id": str(gateway.id),
+            "connection_type": "static",
             "ip": "192.168.10.10",
-            "latitud": -0.180653,
-            "longitud": -78.467834,
+            "latitude": -0.180653,
+            "longitude": -78.467834,
         },
     )
     assert response.status_code == 201
     data = response.json()
-    assert data["nombre"] == "Juan Perez"
+    assert data["name"] == "Juan Perez"
     assert data["cedula"] == "1724024888"
     assert data["plan_activo"] is None
 
@@ -181,7 +181,7 @@ def test_create_client_with_initial_plan(client: TestClient):
     token = login.json()["access_token"]
 
     db = TestingSessionLocal()
-    router = db.query(Router).first()
+    gateway = db.query(Gateway).first()
     plan = db.query(Plan).first()
     db.close()
 
@@ -189,21 +189,21 @@ def test_create_client_with_initial_plan(client: TestClient):
         "/api/clients",
         headers={"Authorization": f"Bearer {token}"},
         json={
-            "nombre": "Maria Gomez",
+            "name": "Maria Gomez",
             "cedula": "0926079971",  # Cédula válida
-            "telefono": "0988888888",
-            "direccion": "Av. Carlos Julio Arosemena, Guayaquil",
-            "router_id": str(router.id),
+            "phone": "0988888888",
+            "address": "Av. Carlos Julio Arosemena, Guayaquil",
+            "gateway_id": str(gateway.id),
             "plan_id": str(plan.id),
-            "tipo": "static",
+            "connection_type": "static",
             "ip": "192.168.10.10",
         },
     )
     assert response.status_code == 201
     data = response.json()
-    assert data["nombre"] == "Maria Gomez"
+    assert data["name"] == "Maria Gomez"
     assert data["plan_activo"]["id"] == str(plan.id)
-    assert data["plan_activo"]["nombre"] == "Plan Fibra 50 Mbps"
+    assert data["plan_activo"]["name"] == "Plan Fibra 50 Mbps"
 
 
 def test_list_clients_and_filtering(client: TestClient):
@@ -214,12 +214,12 @@ def test_list_clients_and_filtering(client: TestClient):
     token = login.json()["access_token"]
 
     db = TestingSessionLocal()
-    router = db.query(Router).first()
+    gateway = db.query(Gateway).first()
     plan = db.query(Plan).first()
 
     # Agregar dos clientes con datos válidos
-    c1 = Client(nombre="Andres Lopez", cedula="1724024888", telefono="0999999999", direccion="Quito Central", router_id=router.id)
-    c2 = Client(nombre="Sofia Velez", cedula="0926079971", telefono="0988888888", direccion="Guayaquil Norte", router_id=router.id)
+    c1 = Client(name="Andres Lopez", cedula="1724024888", phone="0999999999", address="Quito Central", gateway_id=gateway.id)
+    c2 = Client(name="Sofia Velez", cedula="0926079971", phone="0988888888", address="Guayaquil Norte", gateway_id=gateway.id)
     db.add(c1)
     db.add(c2)
     db.flush()
@@ -243,18 +243,18 @@ def test_list_clients_and_filtering(client: TestClient):
         "/api/clients?search=Sofia", headers={"Authorization": f"Bearer {token}"}
     )
     assert response.json()["total"] == 1
-    assert response.json()["items"][0]["nombre"] == "Sofia Velez"
+    assert response.json()["items"][0]["name"] == "Sofia Velez"
 
     # 3. Filtrar por plan_id
     response = client.get(
         f"/api/clients?plan_id={plan_id}", headers={"Authorization": f"Bearer {token}"}
     )
     assert response.json()["total"] == 1
-    assert response.json()["items"][0]["nombre"] == "Andres Lopez"
+    assert response.json()["items"][0]["name"] == "Andres Lopez"
 
 
 def test_list_clients_sorting(client: TestClient):
-    from datetime import datetime
+    from datetime import datetime, timedelta
     import uuid
     from app.models.static_ip import StaticIP
     login = client.post(
@@ -264,27 +264,27 @@ def test_list_clients_sorting(client: TestClient):
     token = login.json()["access_token"]
 
     db = TestingSessionLocal()
-    r1 = db.query(Router).first()
+    r1 = db.query(Gateway).first()
     plan_fibra = db.query(Plan).first()
 
-    # Create a second router
-    r2 = Router(
-        nombre="Router Guayaquil",
+    # Create a second gateway
+    r2 = Gateway(
+        name="Router Guayaquil",
         ip="10.0.0.2",
-        puerto_api=8728,
-        usuario_api="admin",
+        api_port=8728,
+        api_username="admin",
         password_enc="encrypted_pass",
-        activo=True,
+        active=True,
     )
     db.add(r2)
-    
+
     plan_premium = Plan(
-        nombre="Plan Premium 100 Mbps",
-        velocidad_down_mbps=100,
-        velocidad_up_mbps=50,
-        velocidad_down_kbps=100000,
-        velocidad_up_kbps=50000,
-        precio=40.0,
+        name="Plan Premium 100 Mbps",
+        speed_down_mbps=100,
+        speed_up_mbps=50,
+        speed_down_kbps=100000,
+        speed_up_kbps=50000,
+        price=40.0,
     )
     db.add(plan_premium)
     db.flush()
@@ -293,41 +293,40 @@ def test_list_clients_sorting(client: TestClient):
     # Bernardo: pppoe, inactive, r1, no plan, no ip
     c1 = Client(
         id=uuid.UUID("30000000-0000-0000-0000-000000000000"),
-        nombre="Bernardo",
+        name="Bernardo",
         cedula="1724024888",
-        telefono="0999999999",
-        direccion="Quito",
-        router_id=r1.id,
-        tipo="pppoe",
-        activo=False,
+        phone="0999999999",
+        address="Quito",
+        gateway_id=r1.id,
+        connection_type="pppoe",
+        active=False,
         email="bernardo@test.com",
         created_at=datetime.fromisoformat("2025-01-01T12:00:00")
     )
-    # Carlos: static, active, r2, plan_premium, ip=10.0.0.20
-    # id starts with '1' -> desconectado
+    # Carlos: static, active with scheduled_suspension, r2, plan_premium, ip=10.0.0.20
     c2 = Client(
         id=uuid.UUID("10000000-0000-0000-0000-000000000000"),
-        nombre="Carlos",
+        name="Carlos",
         cedula="0926079971",
-        telefono="0988888888",
-        direccion="Guayaquil",
-        router_id=r2.id,
-        tipo="static",
-        activo=True,
+        phone="0988888888",
+        address="Guayaquil",
+        gateway_id=r2.id,
+        connection_type="static",
+        active=True,
+        scheduled_suspension=datetime.now() + timedelta(days=5),
         email="carlos@test.com",
         created_at=datetime.fromisoformat("2025-01-02T12:00:00")
     )
     # Andres: static, active, r1, plan_fibra, ip=10.0.0.10
-    # id starts with '2' -> conectado
     c3 = Client(
         id=uuid.UUID("20000000-0000-0000-0000-000000000000"),
-        nombre="Andres",
+        name="Andres",
         cedula="1790011674001",
-        telefono="0977777777",
-        direccion="Cuenca",
-        router_id=r1.id,
-        tipo="static",
-        activo=True,
+        phone="0977777777",
+        address="Cuenca",
+        gateway_id=r1.id,
+        connection_type="static",
+        active=True,
         email="andres@test.com",
         created_at=datetime.fromisoformat("2025-01-03T12:00:00")
     )
@@ -339,28 +338,28 @@ def test_list_clients_sorting(client: TestClient):
     db.add(ClientPlan(cliente_id=c3.id, plan_id=plan_fibra.id, estado="activo"))
 
     # Add static IPs
-    db.add(StaticIP(cliente_id=c2.id, ip="10.0.0.20", router_id=r2.id))
-    db.add(StaticIP(cliente_id=c3.id, ip="10.0.0.10", router_id=r1.id))
+    db.add(StaticIP(client_id=c2.id, ip="10.0.0.20", gateway_id=r2.id))
+    db.add(StaticIP(client_id=c3.id, ip="10.0.0.10", gateway_id=r1.id))
 
     db.commit()
     db.close()
 
     # 1. Sort by name ascending (Andres, Bernardo, Carlos)
     resp = client.get(
-        "/api/clients?sort_by=nombre&sort_dir=asc",
+        "/api/clients?sort_by=name&sort_dir=asc",
         headers={"Authorization": f"Bearer {token}"}
     )
     assert resp.status_code == 200
-    names = [item["nombre"] for item in resp.json()["items"]]
+    names = [item["name"] for item in resp.json()["items"]]
     assert names == ["Andres", "Bernardo", "Carlos"]
 
     # 2. Sort by name descending (Carlos, Bernardo, Andres)
     resp = client.get(
-        "/api/clients?sort_by=nombre&sort_dir=desc",
+        "/api/clients?sort_by=name&sort_dir=desc",
         headers={"Authorization": f"Bearer {token}"}
     )
     assert resp.status_code == 200
-    names = [item["nombre"] for item in resp.json()["items"]]
+    names = [item["name"] for item in resp.json()["items"]]
     assert names == ["Carlos", "Bernardo", "Andres"]
 
     # 3. Sort by created_at ascending (Bernardo, Carlos, Andres)
@@ -369,25 +368,25 @@ def test_list_clients_sorting(client: TestClient):
         headers={"Authorization": f"Bearer {token}"}
     )
     assert resp.status_code == 200
-    names = [item["nombre"] for item in resp.json()["items"]]
+    names = [item["name"] for item in resp.json()["items"]]
     assert names == ["Bernardo", "Carlos", "Andres"]
 
-    # 4. Sort by tipo (conexión) ascending (Bernardo/pppoe, Andres/static, Carlos/static)
+    # 4. Sort by connection_type ascending (Bernardo/pppoe, Andres/static, Carlos/static)
     resp = client.get(
-        "/api/clients?sort_by=tipo&sort_dir=asc",
+        "/api/clients?sort_by=connection_type&sort_dir=asc",
         headers={"Authorization": f"Bearer {token}"}
     )
     assert resp.status_code == 200
-    names = [item["nombre"] for item in resp.json()["items"]]
+    names = [item["name"] for item in resp.json()["items"]]
     assert names[0] == "Bernardo"
 
-    # 5. Sort by activo (estado) ascending (Andres/conectado/1, Carlos/desconectado/2, Bernardo/suspendido/3)
+    # 5. Sort by active (Andres/activo sin aplazamiento/1, Carlos/activo con suspensión programada/2, Bernardo/inactivo/4)
     resp = client.get(
-        "/api/clients?sort_by=activo&sort_dir=asc",
+        "/api/clients?sort_by=active&sort_dir=asc",
         headers={"Authorization": f"Bearer {token}"}
     )
     assert resp.status_code == 200
-    names = [item["nombre"] for item in resp.json()["items"]]
+    names = [item["name"] for item in resp.json()["items"]]
     assert names == ["Andres", "Carlos", "Bernardo"]
 
     # 6. Sort by ip descending (Carlos/10.0.0.20, Andres/10.0.0.10, Bernardo/Null)
@@ -396,16 +395,16 @@ def test_list_clients_sorting(client: TestClient):
         headers={"Authorization": f"Bearer {token}"}
     )
     assert resp.status_code == 200
-    names = [item["nombre"] for item in resp.json()["items"]]
+    names = [item["name"] for item in resp.json()["items"]]
     assert names == ["Carlos", "Andres", "Bernardo"]
 
-    # 7. Sort by router ascending (Carlos/Router Guayaquil, Bernardo/Router Quito Central, Andres/Router Quito Central)
+    # 7. Sort by gateway ascending (Carlos/Router Guayaquil, Bernardo/Router Quito Central, Andres/Router Quito Central)
     resp = client.get(
-        "/api/clients?sort_by=router&sort_dir=asc",
+        "/api/clients?sort_by=gateway&sort_dir=asc",
         headers={"Authorization": f"Bearer {token}"}
     )
     assert resp.status_code == 200
-    names = [item["nombre"] for item in resp.json()["items"]]
+    names = [item["name"] for item in resp.json()["items"]]
     assert names[0] == "Carlos"
 
     # 8. Sort by plan ascending (Bernardo/Null, Andres/Plan Fibra 50 Mbps, Carlos/Plan Premium 100 Mbps)
@@ -414,7 +413,7 @@ def test_list_clients_sorting(client: TestClient):
         headers={"Authorization": f"Bearer {token}"}
     )
     assert resp.status_code == 200
-    names = [item["nombre"] for item in resp.json()["items"]]
+    names = [item["name"] for item in resp.json()["items"]]
     assert names == ["Bernardo", "Andres", "Carlos"]
 
 
@@ -426,26 +425,26 @@ def test_assign_plan_history(client: TestClient):
     token = login.json()["access_token"]
 
     db = TestingSessionLocal()
-    router = db.query(Router).first()
+    gateway = db.query(Gateway).first()
     plan_a = db.query(Plan).first()
-    
+
     plan_b = Plan(
-        nombre="Plan Premium 100 Mbps",
-        velocidad_down_mbps=100,
-        velocidad_up_mbps=50,
-        velocidad_down_kbps=100000,
-        velocidad_up_kbps=50000,
-        precio=40.0,
+        name="Plan Premium 100 Mbps",
+        speed_down_mbps=100,
+        speed_up_mbps=50,
+        speed_down_kbps=100000,
+        speed_up_kbps=50000,
+        price=40.0,
     )
     db.add(plan_b)
-    
-    c = Client(nombre="Carlos Ruiz", cedula="1724024888", telefono="0999999999", direccion="Quito Central", router_id=router.id)
+
+    c = Client(name="Carlos Ruiz", cedula="1724024888", phone="0999999999", address="Quito Central", gateway_id=gateway.id)
     db.add(c)
     db.flush()
-    
+
     db.add(ClientPlan(cliente_id=c.id, plan_id=plan_a.id, estado="activo"))
     db.commit()
-    
+
     client_id = c.id
     plan_b_id = plan_b.id
     plan_a_id = plan_a.id
@@ -457,7 +456,7 @@ def test_assign_plan_history(client: TestClient):
         headers={"Authorization": f"Bearer {token}"},
     )
     assert response.status_code == 200
-    
+
     # Verificar historial
     history_resp = client.get(
         f"/api/clients/{client_id}/plans",
@@ -481,7 +480,7 @@ def test_update_client_cedula_and_email(client: TestClient):
     token = login.json()["access_token"]
 
     db = TestingSessionLocal()
-    router = db.query(Router).first()
+    gateway = db.query(Gateway).first()
     db.close()
 
     # Create client with email
@@ -489,12 +488,12 @@ def test_update_client_cedula_and_email(client: TestClient):
         "/api/clients",
         headers={"Authorization": f"Bearer {token}"},
         json={
-            "nombre": "Test Email Client",
+            "name": "Test Email Client",
             "cedula": "1724024888",
-            "telefono": "0999999999",
-            "direccion": "Quito",
-            "router_id": str(router.id),
-            "tipo": "static",
+            "phone": "0999999999",
+            "address": "Quito",
+            "gateway_id": str(gateway.id),
+            "connection_type": "static",
             "ip": "192.168.10.10",
             "email": "test@client.com"
         },
@@ -526,7 +525,7 @@ def test_create_client_valid_ruc(client: TestClient):
     token = login.json()["access_token"]
 
     db = TestingSessionLocal()
-    router = db.query(Router).first()
+    gateway = db.query(Gateway).first()
     db.close()
 
     # 1. RUC Persona Natural (1724024888001)
@@ -534,12 +533,12 @@ def test_create_client_valid_ruc(client: TestClient):
         "/api/clients",
         headers={"Authorization": f"Bearer {token}"},
         json={
-            "nombre": "Natural RUC Client",
+            "name": "Natural RUC Client",
             "cedula": "1724024888001",
-            "telefono": "0999999999",
-            "direccion": "Quito",
-            "router_id": str(router.id),
-            "tipo": "static",
+            "phone": "0999999999",
+            "address": "Quito",
+            "gateway_id": str(gateway.id),
+            "connection_type": "static",
             "ip": "192.168.10.10",
         },
     )
@@ -551,12 +550,12 @@ def test_create_client_valid_ruc(client: TestClient):
         "/api/clients",
         headers={"Authorization": f"Bearer {token}"},
         json={
-            "nombre": "Juridica RUC Client",
+            "name": "Juridica RUC Client",
             "cedula": "1790011674001",
-            "telefono": "0999999999",
-            "direccion": "Quito",
-            "router_id": str(router.id),
-            "tipo": "static",
+            "phone": "0999999999",
+            "address": "Quito",
+            "gateway_id": str(gateway.id),
+            "connection_type": "static",
             "ip": "192.168.10.11",
         },
     )
@@ -568,12 +567,12 @@ def test_create_client_valid_ruc(client: TestClient):
         "/api/clients",
         headers={"Authorization": f"Bearer {token}"},
         json={
-            "nombre": "Publica RUC Client",
+            "name": "Publica RUC Client",
             "cedula": "1760001550001",
-            "telefono": "0999999999",
-            "direccion": "Quito",
-            "router_id": str(router.id),
-            "tipo": "static",
+            "phone": "0999999999",
+            "address": "Quito",
+            "gateway_id": str(gateway.id),
+            "connection_type": "static",
             "ip": "192.168.10.12",
         },
     )
@@ -589,7 +588,7 @@ def test_create_client_invalid_ruc(client: TestClient):
     token = login.json()["access_token"]
 
     db = TestingSessionLocal()
-    router = db.query(Router).first()
+    gateway = db.query(Gateway).first()
     db.close()
 
     # RUC Inválido (13 dígitos pero verificador incorrecto)
@@ -597,12 +596,12 @@ def test_create_client_invalid_ruc(client: TestClient):
         "/api/clients",
         headers={"Authorization": f"Bearer {token}"},
         json={
-            "nombre": "Invalid RUC Client",
+            "name": "Invalid RUC Client",
             "cedula": "1790011675001",  # Inválido (dígito verificador incorrecto)
-            "telefono": "0999999999",
-            "direccion": "Quito",
-            "router_id": str(router.id),
-            "tipo": "static",
+            "phone": "0999999999",
+            "address": "Quito",
+            "gateway_id": str(gateway.id),
+            "connection_type": "static",
             "ip": "192.168.10.10",
         },
     )
@@ -618,7 +617,7 @@ def test_create_and_update_client_custom_created_at(client: TestClient):
     token = login.json()["access_token"]
 
     db = TestingSessionLocal()
-    router = db.query(Router).first()
+    gateway = db.query(Gateway).first()
     db.close()
 
     # 1. Crear cliente con created_at específica
@@ -627,12 +626,12 @@ def test_create_and_update_client_custom_created_at(client: TestClient):
         "/api/clients",
         headers={"Authorization": f"Bearer {token}"},
         json={
-            "nombre": "Client With Custom Date",
+            "name": "Client With Custom Date",
             "cedula": "1724024888",
-            "telefono": "0999999999",
-            "direccion": "Quito",
-            "router_id": str(router.id),
-            "tipo": "static",
+            "phone": "0999999999",
+            "address": "Quito",
+            "gateway_id": str(gateway.id),
+            "connection_type": "static",
             "ip": "192.168.10.10",
             "created_at": custom_date,
         },
@@ -665,32 +664,32 @@ def test_client_site_filtering(client: TestClient):
 
     db = TestingSessionLocal()
     from app.models.site import Site
-    site1 = Site(nombre="Site A")
-    site2 = Site(nombre="Site B")
+    site1 = Site(name="Site A")
+    site2 = Site(name="Site B")
     db.add(site1)
     db.add(site2)
     db.commit()
 
-    router1 = Router(
-        nombre="Router Site A",
+    gateway1 = Gateway(
+        name="Router Site A",
         ip="10.0.0.10",
-        puerto_api=8728,
-        usuario_api="admin",
+        api_port=8728,
+        api_username="admin",
         password_enc="encrypted_pass",
-        activo=True,
+        active=True,
         site_id=site1.id,
     )
-    router2 = Router(
-        nombre="Router Site B",
+    gateway2 = Gateway(
+        name="Router Site B",
         ip="10.0.0.20",
-        puerto_api=8728,
-        usuario_api="admin",
+        api_port=8728,
+        api_username="admin",
         password_enc="encrypted_pass",
-        activo=True,
+        active=True,
         site_id=site2.id,
     )
-    db.add(router1)
-    db.add(router2)
+    db.add(gateway1)
+    db.add(gateway2)
     db.commit()
 
     # Cliente en Site A
@@ -698,12 +697,12 @@ def test_client_site_filtering(client: TestClient):
         "/api/clients",
         headers={"Authorization": f"Bearer {token}"},
         json={
-            "nombre": "Client Site A",
+            "name": "Client Site A",
             "cedula": "1724024888",
-            "telefono": "0999999999",
-            "direccion": "Quito A",
-            "router_id": str(router1.id),
-            "tipo": "static",
+            "phone": "0999999999",
+            "address": "Quito A",
+            "gateway_id": str(gateway1.id),
+            "connection_type": "static",
             "ip": "192.168.10.10",
         },
     )
@@ -714,12 +713,12 @@ def test_client_site_filtering(client: TestClient):
         "/api/clients",
         headers={"Authorization": f"Bearer {token}"},
         json={
-            "nombre": "Client Site B",
+            "name": "Client Site B",
             "cedula": "0926079971",
-            "telefono": "0988888888",
-            "direccion": "Guayaquil B",
-            "router_id": str(router2.id),
-            "tipo": "static",
+            "phone": "0988888888",
+            "address": "Guayaquil B",
+            "gateway_id": str(gateway2.id),
+            "connection_type": "static",
             "ip": "192.168.10.20",
         },
     )
@@ -733,8 +732,8 @@ def test_client_site_filtering(client: TestClient):
     assert response_filter_a.status_code == 200
     data_a = response_filter_a.json()
     assert data_a["total"] == 1
-    assert data_a["items"][0]["nombre"] == "Client Site A"
-    assert data_a["items"][0]["site_nombre"] == "Site A"
+    assert data_a["items"][0]["name"] == "Client Site A"
+    assert data_a["items"][0]["site_name"] == "Site A"
     assert data_a["items"][0]["site_id"] == str(site1.id)
 
     # Consultar clientes filtrando por Site B
@@ -745,11 +744,8 @@ def test_client_site_filtering(client: TestClient):
     assert response_filter_b.status_code == 200
     data_b = response_filter_b.json()
     assert data_b["total"] == 1
-    assert data_b["items"][0]["nombre"] == "Client Site B"
-    assert data_b["items"][0]["site_nombre"] == "Site B"
+    assert data_b["items"][0]["name"] == "Client Site B"
+    assert data_b["items"][0]["site_name"] == "Site B"
     assert data_b["items"][0]["site_id"] == str(site2.id)
 
     db.close()
-
-
-

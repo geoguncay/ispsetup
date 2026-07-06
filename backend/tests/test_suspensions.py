@@ -13,11 +13,11 @@ from app.core.security import hash_password
 from app.main import app
 from app.models.user import User
 from app.models.plan import Plan
-from app.models.router import Router
+from app.models.gateway import Gateway
 from app.models.client import Client
 from app.models.client_plan import ClientPlan
 from app.models.static_ip import StaticIP
-from app.models.payment import ClientPayment
+from app.models.invoice import Invoice
 from app.models.suspension_log import SuspensionLog
 from app.workers.suspension import daily_suspension_check
 
@@ -56,38 +56,38 @@ def setup_db(monkeypatch):
     db = TestingSessionLocal()
     # Agregar un administrador
     db.add(User(
-        nombre="Test Admin",
+        name="Test Admin",
         email="admin@test.com",
         hashed_password=hash_password("adminpass123"),
-        rol="admin",
-        activo=True,
+        role="admin",
+        active=True,
     ))
     # Agregar un técnico
     db.add(User(
-        nombre="Test Tecnico",
+        name="Test Tecnico",
         email="tecnico@test.com",
         hashed_password=hash_password("tecnicopass123"),
-        rol="tecnico",
-        activo=True,
+        role="technician",
+        active=True,
     ))
-    # Agregar un router
-    r = Router(
-        nombre="Router Central",
+    # Agregar un gateway
+    r = Gateway(
+        name="Router Central",
         ip="10.0.0.1",
-        puerto_api=8728,
-        usuario_api="admin",
+        api_port=8728,
+        api_username="admin",
         password_enc="enc_pass",
-        activo=True,
+        active=True,
     )
     db.add(r)
     # Agregar un plan
     p = Plan(
-        nombre="Plan Fibra 20M",
-        velocidad_down_mbps=20,
-        velocidad_up_mbps=10,
-        velocidad_down_kbps=20000,
-        velocidad_up_kbps=10000,
-        precio=22.40,
+        name="Plan Fibra 20M",
+        speed_down_mbps=20,
+        speed_up_mbps=10,
+        speed_down_kbps=20000,
+        speed_up_kbps=10000,
+        price=22.40,
     )
     db.add(p)
     db.commit()
@@ -117,22 +117,22 @@ def test_suspend_client_flow(mock_send_notif, mock_toggle_queue, mock_suspend_fw
     token = login.json()["access_token"]
 
     db = TestingSessionLocal()
-    router = db.query(Router).first()
+    gateway = db.query(Gateway).first()
     plan = db.query(Plan).first()
-    
+
     # Crear cliente activo con plan e IP estática
     c = Client(
-        nombre="Juan Suspendido",
+        name="Juan Suspendido",
         cedula="1724024888",
-        telefono="0999999999",
-        direccion="Quito",
-        router_id=router.id,
-        tipo="static",
-        activo=True
+        phone="0999999999",
+        address="Quito",
+        gateway_id=gateway.id,
+        connection_type="static",
+        active=True
     )
     db.add(c)
     db.flush()
-    db.add(StaticIP(cliente_id=c.id, ip="192.168.10.15", router_id=router.id))
+    db.add(StaticIP(client_id=c.id, ip="192.168.10.15", gateway_id=gateway.id))
     db.add(ClientPlan(cliente_id=c.id, plan_id=plan.id, estado="activo"))
     db.commit()
     client_uuid = c.id
@@ -143,25 +143,25 @@ def test_suspend_client_flow(mock_send_notif, mock_toggle_queue, mock_suspend_fw
     response = client.post(
         f"/api/clients/{client_id}/suspend",
         headers={"Authorization": f"Bearer {token}"},
-        params={"motivo": "Falta de pago"}
+        params={"reason": "Falta de pago"}
     )
     assert response.status_code == 200
     data = response.json()
-    assert data["motivo"] == "Falta de pago"
-    assert data["fecha_reactivacion"] is None
+    assert data["reason"] == "Falta de pago"
+    assert data["reactivated_at"] is None
 
     # Verificar estado en DB
     db = TestingSessionLocal()
     db_client = db.get(Client, client_uuid)
-    assert db_client.activo is False
+    assert db_client.active is False
     active_plan = db.query(ClientPlan).filter(ClientPlan.cliente_id == db_client.id).first()
     assert active_plan.estado == "suspendido"
 
     # Verificar logs de suspensión
-    logs = db.query(SuspensionLog).filter(SuspensionLog.cliente_id == db_client.id).all()
+    logs = db.query(SuspensionLog).filter(SuspensionLog.client_id == db_client.id).all()
     assert len(logs) == 1
-    assert logs[0].motivo == "Falta de pago"
-    assert logs[0].fecha_reactivacion is None
+    assert logs[0].reason == "Falta de pago"
+    assert logs[0].reactivated_at is None
     db.close()
 
     # Verificar llamadas a MikroTik y notificaciones
@@ -181,30 +181,30 @@ def test_reactivate_client_flow(mock_send_notif, mock_toggle_queue, mock_unsuspe
     token = login.json()["access_token"]
 
     db = TestingSessionLocal()
-    router = db.query(Router).first()
+    gateway = db.query(Gateway).first()
     plan = db.query(Plan).first()
-    admin_user = db.query(User).filter(User.rol == "admin").first()
+    admin_user = db.query(User).filter(User.role == "admin").first()
 
     # Crear cliente suspendido con plan suspendido e IP estática y log de suspensión activo
     c = Client(
-        nombre="Pedro Reactivado",
+        name="Pedro Reactivado",
         cedula="1724024888",
-        telefono="0999999999",
-        direccion="Quito",
-        router_id=router.id,
-        tipo="static",
-        activo=False
+        phone="0999999999",
+        address="Quito",
+        gateway_id=gateway.id,
+        connection_type="static",
+        active=False
     )
     db.add(c)
     db.flush()
-    db.add(StaticIP(cliente_id=c.id, ip="192.168.10.16", router_id=router.id))
+    db.add(StaticIP(client_id=c.id, ip="192.168.10.16", gateway_id=gateway.id))
     db.add(ClientPlan(cliente_id=c.id, plan_id=plan.id, estado="suspendido"))
-    
+
     log = SuspensionLog(
-        cliente_id=c.id,
-        motivo="Mora de pago",
-        fecha_suspension=datetime.now() - timedelta(days=2),
-        usuario_id=admin_user.id
+        client_id=c.id,
+        reason="Mora de pago",
+        suspended_at=datetime.now() - timedelta(days=2),
+        user_id=admin_user.id
     )
     db.add(log)
     db.commit()
@@ -219,19 +219,19 @@ def test_reactivate_client_flow(mock_send_notif, mock_toggle_queue, mock_unsuspe
     )
     assert response.status_code == 200
     data = response.json()
-    assert data["fecha_reactivacion"] is not None
+    assert data["reactivated_at"] is not None
 
     # Verificar estado en DB
     db = TestingSessionLocal()
     db_client = db.get(Client, client_uuid)
-    assert db_client.activo is True
+    assert db_client.active is True
     active_plan = db.query(ClientPlan).filter(ClientPlan.cliente_id == db_client.id).first()
     assert active_plan.estado == "activo"
 
     # Verificar logs de suspensión cerrado
-    logs = db.query(SuspensionLog).filter(SuspensionLog.cliente_id == db_client.id).all()
+    logs = db.query(SuspensionLog).filter(SuspensionLog.client_id == db_client.id).all()
     assert len(logs) == 1
-    assert logs[0].fecha_reactivacion is not None
+    assert logs[0].reactivated_at is not None
     db.close()
 
     # Verificar llamadas a MikroTik y notificaciones
@@ -245,38 +245,39 @@ def test_reactivate_client_flow(mock_send_notif, mock_toggle_queue, mock_unsuspe
 @patch("app.workers.suspension.send_suspension_notification")
 def test_daily_suspension_check_task(mock_send_notif, mock_toggle_queue, mock_suspend_fw):
     db = TestingSessionLocal()
-    router = db.query(Router).first()
+    gateway = db.query(Gateway).first()
     plan = db.query(Plan).first()
 
-    # 1. Cliente al día (pago hace 10 días) -> No suspender
-    c1 = Client(nombre="Cliente Al Dia", cedula="1724024888", telefono="0991111111", direccion="Direccion", router_id=router.id, tipo="static", activo=True)
+    # 1. Cliente al día (factura pagada) -> No suspender
+    c1 = Client(name="Cliente Al Dia", cedula="1724024888", phone="0991111111", address="Direccion", gateway_id=gateway.id, connection_type="static", active=True)
     db.add(c1)
     db.flush()
-    db.add(StaticIP(cliente_id=c1.id, ip="192.168.10.101", router_id=router.id))
+    db.add(StaticIP(client_id=c1.id, ip="192.168.10.101", gateway_id=gateway.id))
     db.add(ClientPlan(cliente_id=c1.id, plan_id=plan.id, estado="activo"))
-    db.add(ClientPayment(cliente_id=c1.id, monto=22.40, fecha_pago=datetime.now() - timedelta(days=10), metodo="efectivo", estado="completado"))
+    db.add(Invoice(client_id=c1.id, period="06/2026", amount=22.40, due_date=datetime.now() - timedelta(days=10), status="paid"))
 
-    # 2. Cliente en mora (pago hace 35 días) -> Suspender
-    c2 = Client(nombre="Cliente En Mora", cedula="0926079971", telefono="0992222222", direccion="Direccion", router_id=router.id, tipo="static", activo=True)
+    # 2. Cliente en mora (factura vencida hace 35 días) -> Suspender
+    c2 = Client(name="Cliente En Mora", cedula="0926079971", phone="0992222222", address="Direccion", gateway_id=gateway.id, connection_type="static", active=True)
     db.add(c2)
     db.flush()
-    db.add(StaticIP(cliente_id=c2.id, ip="192.168.10.102", router_id=router.id))
+    db.add(StaticIP(client_id=c2.id, ip="192.168.10.102", gateway_id=gateway.id))
     db.add(ClientPlan(cliente_id=c2.id, plan_id=plan.id, estado="activo"))
-    db.add(ClientPayment(cliente_id=c2.id, monto=22.40, fecha_pago=datetime.now() - timedelta(days=35), metodo="transferencia", estado="completado"))
+    db.add(Invoice(client_id=c2.id, period="05/2026", amount=22.40, due_date=datetime.now() - timedelta(days=35), status="overdue"))
 
-    # 3. Cliente nuevo sin pagos, creado hace 15 días -> No suspender
-    c3 = Client(nombre="Cliente Nuevo Ok", cedula="1790011674001", telefono="0993333333", direccion="Direccion", router_id=router.id, tipo="static", activo=True, created_at=datetime.now() - timedelta(days=15))
+    # 3. Cliente sin facturas -> No suspender
+    c3 = Client(name="Cliente Sin Facturas", cedula="1790011674001", phone="0993333333", address="Direccion", gateway_id=gateway.id, connection_type="static", active=True)
     db.add(c3)
     db.flush()
-    db.add(StaticIP(cliente_id=c3.id, ip="192.168.10.103", router_id=router.id))
+    db.add(StaticIP(client_id=c3.id, ip="192.168.10.103", gateway_id=gateway.id))
     db.add(ClientPlan(cliente_id=c3.id, plan_id=plan.id, estado="activo"))
 
-    # 4. Cliente nuevo sin pagos, creado hace 40 días -> Suspender
-    c4 = Client(nombre="Cliente Nuevo Mora", cedula="1760001550001", telefono="0994444444", direccion="Direccion", router_id=router.id, tipo="static", activo=True, created_at=datetime.now() - timedelta(days=40))
+    # 4. Cliente con factura pendiente vencida hoy (sin días de gracia configurados) -> Suspender
+    c4 = Client(name="Cliente Nuevo Mora", cedula="1760001550001", phone="0994444444", address="Direccion", gateway_id=gateway.id, connection_type="static", active=True)
     db.add(c4)
     db.flush()
-    db.add(StaticIP(cliente_id=c4.id, ip="192.168.10.104", router_id=router.id))
+    db.add(StaticIP(client_id=c4.id, ip="192.168.10.104", gateway_id=gateway.id))
     db.add(ClientPlan(cliente_id=c4.id, plan_id=plan.id, estado="activo"))
+    db.add(Invoice(client_id=c4.id, period="06/2026", amount=22.40, due_date=datetime.now() - timedelta(hours=1), status="pending"))
 
     db.commit()
     c1_id = c1.id
@@ -290,36 +291,36 @@ def test_daily_suspension_check_task(mock_send_notif, mock_toggle_queue, mock_su
 
     # Verificar base de datos después de la tarea
     db = TestingSessionLocal()
-    
+
     # Cliente 1 sigue activo
     db_c1 = db.get(Client, c1_id)
-    assert db_c1.activo is True
+    assert db_c1.active is True
     p1 = db.query(ClientPlan).filter(ClientPlan.cliente_id == c1_id).first()
     assert p1.estado == "activo"
-    
+
     # Cliente 2 suspendido
     db_c2 = db.get(Client, c2_id)
-    assert db_c2.activo is False
+    assert db_c2.active is False
     p2 = db.query(ClientPlan).filter(ClientPlan.cliente_id == c2_id).first()
     assert p2.estado == "suspendido"
-    logs_c2 = db.query(SuspensionLog).filter(SuspensionLog.cliente_id == c2_id).all()
+    logs_c2 = db.query(SuspensionLog).filter(SuspensionLog.client_id == c2_id).all()
     assert len(logs_c2) == 1
-    assert "Último pago completado hace más de 30 días" in logs_c2[0].motivo
+    assert "Mora de pago" in logs_c2[0].reason
 
     # Cliente 3 sigue activo
     db_c3 = db.get(Client, c3_id)
-    assert db_c3.activo is True
+    assert db_c3.active is True
     p3 = db.query(ClientPlan).filter(ClientPlan.cliente_id == c3_id).first()
     assert p3.estado == "activo"
 
     # Cliente 4 suspendido
     db_c4 = db.get(Client, c4_id)
-    assert db_c4.activo is False
+    assert db_c4.active is False
     p4 = db.query(ClientPlan).filter(ClientPlan.cliente_id == c4_id).first()
     assert p4.estado == "suspendido"
-    logs_c4 = db.query(SuspensionLog).filter(SuspensionLog.cliente_id == c4_id).all()
+    logs_c4 = db.query(SuspensionLog).filter(SuspensionLog.client_id == c4_id).all()
     assert len(logs_c4) == 1
-    assert "Cliente creado hace más de 30 días" in logs_c4[0].motivo
+    assert "Mora de pago" in logs_c4[0].reason
 
     db.close()
 

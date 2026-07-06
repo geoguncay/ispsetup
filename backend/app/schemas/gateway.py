@@ -1,5 +1,5 @@
 """
-Schemas Pydantic v2 para routers MikroTik.
+Schemas Pydantic v2 para gateways MikroTik.
 """
 import uuid
 from datetime import datetime
@@ -9,62 +9,62 @@ from pydantic import BaseModel, Field, IPvAnyAddress
 
 
 class GatewayCreate(BaseModel):
-    nombre: str = Field(min_length=2, max_length=120)
+    name: str = Field(min_length=2, max_length=120)
     ip: str = Field(
         min_length=7,
         max_length=45,
         description="Dirección IP o host del router (LAN, WAN, ZeroTier, VPN, Tailscale, etc.)",
     )
-    puerto_api: int = Field(default=8728, ge=1, le=65535)
-    usuario_api: str = Field(min_length=1, max_length=120)
+    api_port: int = Field(default=8728, ge=1, le=65535)
+    api_username: str = Field(min_length=1, max_length=120)
     password_api: str = Field(min_length=1, max_length=255, description="Se cifra con Fernet antes de guardar")
-    modelo_hw: str | None = Field(default=None, max_length=120)
-    notas: str | None = None
-    latitud: float | None = None
-    longitud: float | None = None
-    activo: bool = True
-    monitoreo_trafico: bool = True
-    control_velocidad: bool = True
-    sincronizar_logs: bool = True
-    notificaciones_alertas: bool = True
-    
+    hw_model: str | None = Field(default=None, max_length=120)
+    notes: str | None = None
+    latitude: float | None = None
+    longitude: float | None = None
+    active: bool = True
+    traffic_monitoring: bool = True
+    speed_control: bool = True
+    sync_logs: bool = True
+    alert_notifications: bool = True
+
     # Nuevos campos de configuración de MikroTik y ancho de banda
-    cola_padre: str | None = Field(default=None, max_length=100)
+    parent_queue: str | None = Field(default=None, max_length=100)
     address_list: str | None = Field(default=None, max_length=100)
-    ancho_banda_up: int | None = Field(default=0, ge=0)
-    ancho_banda_down: int | None = Field(default=0, ge=0)
-    
+    bandwidth_up: int | None = Field(default=0, ge=0)
+    bandwidth_down: int | None = Field(default=0, ge=0)
+
     # Campos de Sitios
     site_id: uuid.UUID | None = None
-    new_site_nombre: str | None = Field(default=None, max_length=120)
+    new_site_name: str | None = Field(default=None, max_length=120)
 
 
 
 class GatewayUpdate(BaseModel):
-    nombre: str | None = Field(default=None, min_length=2, max_length=120)
+    name: str | None = Field(default=None, min_length=2, max_length=120)
     ip: str | None = Field(default=None, min_length=7, max_length=45)
-    puerto_api: int | None = Field(default=None, ge=1, le=65535)
-    usuario_api: str | None = Field(default=None, min_length=1, max_length=120)
+    api_port: int | None = Field(default=None, ge=1, le=65535)
+    api_username: str | None = Field(default=None, min_length=1, max_length=120)
     password_api: str | None = Field(default=None, min_length=1, max_length=255)
-    modelo_hw: str | None = None
-    notas: str | None = None
-    latitud: float | None = None
-    longitud: float | None = None
-    activo: bool | None = None
-    monitoreo_trafico: bool | None = None
-    control_velocidad: bool | None = None
-    sincronizar_logs: bool | None = None
-    notificaciones_alertas: bool | None = None
+    hw_model: str | None = None
+    notes: str | None = None
+    latitude: float | None = None
+    longitude: float | None = None
+    active: bool | None = None
+    traffic_monitoring: bool | None = None
+    speed_control: bool | None = None
+    sync_logs: bool | None = None
+    alert_notifications: bool | None = None
 
     # Nuevos campos de configuración de MikroTik y ancho de banda
-    cola_padre: str | None = None
+    parent_queue: str | None = None
     address_list: str | None = None
-    ancho_banda_up: int | None = None
-    ancho_banda_down: int | None = None
+    bandwidth_up: int | None = None
+    bandwidth_down: int | None = None
 
     # Campos de Sitios
     site_id: uuid.UUID | None = None
-    new_site_nombre: str | None = Field(default=None, max_length=120)
+    new_site_name: str | None = Field(default=None, max_length=120)
 
 
 
@@ -72,29 +72,29 @@ class GatewayRead(BaseModel):
     model_config = {"from_attributes": True}
 
     id: uuid.UUID
-    nombre: str
+    name: str
     ip: str
-    puerto_api: int
-    usuario_api: str
-    activo: bool
-    modelo_hw: str | None
-    notas: str | None
-    latitud: float | None
-    longitud: float | None
-    monitoreo_trafico: bool
-    control_velocidad: bool
-    sincronizar_logs: bool
-    notificaciones_alertas: bool
-    
+    api_port: int
+    api_username: str
+    active: bool
+    hw_model: str | None
+    notes: str | None
+    latitude: float | None
+    longitude: float | None
+    traffic_monitoring: bool
+    speed_control: bool
+    sync_logs: bool
+    alert_notifications: bool
+
     # Nuevos campos de configuración de MikroTik y ancho de banda
-    cola_padre: str | None
+    parent_queue: str | None
     address_list: str | None
-    ancho_banda_up: int | None
-    ancho_banda_down: int | None
+    bandwidth_up: int | None
+    bandwidth_down: int | None
 
     # Campos de Sitios
     site_id: uuid.UUID | None = None
-    site_nombre: str | None = None
+    site_name: str | None = None
 
     created_at: datetime
     updated_at: datetime
@@ -126,8 +126,7 @@ class GatewayTestResult(BaseModel):
 
 class GatewayTestPayload(BaseModel):
     ip: str
-    puerto_api: int = 8728
-    usuario_api: str
+    api_port: int = 8728
+    api_username: str
     password_api: str | None = None
     gateway_id: uuid.UUID | None = None
-

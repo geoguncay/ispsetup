@@ -33,7 +33,7 @@ const navItems: NavItem[] = [
   {
     label: 'Dispositivos',
     icon: Network,
-    roles: ['admin', 'tecnico'],
+    roles: ['admin', 'technician'],
     items: [
       { to: '/gateways', icon: Router, label: 'Gateways' },
       { to: '/traffic', icon: Activity, label: 'Tráfico' },
@@ -42,7 +42,7 @@ const navItems: NavItem[] = [
   {
     label: 'Suscriptores',
     icon: Users,
-    roles: ['admin', 'tecnico'],
+    roles: ['admin', 'technician'],
     items: [
       { to: '/clients', icon: Users, label: 'Clientes' },
       { to: '/subscribers/stats', icon: BarChart2, label: 'Estadísticas' },
@@ -51,7 +51,7 @@ const navItems: NavItem[] = [
   {
     label: 'Servicios',
     icon: Zap,
-    roles: ['admin', 'tecnico'],
+    roles: ['admin', 'technician'],
     items: [
       { to: '/plans', icon: Zap, label: 'Planes' },
       { to: '/custom-services', icon: Sliders, label: 'Personalizado' },
@@ -60,7 +60,7 @@ const navItems: NavItem[] = [
   {
     label: 'Facturación',
     icon: Receipt,
-    roles: ['admin', 'tecnico'],
+    roles: ['admin', 'technician'],
     items: [
       { to: '/invoices', icon: Receipt, label: 'Facturas' },
       { to: '/payments', icon: DollarSign, label: 'Pagos' },
@@ -69,7 +69,7 @@ const navItems: NavItem[] = [
   {
     label: 'Inventario',
     icon: Package,
-    roles: ['admin', 'tecnico'],
+    roles: ['admin', 'technician'],
     items: [
       { to: '/inventory', icon: Package, label: 'Stock' },
       { to: '/providers', icon: Truck, label: 'Proveedores' },
@@ -93,7 +93,7 @@ export const getLogoUrl = (url: string | null | undefined): string => {
 }
 
 interface Company {
-  nombre: string
+  name: string
   logo_url?: string | null
 }
 
@@ -136,7 +136,7 @@ function SidebarContent({
     >
       {/* Logo */}
       <div className="flex items-center gap-3 px-5 py-5 border-b border-border">
-        {company && company.nombre !== "Mi ISP" ? (
+        {company && company.name !== "Mi ISP" ? (
           <>
             <div className="w-8 h-8 rounded-lg flex items-center justify-center overflow-hidden bg-brand-600 shadow-lg shadow-brand-600/30 flex-shrink-0">
               {company.logo_url ? (
@@ -146,7 +146,7 @@ function SidebarContent({
               )}
             </div>
             <div className="flex-1 min-w-0">
-              <p className="font-bold text-foreground text-sm truncate">{company.nombre}</p>
+              <p className="font-bold text-foreground text-sm truncate">{company.name}</p>
               <p className="text-xs text-muted-foreground truncate">NMS</p>
             </div>
           </>
@@ -365,7 +365,7 @@ export function AppLayout() {
   }, [user, handleLogout])
 
   const visibleNavItems = navItems.filter(
-    (item) => !item.roles || (user && item.roles.includes(user.rol))
+    (item) => !item.roles || (user && item.roles.includes(user.role))
   )
 
   const sidebarProps: Omit<SidebarProps, 'mobile'> = {
@@ -451,9 +451,9 @@ export function AppLayout() {
                       alt="Avatar"
                     />
                   ) : (
-                    <div className={`w-full h-full flex items-center justify-center ${user?.rol === 'admin' ? 'bg-brand-700' : user?.rol === 'tecnico' ? 'bg-emerald-600' : 'bg-slate-600'}`}>
+                    <div className={`w-full h-full flex items-center justify-center ${user?.role === 'admin' ? 'bg-brand-700' : user?.role === 'technician' ? 'bg-emerald-600' : 'bg-slate-600'}`}>
                       <span className="text-xs font-bold text-white uppercase">
-                        {user?.nombre?.[0] ?? '?'}
+                        {user?.name?.[0] ?? '?'}
                       </span>
                     </div>
                   )}

@@ -83,10 +83,10 @@ export function GatewaySettingsTab({ isAdmin, setStatusMessage }: { isAdmin: boo
     },
   })
 
-  const [colasPadre, setColasPadre] = useState<string[]>([])
-  const [newColaPadre, setNewColaPadre] = useState('')
-  const [editingColaPadre, setEditingColaPadre] = useState<string | null>(null)
-  const [editingColaPadreVal, setEditingColaPadreVal] = useState('')
+  const [parentQueues, setParentQueues] = useState<string[]>([])
+  const [newParentQueue, setNewParentQueue] = useState('')
+  const [editingParentQueue, setEditingParentQueue] = useState<string | null>(null)
+  const [editingParentQueueVal, setEditingParentQueueVal] = useState('')
 
   const [addressLists, setAddressLists] = useState<string[]>([])
   const [newAddressList, setNewAddressList] = useState('')
@@ -95,37 +95,37 @@ export function GatewaySettingsTab({ isAdmin, setStatusMessage }: { isAdmin: boo
 
   useEffect(() => {
     if (systemSettingsQuery.data) {
-      setColasPadre(systemSettingsQuery.data.catalogs.colas_padre || [])
+      setParentQueues(systemSettingsQuery.data.catalogs.parent_queues || [])
       setAddressLists(systemSettingsQuery.data.catalogs.address_lists || [])
     }
   }, [systemSettingsQuery.data])
 
-  const handleAddColaPadre = (e: React.FormEvent) => {
+  const handleAddParentQueue = (e: React.FormEvent) => {
     e.preventDefault()
-    const val = newColaPadre.trim()
+    const val = newParentQueue.trim()
     if (!val) return
-    if (colasPadre.includes(val)) {
+    if (parentQueues.includes(val)) {
       setStatusMessage({ type: 'error', text: 'Esa cola padre ya existe.' }); return
     }
-    const updated = [...colasPadre, val]
-    setColasPadre(updated)
-    catalogsMutation.mutate({ colas_padre: updated })
-    setNewColaPadre('')
+    const updated = [...parentQueues, val]
+    setParentQueues(updated)
+    catalogsMutation.mutate({ parent_queues: updated })
+    setNewParentQueue('')
     setStatusMessage({ type: 'success', text: `Cola padre "${val}" agregada.` })
   }
-  const handleDeleteColaPadre = (val: string) => {
-    const updated = colasPadre.filter(c => c !== val)
-    setColasPadre(updated)
-    catalogsMutation.mutate({ colas_padre: updated })
+  const handleDeleteParentQueue = (val: string) => {
+    const updated = parentQueues.filter(c => c !== val)
+    setParentQueues(updated)
+    catalogsMutation.mutate({ parent_queues: updated })
     setStatusMessage({ type: 'success', text: 'Cola padre eliminada.' })
   }
-  const handleSaveColaPadre = (old: string) => {
-    const val = editingColaPadreVal.trim()
+  const handleSaveParentQueue = (old: string) => {
+    const val = editingParentQueueVal.trim()
     if (!val) return
-    const updated = colasPadre.map(c => c === old ? val : c)
-    setColasPadre(updated)
-    catalogsMutation.mutate({ colas_padre: updated })
-    setEditingColaPadre(null)
+    const updated = parentQueues.map(c => c === old ? val : c)
+    setParentQueues(updated)
+    catalogsMutation.mutate({ parent_queues: updated })
+    setEditingParentQueue(null)
     setStatusMessage({ type: 'success', text: 'Cola padre actualizada.' })
   }
 
@@ -159,7 +159,7 @@ export function GatewaySettingsTab({ isAdmin, setStatusMessage }: { isAdmin: boo
   }
 
   // ── Sitios ───────────────────────────────────────────────────────────────
-  const [confirmDeleteSite, setConfirmDeleteSite] = useState<{ id: string; nombre: string } | null>(null)
+  const [confirmDeleteSite, setConfirmDeleteSite] = useState<{ id: string; name: string } | null>(null)
   const [siteModalOpen, setSiteModalOpen] = useState(false)
   const [siteModalSite, setSiteModalSite] = useState<SiteItem | null>(null)
 
@@ -326,16 +326,16 @@ export function GatewaySettingsTab({ isAdmin, setStatusMessage }: { isAdmin: boo
                 {sitesList.map((site) => (
                   <tr key={site.id} className="hover:bg-secondary/20 transition-colors">
                     <td className="px-4 py-3">
-                      <span className="font-semibold text-foreground">{site.nombre}</span>
+                      <span className="font-semibold text-foreground">{site.name}</span>
                     </td>
                     <td className="px-4 py-3">
                       <span className="font-mono text-muted-foreground text-xs">
-                        {site.latitud != null ? site.latitud.toFixed(6) : <span className="opacity-40">—</span>}
+                        {site.latitude != null ? site.latitude.toFixed(6) : <span className="opacity-40">—</span>}
                       </span>
                     </td>
                     <td className="px-4 py-3">
                       <span className="font-mono text-muted-foreground text-xs">
-                        {site.longitud != null ? site.longitud.toFixed(6) : <span className="opacity-40">—</span>}
+                        {site.longitude != null ? site.longitude.toFixed(6) : <span className="opacity-40">—</span>}
                       </span>
                     </td>
                     <td className="px-4 py-3 text-right">
@@ -350,7 +350,7 @@ export function GatewaySettingsTab({ isAdmin, setStatusMessage }: { isAdmin: boo
                         </button>
                         <button
                           type="button"
-                          onClick={() => setConfirmDeleteSite({ id: site.id, nombre: site.nombre })}
+                          onClick={() => setConfirmDeleteSite({ id: site.id, name: site.name })}
                           className="p-1 text-destructive hover:text-red-400 hover:bg-red-500/10 rounded transition-all cursor-pointer"
                           title="Eliminar"
                         >
@@ -385,15 +385,15 @@ export function GatewaySettingsTab({ isAdmin, setStatusMessage }: { isAdmin: boo
         </div>
 
         {/* Formulario de agregar */}
-        <form onSubmit={handleAddColaPadre} className="flex gap-3 max-w-md items-end">
+        <form onSubmit={handleAddParentQueue} className="flex gap-3 max-w-md items-end">
           <div className="flex-1 space-y-1.5">
             <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider block">
               Nueva Cola Padre
             </label>
             <input
               type="text"
-              value={newColaPadre}
-              onChange={(e) => setNewColaPadre(e.target.value)}
+              value={newParentQueue}
+              onChange={(e) => setNewParentQueue(e.target.value)}
               className="input-field font-mono"
               placeholder="isp_padre_global"
             />
@@ -405,7 +405,7 @@ export function GatewaySettingsTab({ isAdmin, setStatusMessage }: { isAdmin: boo
         </form>
 
         {/* Tabla de colas padre */}
-        {colasPadre.length > 0 ? (
+        {parentQueues.length > 0 ? (
           <div className="border border-border/60 rounded-xl overflow-hidden bg-background/20">
             <table className="w-full text-left border-collapse">
               <thead>
@@ -415,14 +415,14 @@ export function GatewaySettingsTab({ isAdmin, setStatusMessage }: { isAdmin: boo
                 </tr>
               </thead>
               <tbody className="divide-y divide-border/40 text-sm">
-                {colasPadre.map((c) => (
+                {parentQueues.map((c) => (
                   <tr key={c} className="hover:bg-secondary/20 transition-colors">
                     <td className="px-4 py-3">
-                      {editingColaPadre === c ? (
+                      {editingParentQueue === c ? (
                         <input
                           type="text"
-                          value={editingColaPadreVal}
-                          onChange={(e) => setEditingColaPadreVal(e.target.value)}
+                          value={editingParentQueueVal}
+                          onChange={(e) => setEditingParentQueueVal(e.target.value)}
                           className="input-field py-1 px-2 text-sm max-w-[280px] font-mono"
                         />
                       ) : (
@@ -431,24 +431,24 @@ export function GatewaySettingsTab({ isAdmin, setStatusMessage }: { isAdmin: boo
                     </td>
                     <td className="px-4 py-3 text-right">
                       <div className="flex justify-end gap-2">
-                        {editingColaPadre === c ? (
+                        {editingParentQueue === c ? (
                           <>
-                            <button type="button" onClick={() => handleSaveColaPadre(c)}
+                            <button type="button" onClick={() => handleSaveParentQueue(c)}
                               className="p-1 text-emerald-400 hover:bg-emerald-500/10 rounded transition-all cursor-pointer" title="Guardar">
                               <Check className="w-4 h-4" />
                             </button>
-                            <button type="button" onClick={() => setEditingColaPadre(null)}
+                            <button type="button" onClick={() => setEditingParentQueue(null)}
                               className="p-1 text-muted-foreground hover:bg-secondary/50 rounded transition-all cursor-pointer" title="Cancelar">
                               <X className="w-4 h-4" />
                             </button>
                           </>
                         ) : (
                           <>
-                            <button type="button" onClick={() => { setEditingColaPadre(c); setEditingColaPadreVal(c) }}
+                            <button type="button" onClick={() => { setEditingParentQueue(c); setEditingParentQueueVal(c) }}
                               className="p-1 text-muted-foreground hover:text-foreground hover:bg-secondary/50 rounded transition-all cursor-pointer" title="Editar">
                               <Edit2 className="w-4 h-4" />
                             </button>
-                            <button type="button" onClick={() => handleDeleteColaPadre(c)}
+                            <button type="button" onClick={() => handleDeleteParentQueue(c)}
                               className="p-1 text-destructive hover:text-red-400 hover:bg-red-500/10 rounded transition-all cursor-pointer" title="Eliminar">
                               <Trash2 className="w-4 h-4" />
                             </button>
@@ -584,7 +584,7 @@ export function GatewaySettingsTab({ isAdmin, setStatusMessage }: { isAdmin: boo
               <div>
                 <h3 className="text-base font-semibold text-foreground">¿Eliminar sitio?</h3>
                 <p className="text-sm text-muted-foreground mt-1">
-                  Vas a eliminar el sitio <span className="font-semibold text-foreground">"{confirmDeleteSite.nombre}"</span>.
+                  Vas a eliminar el sitio <span className="font-semibold text-foreground">"{confirmDeleteSite.name}"</span>.
                   Los gateways asignados a este sitio quedarán sin sitio asignado.
                 </p>
               </div>

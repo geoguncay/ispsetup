@@ -14,7 +14,7 @@ from app.core.deps import get_db
 from app.core.security import hash_password
 from app.main import app
 from app.models.user import User
-from app.models.router import Router
+from app.models.gateway import Gateway
 from app.models.client import Client
 from app.models.static_ip import StaticIP
 from app.models.traffic_sample import TrafficSample
@@ -42,7 +42,7 @@ def make_redis_mock() -> AsyncMock:
     mock.get = AsyncMock(return_value=None)
     mock.delete = AsyncMock(return_value=True)
     mock.publish = AsyncMock(return_value=True)
-    
+
     # Mock pubsub
     pubsub_mock = AsyncMock()
     pubsub_mock.subscribe = AsyncMock(return_value=True)
@@ -50,12 +50,12 @@ def make_redis_mock() -> AsyncMock:
     pubsub_mock.listen = UMMagicMock()
     pubsub_mock.unsubscribe = AsyncMock(return_value=True)
     pubsub_mock.close = AsyncMock(return_value=True)
-    
+
     # listen returns a generator yielding items
     async def listen_gen():
         yield {"type": "message", "data": '{"test": "data"}'}
     pubsub_mock.listen.side_effect = listen_gen
-    
+
     mock.pubsub = MagicMock(return_value=pubsub_mock)
     return mock
 
@@ -73,20 +73,20 @@ def setup_db(monkeypatch):
     db = TestingSessionLocal()
     # Agregar un administrador
     db.add(User(
-        nombre="Test Admin",
+        name="Test Admin",
         email="admin@test.com",
         hashed_password=hash_password("adminpass123"),
-        rol="admin",
-        activo=True,
+        role="admin",
+        active=True,
     ))
-    # Agregar un router
-    r = Router(
-        nombre="Router Monitoreado",
+    # Agregar un gateway
+    r = Gateway(
+        name="Router Monitoreado",
         ip="10.0.0.1",
-        puerto_api=8728,
-        usuario_api="admin",
+        api_port=8728,
+        api_username="admin",
         password_enc="enc_pass",
-        activo=True,
+        active=True,
     )
     db.add(r)
     db.commit()
@@ -113,13 +113,13 @@ def test_ensure_partition_exists():
     db.close()
 
 
-@patch("app.workers.traffic.router_pool.connect_to")
+@patch("app.workers.traffic.gateway_pool.connect_to")
 def test_poll_traffic_task(mock_connect_to):
     # Setup mocks de MikroTik API
     api_mock = MagicMock()
     # Mocking simple queues
     api_mock.path.return_value.select.return_value.where.return_value = []
-    
+
     # list(api.path('/queue/simple'))
     # list(api("/interface/print"))
     def api_side_effect(cmd, *args, **kwargs):
@@ -133,7 +133,7 @@ def test_poll_traffic_task(mock_connect_to):
         return []
 
     api_mock.side_effect = api_side_effect
-    
+
     # Para /queue/simple
     def path_side_effect(path):
         path_mock = MagicMock()
@@ -146,25 +146,25 @@ def test_poll_traffic_task(mock_connect_to):
         return path_mock
 
     api_mock.path.side_effect = path_side_effect
-    
+
     mock_connect_to.return_value.__enter__.return_value = api_mock
 
     db = TestingSessionLocal()
-    router = db.query(Router).first()
-    
+    gateway = db.query(Gateway).first()
+
     # Crear cliente activo con IP estática en este router
     c = Client(
-        nombre="Juan Perez",
+        name="Juan Perez",
         cedula="1724024888",
-        telefono="0999999999",
-        direccion="Quito",
-        router_id=router.id,
-        tipo="static",
-        activo=True
+        phone="0999999999",
+        address="Quito",
+        gateway_id=gateway.id,
+        connection_type="static",
+        active=True
     )
     db.add(c)
     db.flush()
-    db.add(StaticIP(cliente_id=c.id, ip="192.168.10.15", router_id=router.id))
+    db.add(StaticIP(client_id=c.id, ip="192.168.10.15", gateway_id=gateway.id))
     db.commit()
     db.close()
 
@@ -175,9 +175,9 @@ def test_poll_traffic_task(mock_connect_to):
     db = TestingSessionLocal()
     samples = db.query(TrafficSample).all()
     assert len(samples) > 0
-    
+
     # Debe haber una muestra del cliente Juan Perez
-    client_sample = db.query(TrafficSample).filter(TrafficSample.cliente_id != None).first()
+    client_sample = db.query(TrafficSample).filter(TrafficSample.client_id != None).first()
     assert client_sample is not None
     assert client_sample.rx_rate == 256000
     assert client_sample.tx_rate == 128000
@@ -189,7 +189,7 @@ def test_poll_traffic_task(mock_connect_to):
     assert iface_sample is not None
     assert iface_sample.rx_bytes == 1000
     assert iface_sample.tx_bytes == 2000
-    
+
     db.close()
 
 
@@ -201,26 +201,26 @@ def test_get_client_traffic_history_api(client: TestClient):
     token = login.json()["access_token"]
 
     db = TestingSessionLocal()
-    router = db.query(Router).first()
-    
+    gateway = db.query(Gateway).first()
+
     c = Client(
-        nombre="Juan Perez",
+        name="Juan Perez",
         cedula="1724024888",
-        telefono="0999999999",
-        direccion="Quito",
-        router_id=router.id,
-        tipo="static",
-        activo=True
+        phone="0999999999",
+        address="Quito",
+        gateway_id=gateway.id,
+        connection_type="static",
+        active=True
     )
     db.add(c)
     db.flush()
     client_id = c.id
-    
+
     # Sembrar muestras de tráfico para este cliente en diferentes minutos del pasado
     now = datetime.now(timezone.utc)
     db.add(TrafficSample(
-        router_id=router.id,
-        cliente_id=client_id,
+        gateway_id=gateway.id,
+        client_id=client_id,
         rx_bytes=1000,
         tx_bytes=500,
         rx_rate=500000,
@@ -228,8 +228,8 @@ def test_get_client_traffic_history_api(client: TestClient):
         timestamp=now - timedelta(minutes=5)
     ))
     db.add(TrafficSample(
-        router_id=router.id,
-        cliente_id=client_id,
+        gateway_id=gateway.id,
+        client_id=client_id,
         rx_bytes=2000,
         tx_bytes=1000,
         rx_rate=600000,
@@ -247,7 +247,7 @@ def test_get_client_traffic_history_api(client: TestClient):
     )
     assert response.status_code == 200
     data = response.json()
-    assert data["cliente_id"] == str(client_id)
+    assert data["client_id"] == str(client_id)
     assert data["range"] == "1h"
     assert len(data["samples"]) == 2
     # Orden cronológico
@@ -270,13 +270,13 @@ def test_websocket_traffic_authorized(client: TestClient):
         json={"email": "admin@test.com", "password": "adminpass123"},
     )
     token = login.json()["access_token"]
-    
+
     db = TestingSessionLocal()
-    router = db.query(Router).first()
-    router_id = router.id
+    gateway = db.query(Gateway).first()
+    gateway_id = gateway.id
     db.close()
 
-    with client.websocket_connect(f"/api/traffic/ws/{router_id}?token={token}") as websocket:
+    with client.websocket_connect(f"/api/traffic/ws/{gateway_id}?token={token}") as websocket:
         data = websocket.receive_json()
         assert data == {"test": "data"}
 
@@ -289,40 +289,40 @@ def test_get_router_traffic_history_api(client: TestClient):
     token = login.json()["access_token"]
 
     db = TestingSessionLocal()
-    router = db.query(Router).first()
-    
+    gateway = db.query(Gateway).first()
+
     # Crear dos clientes
     c1 = Client(
-        nombre="Juan Perez",
+        name="Juan Perez",
         cedula="1724024888",
-        telefono="0999999999",
-        direccion="Quito",
-        router_id=router.id,
-        tipo="static",
-        activo=True
+        phone="0999999999",
+        address="Quito",
+        gateway_id=gateway.id,
+        connection_type="static",
+        active=True
     )
     c2 = Client(
-        nombre="Maria Gomez",
+        name="Maria Gomez",
         cedula="1724024889",
-        telefono="0999999998",
-        direccion="Quito",
-        router_id=router.id,
-        tipo="static",
-        activo=True
+        phone="0999999998",
+        address="Quito",
+        gateway_id=gateway.id,
+        connection_type="static",
+        active=True
     )
     db.add(c1)
     db.add(c2)
     db.flush()
-    
+
     # Sembrar muestras de tráfico para ambos clientes en los mismos timestamps del pasado para agregarse
     now = datetime.now(timezone.utc)
     ts1 = now - timedelta(minutes=5)
     ts2 = now - timedelta(minutes=1)
-    
+
     # En ts1, c1 consume 500k y c2 consume 300k -> Total 800k
     db.add(TrafficSample(
-        router_id=router.id,
-        cliente_id=c1.id,
+        gateway_id=gateway.id,
+        client_id=c1.id,
         rx_bytes=1000,
         tx_bytes=500,
         rx_rate=500000,
@@ -330,19 +330,19 @@ def test_get_router_traffic_history_api(client: TestClient):
         timestamp=ts1
     ))
     db.add(TrafficSample(
-        router_id=router.id,
-        cliente_id=c2.id,
+        gateway_id=gateway.id,
+        client_id=c2.id,
         rx_bytes=500,
         tx_bytes=300,
         rx_rate=300000,
         tx_rate=100000,
         timestamp=ts1
     ))
-    
+
     # En ts2, c1 consume 600k y c2 consume 400k -> Total 1000k
     db.add(TrafficSample(
-        router_id=router.id,
-        cliente_id=c1.id,
+        gateway_id=gateway.id,
+        client_id=c1.id,
         rx_bytes=2000,
         tx_bytes=1000,
         rx_rate=600000,
@@ -350,22 +350,22 @@ def test_get_router_traffic_history_api(client: TestClient):
         timestamp=ts2
     ))
     db.add(TrafficSample(
-        router_id=router.id,
-        cliente_id=c2.id,
+        gateway_id=gateway.id,
+        client_id=c2.id,
         rx_bytes=1000,
         tx_bytes=600,
         rx_rate=400000,
         tx_rate=200000,
         timestamp=ts2
     ))
-    
-    router_id = router.id
+
+    gateway_id = gateway.id
     db.commit()
     db.close()
 
     # Consultar histórico del router
     response = client.get(
-        f"/api/traffic/router/{router_id}",
+        f"/api/traffic/gateway/{gateway_id}",
         params={"range": "1h"},
         headers={"Authorization": f"Bearer {token}"}
     )

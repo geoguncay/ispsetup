@@ -24,21 +24,21 @@ class Invoice(Base):
     id: Mapped[uuid.UUID] = mapped_column(
         Uuid(native_uuid=False), primary_key=True, default=uuid.uuid4
     )
-    cliente_id: Mapped[uuid.UUID] = mapped_column(
+    client_id: Mapped[uuid.UUID] = mapped_column(
         Uuid(native_uuid=False), ForeignKey("clients.id", ondelete="CASCADE"), nullable=False
     )
     plan_id: Mapped[uuid.UUID | None] = mapped_column(
         Uuid(native_uuid=False), ForeignKey("plans.id", ondelete="SET NULL"), nullable=True
     )
-    periodo: Mapped[str] = mapped_column(String(10), nullable=False)  # Formato "MM/AAAA", e.g., "06/2026"
-    monto: Mapped[float] = mapped_column(Numeric(10, 2), nullable=False)
-    fecha_emision: Mapped[datetime] = mapped_column(
+    period: Mapped[str] = mapped_column(String(10), nullable=False)  # Formato "MM/AAAA", e.g., "06/2026"
+    amount: Mapped[float] = mapped_column(Numeric(10, 2), nullable=False)
+    issue_date: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), nullable=False
     )
-    fecha_vencimiento: Mapped[datetime] = mapped_column(
+    due_date: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), nullable=False
     )
-    estado: Mapped[str] = mapped_column(String(20), nullable=False, default="pendiente")  # "pendiente", "pagado", "vencido"
+    status: Mapped[str] = mapped_column(String(20), nullable=False, default="pending")  # "pending", "paid", "overdue"
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), nullable=False
     )
@@ -50,4 +50,4 @@ class Invoice(Base):
     custom_services = relationship("CustomService", secondary=invoice_custom_services_association)
 
     def __repr__(self) -> str:
-        return f"<Invoice id={self.id} cliente_id={self.cliente_id} periodo={self.periodo} monto={self.monto} estado={self.estado}>"
+        return f"<Invoice id={self.id} client_id={self.client_id} period={self.period} amount={self.amount} status={self.status}>"

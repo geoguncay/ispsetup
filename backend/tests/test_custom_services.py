@@ -51,19 +51,19 @@ def setup_db(monkeypatch):
     db = TestingSessionLocal()
     # Agregar un administrador
     db.add(User(
-        nombre="Test Admin",
+        name="Test Admin",
         email="admin@test.com",
         hashed_password=hash_password("adminpass123"),
-        rol="admin",
-        activo=True,
+        role="admin",
+        active=True,
     ))
     # Agregar un técnico
     db.add(User(
-        nombre="Test Tecnico",
+        name="Test Tecnico",
         email="tecnico@test.com",
         hashed_password=hash_password("tecnicopass123"),
-        rol="tecnico",
-        activo=True,
+        role="technician",
+        active=True,
     ))
     db.commit()
     db.close()
@@ -100,37 +100,37 @@ def test_custom_service_crud_admin(client: TestClient):
         "/api/custom-services",
         headers=headers,
         json={
-            "nombre": "Alquiler de Router",
-            "precio": 5.00,
-            "descripcion": "Arriendo mensual de router adicional dual band",
-            "impuestos": 15.0,
-            "activo": True,
+            "name": "Alquiler de Router",
+            "price": 5.00,
+            "description": "Arriendo mensual de router adicional dual band",
+            "taxes": 15.0,
+            "active": True,
         },
     )
     assert response.status_code == 201
     data = response.json()
-    assert data["nombre"] == "Alquiler de Router"
-    assert data["precio"] == 5.0
-    assert data["impuestos"] == 15.0
+    assert data["name"] == "Alquiler de Router"
+    assert data["price"] == 5.0
+    assert data["taxes"] == 15.0
     service_id = data["id"]
 
     # 4. Detail
     response = client.get(f"/api/custom-services/{service_id}", headers=headers)
     assert response.status_code == 200
-    assert response.json()["nombre"] == "Alquiler de Router"
+    assert response.json()["name"] == "Alquiler de Router"
 
     # 5. Update Custom Service
     response = client.put(
         f"/api/custom-services/{service_id}",
         headers=headers,
         json={
-            "precio": 7.50,
-            "descripcion": "Arriendo mensual de router - precio actualizado",
+            "price": 7.50,
+            "description": "Arriendo mensual de router - precio actualizado",
         },
     )
     assert response.status_code == 200
-    assert response.json()["precio"] == 7.5
-    assert response.json()["descripcion"] == "Arriendo mensual de router - precio actualizado"
+    assert response.json()["price"] == 7.5
+    assert response.json()["description"] == "Arriendo mensual de router - precio actualizado"
 
     # 6. Delete Custom Service
     response = client.delete(f"/api/custom-services/{service_id}", headers=headers)
@@ -152,11 +152,11 @@ def test_custom_service_permissions_tecnico(client: TestClient):
         "/api/custom-services",
         headers={"Authorization": f"Bearer {admin_token}"},
         json={
-            "nombre": "Soporte Extra",
-            "precio": 15.00,
-            "descripcion": "Visita tecnica fuera de horario",
-            "impuestos": 0.0,
-            "activo": True,
+            "name": "Soporte Extra",
+            "price": 15.00,
+            "description": "Visita tecnica fuera de horario",
+            "taxes": 0.0,
+            "active": True,
         },
     )
     service_id = response.json()["id"]
@@ -179,8 +179,8 @@ def test_custom_service_permissions_tecnico(client: TestClient):
         "/api/custom-services",
         headers=headers,
         json={
-            "nombre": "Otro servicio",
-            "precio": 10.00,
+            "name": "Otro servicio",
+            "price": 10.00,
         },
     )
     assert response.status_code == 403
@@ -189,7 +189,7 @@ def test_custom_service_permissions_tecnico(client: TestClient):
     response = client.put(
         f"/api/custom-services/{service_id}",
         headers=headers,
-        json={"precio": 20.00},
+        json={"price": 20.00},
     )
     assert response.status_code == 403
 

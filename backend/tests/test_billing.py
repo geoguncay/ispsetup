@@ -13,7 +13,7 @@ from app.core.security import hash_password
 from app.main import app
 from app.models.user import User
 from app.models.plan import Plan
-from app.models.router import Router
+from app.models.gateway import Gateway
 from app.models.client import Client
 from app.models.client_plan import ClientPlan
 from app.models.static_ip import StaticIP
@@ -57,30 +57,30 @@ def setup_db(monkeypatch):
     db = TestingSessionLocal()
     # Agregar un administrador
     db.add(User(
-        nombre="Test Admin",
+        name="Test Admin",
         email="admin@test.com",
         hashed_password=hash_password("adminpass123"),
-        rol="admin",
-        activo=True,
+        role="admin",
+        active=True,
     ))
-    # Agregar un router
-    r = Router(
-        nombre="Router Central",
+    # Agregar un gateway
+    r = Gateway(
+        name="Router Central",
         ip="10.0.0.1",
-        puerto_api=8728,
-        usuario_api="admin",
+        api_port=8728,
+        api_username="admin",
         password_enc="enc_pass",
-        activo=True,
+        active=True,
     )
     db.add(r)
     # Agregar un plan
     p = Plan(
-        nombre="Plan Fibra 20M",
-        velocidad_down_mbps=20,
-        velocidad_up_mbps=10,
-        velocidad_down_kbps=20000,
-        velocidad_up_kbps=10000,
-        precio=25.00,
+        name="Plan Fibra 20M",
+        speed_down_mbps=20,
+        speed_up_mbps=10,
+        speed_down_kbps=20000,
+        speed_up_kbps=10000,
+        price=25.00,
     )
     db.add(p)
     db.commit()
@@ -101,81 +101,81 @@ def client():
 
 def test_generate_monthly_invoices_task():
     db = TestingSessionLocal()
-    router = db.query(Router).first()
+    gateway = db.query(Gateway).first()
     plan = db.query(Plan).first()
-    
+
     # Crear cliente activo con plan activo
     c = Client(
-        nombre="Cliente Activo",
+        name="Cliente Activo",
         cedula="1724024888",
-        telefono="0999999999",
-        direccion="Quito",
-        router_id=router.id,
-        tipo="static",
-        activo=True
+        phone="0999999999",
+        address="Quito",
+        gateway_id=gateway.id,
+        connection_type="static",
+        active=True
     )
     db.add(c)
     db.flush()
     db.add(ClientPlan(cliente_id=c.id, plan_id=plan.id, estado="activo"))
     db.commit()
-    
+
     # Ejecutar tarea de facturación mensual
-    res = generate_monthly_invoices()
+    res = generate_monthly_invoices(force=True)
     assert res["status"] == "success"
     assert res["invoices_created"] == 1
-    
+
     # Verificar que se creó la factura
-    invoice = db.query(Invoice).filter(Invoice.cliente_id == c.id).first()
+    invoice = db.query(Invoice).filter(Invoice.client_id == c.id).first()
     assert invoice is not None
-    assert invoice.monto == 25.00
-    assert invoice.estado == "pendiente"
-    assert invoice.periodo == datetime.now().strftime("%m/%Y")
-    
+    assert invoice.amount == 25.00
+    assert invoice.status == "pending"
+    assert invoice.period == datetime.now().strftime("%m/%Y")
+
     # Ejecutar de nuevo para comprobar protección de duplicados
-    res2 = generate_monthly_invoices()
+    res2 = generate_monthly_invoices(force=True)
     assert res2["invoices_created"] == 0
     db.close()
 
 
 def test_check_overdue_invoices_task():
     db = TestingSessionLocal()
-    router = db.query(Router).first()
+    gateway = db.query(Gateway).first()
     plan = db.query(Plan).first()
-    
+
     c = Client(
-        nombre="Cliente Con Mora",
+        name="Cliente Con Mora",
         cedula="1724024888",
-        telefono="0999999999",
-        direccion="Quito",
-        router_id=router.id,
-        tipo="static",
-        activo=True
+        phone="0999999999",
+        address="Quito",
+        gateway_id=gateway.id,
+        connection_type="static",
+        active=True
     )
     db.add(c)
     db.flush()
-    
+
     # Crear factura pendiente vencida
     past_due = datetime.now() - timedelta(days=2)
     inv = Invoice(
-        cliente_id=c.id,
+        client_id=c.id,
         plan_id=plan.id,
-        periodo="05/2026",
-        monto=25.00,
-        fecha_emision=datetime.now() - timedelta(days=12),
-        fecha_vencimiento=past_due,
-        estado="pendiente"
+        period="05/2026",
+        amount=25.00,
+        issue_date=datetime.now() - timedelta(days=12),
+        due_date=past_due,
+        status="pending"
     )
     db.add(inv)
     db.commit()
-    
+
     # Ejecutar la verificación de vencidos
     res = check_overdue_invoices()
     assert res["status"] == "success"
     assert res["updated_count"] == 1
-    
+
     # Comprobar actualización de estado
     db.refresh(inv)
-    assert inv.estado == "vencido"
+    assert inv.status == "overdue"
     db.close()
 
 
@@ -190,84 +190,84 @@ def test_register_payment_and_reactivation_flow(mock_send_notif, mock_toggle_que
     )
     token = login.json()["access_token"]
     headers = {"Authorization": f"Bearer {token}"}
-    
+
     db = TestingSessionLocal()
-    router = db.query(Router).first()
+    gateway = db.query(Gateway).first()
     plan = db.query(Plan).first()
-    
+
     # Crear cliente suspendido
     c = Client(
-        nombre="Cliente Suspendido",
+        name="Cliente Suspendido",
         cedula="1724024888",
-        telefono="0999999999",
-        direccion="Quito",
-        router_id=router.id,
-        tipo="static",
-        activo=False
+        phone="0999999999",
+        address="Quito",
+        gateway_id=gateway.id,
+        connection_type="static",
+        active=False
     )
     db.add(c)
     db.flush()
-    db.add(StaticIP(cliente_id=c.id, ip="10.0.0.50", router_id=router.id))
+    db.add(StaticIP(client_id=c.id, ip="10.0.0.50", gateway_id=gateway.id))
     db.add(ClientPlan(cliente_id=c.id, plan_id=plan.id, estado="suspendido"))
-    
-    # Crear log de suspensión activo (fecha_reactivacion es nula)
+
+    # Crear log de suspensión activo (reactivated_at es nulo)
     log = SuspensionLog(
-        cliente_id=c.id,
-        motivo="Mora de pago",
-        fecha_suspension=datetime.now() - timedelta(days=5),
-        fecha_reactivacion=None
+        client_id=c.id,
+        reason="Mora de pago",
+        suspended_at=datetime.now() - timedelta(days=5),
+        reactivated_at=None
     )
     db.add(log)
-    
+
     # Crear factura vencida
     inv = Invoice(
-        cliente_id=c.id,
+        client_id=c.id,
         plan_id=plan.id,
-        periodo="05/2026",
-        monto=25.00,
-        fecha_emision=datetime.now() - timedelta(days=15),
-        fecha_vencimiento=datetime.now() - timedelta(days=5),
-        estado="vencido"
+        period="05/2026",
+        amount=25.00,
+        issue_date=datetime.now() - timedelta(days=15),
+        due_date=datetime.now() - timedelta(days=5),
+        status="overdue"
     )
     db.add(inv)
     db.commit()
-    
+
     inv_id = inv.id
     client_id = c.id
     db.close()
-    
+
     # Pagar la factura a través del endpoint POST /api/payments
     response = client.post(
         "/api/payments",
         json={
             "invoice_id": str(inv_id),
-            "monto": 25.00,
-            "metodo": "efectivo",
-            "notas": "Pago en oficina principal"
+            "amount": 25.00,
+            "method": "cash",
+            "notes": "Pago en oficina principal"
         },
         headers=headers
     )
-    
+
     assert response.status_code == 200
     res_data = response.json()
-    assert res_data["estado"] == "completado"
-    assert res_data["metodo"] == "efectivo"
-    assert res_data["notas"] == "Pago en oficina principal"
-    
+    assert res_data["status"] == "completed"
+    assert res_data["method"] == "cash"
+    assert res_data["notes"] == "Pago en oficina principal"
+
     # Comprobar reactivación de entidades en BD
     db2 = TestingSessionLocal()
     client_db = db2.get(Client, client_id)
-    assert client_db.activo is True
-    
+    assert client_db.active is True
+
     client_plan_db = db2.query(ClientPlan).filter(ClientPlan.cliente_id == client_id).first()
     assert client_plan_db.estado == "activo"
-    
-    log_db = db2.query(SuspensionLog).filter(SuspensionLog.cliente_id == client_id).first()
-    assert log_db.fecha_reactivacion is not None
-    
+
+    log_db = db2.query(SuspensionLog).filter(SuspensionLog.client_id == client_id).first()
+    assert log_db.reactivated_at is not None
+
     invoice_db = db2.get(Invoice, inv_id)
-    assert invoice_db.estado == "pagado"
-    
+    assert invoice_db.status == "paid"
+
     # Comprobar llamadas a MikroTik y Notificación
     mock_unsuspend_fw.assert_called_once_with(ANY, "10.0.0.50")
     mock_toggle_queue.assert_called_once_with(ANY, "10.0.0.50", disabled=False)
@@ -282,101 +282,101 @@ def test_get_daily_cash(client: TestClient):
     )
     token = login.json()["access_token"]
     headers = {"Authorization": f"Bearer {token}"}
-    
+
     db = TestingSessionLocal()
-    router = db.query(Router).first()
+    gateway = db.query(Gateway).first()
     plan = db.query(Plan).first()
-    
+
     c = Client(
-        nombre="Cliente Transaccion",
+        name="Cliente Transaccion",
         cedula="1724024888",
-        telefono="0999999999",
-        direccion="Quito",
-        router_id=router.id,
-        tipo="static",
-        activo=True
+        phone="0999999999",
+        address="Quito",
+        gateway_id=gateway.id,
+        connection_type="static",
+        active=True
     )
     db.add(c)
     db.flush()
-    
+
     # Crear factura
     inv = Invoice(
-        cliente_id=c.id,
+        client_id=c.id,
         plan_id=plan.id,
-        periodo="06/2026",
-        monto=25.00,
-        fecha_vencimiento=datetime.now() + timedelta(days=10),
-        estado="pendiente"
+        period="06/2026",
+        amount=25.00,
+        due_date=datetime.now() + timedelta(days=10),
+        status="pending"
     )
     db.add(inv)
     db.commit()
-    
+
     # Crear pago de hoy
     p = ClientPayment(
-        cliente_id=c.id,
+        client_id=c.id,
         invoice_id=inv.id,
-        monto=25.00,
-        metodo="transferencia",
-        estado="completado",
-        fecha_pago=datetime.now()
+        amount=25.00,
+        method="transfer",
+        status="completed",
+        payment_date=datetime.now()
     )
     db.add(p)
     db.commit()
     db.close()
-    
+
     # Consultar caja diaria
     response = client.get("/api/payments/today", headers=headers)
     assert response.status_code == 200
     res_data = response.json()
-    assert res_data["total_cobrado"] == 25.00
-    assert res_data["desglose"]["transferencia"] == 25.00
-    assert len(res_data["transacciones"]) == 1
+    assert res_data["total_collected"] == 25.00
+    assert res_data["breakdown"]["transfer"] == 25.00
+    assert len(res_data["transactions"]) == 1
 
 
 def test_generate_monthly_invoices_with_custom_services():
     from app.models.custom_service import CustomService
     db = TestingSessionLocal()
-    router = db.query(Router).first()
+    gateway = db.query(Gateway).first()
     plan = db.query(Plan).first()
 
     # Agregar servicio personalizado
     cs = CustomService(
-        nombre="IP Publica",
-        precio=10.00,
-        descripcion="IP Fija Publica",
-        impuestos=12.00,
-        activo=True
+        name="IP Publica",
+        price=10.00,
+        description="IP Fija Publica",
+        taxes=12.00,
+        active=True
     )
     db.add(cs)
     db.flush()
 
     # Crear cliente activo con plan activo y servicio personalizado
     c = Client(
-        nombre="Cliente Premium",
+        name="Cliente Premium",
         cedula="1724024888",
-        telefono="0999999999",
-        direccion="Quito",
-        router_id=router.id,
-        tipo="static",
-        activo=True
+        phone="0999999999",
+        address="Quito",
+        gateway_id=gateway.id,
+        connection_type="static",
+        active=True
     )
     db.add(c)
     db.flush()
     db.add(ClientPlan(cliente_id=c.id, plan_id=plan.id, estado="activo"))
-    
+
     # Asociar custom service al cliente
     c.custom_services.append(cs)
     db.commit()
 
     # Ejecutar tarea de facturación mensual
-    res = generate_monthly_invoices()
+    res = generate_monthly_invoices(force=True)
     assert res["status"] == "success"
     assert res["invoices_created"] == 1
 
     # Verificar que el monto de la factura sume plan (25.00) + custom service (10.00) = 35.00
-    invoice = db.query(Invoice).filter(Invoice.cliente_id == c.id).first()
+    invoice = db.query(Invoice).filter(Invoice.client_id == c.id).first()
     assert invoice is not None
-    assert float(invoice.monto) == 35.00
+    assert float(invoice.amount) == 35.00
     db.close()
 
 
@@ -390,17 +390,17 @@ def test_create_manual_invoice_endpoint(client: TestClient):
     headers = {"Authorization": f"Bearer {token}"}
 
     db = TestingSessionLocal()
-    router = db.query(Router).first()
+    gateway = db.query(Gateway).first()
     plan = db.query(Plan).first()
 
     c = Client(
-        nombre="Cliente Facturacion Manual",
+        name="Cliente Facturacion Manual",
         cedula="1724024888",
-        telefono="0999999999",
-        direccion="Quito",
-        router_id=router.id,
-        tipo="static",
-        activo=True
+        phone="0999999999",
+        address="Quito",
+        gateway_id=gateway.id,
+        connection_type="static",
+        active=True
     )
     db.add(c)
     db.commit()
@@ -410,68 +410,68 @@ def test_create_manual_invoice_endpoint(client: TestClient):
     db.close()
 
     # Crear factura manual
-    vencimiento = (datetime.now() + timedelta(days=10)).isoformat()
+    due_date = (datetime.now() + timedelta(days=10)).isoformat()
     response = client.post(
         "/api/invoices",
         json={
-            "cliente_id": str(client_id),
+            "client_id": str(client_id),
             "plan_id": str(plan_id),
-            "periodo": "07/2026",
-            "monto": 50.00,
-            "fecha_vencimiento": vencimiento
+            "period": "07/2026",
+            "amount": 50.00,
+            "due_date": due_date
         },
         headers=headers
     )
 
     assert response.status_code == 201
     res_data = response.json()
-    assert res_data["periodo"] == "07/2026"
-    assert res_data["monto"] == 50.00
-    assert res_data["cliente_id"] == str(client_id)
+    assert res_data["period"] == "07/2026"
+    assert res_data["amount"] == 50.00
+    assert res_data["client_id"] == str(client_id)
     assert res_data["plan_id"] == str(plan_id)
-    assert res_data["estado"] == "pendiente"
+    assert res_data["status"] == "pending"
 
 
 def test_generate_monthly_invoices_with_non_recurring_custom_services(client: TestClient):
     from app.models.custom_service import CustomService
     db = TestingSessionLocal()
-    
+
     # 1. Limpiar o buscar datos base
-    router = db.query(Router).first()
+    gateway = db.query(Gateway).first()
     plan = db.query(Plan).first()
-    
+
     # 2. Crear servicios adicionales: uno recurrente y uno no recurrente
-    cs_recurrente = CustomService(
-        nombre="Soporte VIP Recurrente",
-        precio=15.00,
-        recurrente=True,
-        activo=True
+    cs_recurring = CustomService(
+        name="Soporte VIP Recurrente",
+        price=15.00,
+        recurring=True,
+        active=True
     )
-    cs_no_recurrente = CustomService(
-        nombre="Visita Instalacion Unica",
-        precio=60.00,
-        recurrente=False,
-        activo=True
+    cs_non_recurring = CustomService(
+        name="Visita Instalacion Unica",
+        price=60.00,
+        recurring=False,
+        active=True
     )
-    db.add(cs_recurrente)
-    db.add(cs_no_recurrente)
+    db.add(cs_recurring)
+    db.add(cs_non_recurring)
     db.commit()
-    
+
     # 3. Crear cliente con plan y ambos servicios personalizados
     c = Client(
-        nombre="Cliente Con Recurrencia Mix",
+        name="Cliente Con Recurrencia Mix",
         cedula="0999888777",
-        telefono="0987654321",
-        direccion="Guayaquil",
-        router_id=router.id,
-        tipo="static",
-        activo=True
+        phone="0987654321",
+        address="Guayaquil",
+        gateway_id=gateway.id,
+        connection_type="static",
+        active=True
     )
-    c.custom_services.append(cs_recurrente)
-    c.custom_services.append(cs_no_recurrente)
+    c.custom_services.append(cs_recurring)
+    c.custom_services.append(cs_non_recurring)
     db.add(c)
     db.commit()
-    
+
     # Activar plan del cliente
     cp = ClientPlan(
         cliente_id=c.id,
@@ -481,10 +481,10 @@ def test_generate_monthly_invoices_with_non_recurring_custom_services(client: Te
     )
     db.add(cp)
     db.commit()
-    
+
     client_id = c.id
     db.close()
-    
+
     # 4. Ejecutar facturación mensual
     login = client.post(
         "/api/auth/login",
@@ -492,27 +492,26 @@ def test_generate_monthly_invoices_with_non_recurring_custom_services(client: Te
     )
     token = login.json()["access_token"]
     headers = {"Authorization": f"Bearer {token}"}
-    
+
     res = client.post("/api/invoices/generate-monthly", headers=headers)
     assert res.status_code == 200
-    
+
     # 5. Verificar factura generada y desasociación en DB
     db = TestingSessionLocal()
-    inv = db.query(Invoice).filter(Invoice.cliente_id == client_id).first()
+    inv = db.query(Invoice).filter(Invoice.client_id == client_id).first()
     assert inv is not None
-    # Monto debe ser: plan.precio (25.00) + cs_recurrente.precio (15.00) + cs_no_recurrente.precio (60.00) = 100.00
-    assert float(inv.monto) == 100.00
-    
+    # Monto debe ser: plan.price (25.00) + cs_recurring.price (15.00) + cs_non_recurring.price (60.00) = 100.00
+    assert float(inv.amount) == 100.00
+
     # Los servicios asociados a la factura deben ser ambos
     assert len(inv.custom_services) == 2
-    service_names = [s.nombre for s in inv.custom_services]
+    service_names = [s.name for s in inv.custom_services]
     assert "Soporte VIP Recurrente" in service_names
     assert "Visita Instalacion Unica" in service_names
-    
+
     # El cliente debe haber conservado el servicio recurrente pero perdido el no recurrente
     updated_client = db.get(Client, client_id)
     assert len(updated_client.custom_services) == 1
-    assert updated_client.custom_services[0].nombre == "Soporte VIP Recurrente"
-    
-    db.close()
+    assert updated_client.custom_services[0].name == "Soporte VIP Recurrente"
 
+    db.close()

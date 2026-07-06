@@ -65,27 +65,27 @@ def generate_receipt_pdf(payment: ClientPayment, company: Company | None = None)
     )
     
     # Resolver datos de la empresa o usar defaults del sistema
-    comp_name = company.nombre if company else "ISP Platform"
-    comp_ruc = company.ruc if (company and company.ruc) else "0999999999001"
-    comp_dir = company.direccion if (company and company.direccion) else "Guayaquil, Ecuador"
-    comp_tel = company.telefono if (company and company.telefono) else "+593 99 999 9999"
-    comp_email = company.email if (company and company.email) else "soporte@isp.com"
+    company_name = company.name if company else "ISP Platform"
+    company_ruc = company.ruc if (company and company.ruc) else "0999999999001"
+    company_address = company.address if (company and company.address) else "Guayaquil, Ecuador"
+    company_phone = company.phone if (company and company.phone) else "+593 99 999 9999"
+    company_email = company.email if (company and company.email) else "soporte@isp.com"
     
     # ── Encabezado (Información ISP vs Título Recibo) ──────────────────────────
     header_data = [
         [
             Paragraph(
-                f"<b><font size=14 color='#1e3a8a'>{comp_name}</font></b><br/>"
-                f"RUC: {comp_ruc}<br/>"
-                f"Telf: {comp_tel}<br/>"
-                f"Email: {comp_email}<br/>"
-                f"Dirección: {comp_dir}",
+                f"<b><font size=14 color='#1e3a8a'>{company_name}</font></b><br/>"
+                f"RUC: {company_ruc}<br/>"
+                f"Telf: {company_phone}<br/>"
+                f"Email: {company_email}<br/>"
+                f"Dirección: {company_address}",
                 body_style
             ),
             Paragraph(
                 f"<font size=22 color='#2563eb'><b>RECIBO DE PAGO</b></font><br/><br/>"
                 f"<b>Nº Comprobante:</b> {str(payment.id)[:8].upper()}<br/>"
-                f"<b>Fecha de Pago:</b> {payment.fecha_pago.strftime('%d/%m/%Y %H:%M')}",
+                f"<b>Fecha de Pago:</b> {payment.payment_date.strftime('%d/%m/%Y %H:%M')}",
                 right_align_body
             )
         ]
@@ -111,11 +111,11 @@ def generate_receipt_pdf(payment: ClientPayment, company: Company | None = None)
     
     # ── Datos del Cliente ──────────────────────────────────────────────────────
     client = payment.client
-    client_name = client.nombre if client else "N/A"
+    client_name = client.name if client else "N/A"
     client_cedula = client.cedula if client else "N/A"
     client_email = client.email if (client and client.email) else "N/A"
-    client_tel = client.telefono if client else "N/A"
-    client_dir = client.direccion if client else "N/A"
+    client_phone = client.phone if client else "N/A"
+    client_address = client.address if client else "N/A"
     
     client_data = [
         [
@@ -126,13 +126,13 @@ def generate_receipt_pdf(payment: ClientPayment, company: Company | None = None)
         ],
         [
             Paragraph("<b>TELÉFONO:</b>", bold_body_style),
-            Paragraph(client_tel, body_style),
+            Paragraph(client_phone, body_style),
             Paragraph("<b>EMAIL:</b>", bold_body_style),
             Paragraph(client_email, body_style)
         ],
         [
             Paragraph("<b>DIRECCIÓN:</b>", bold_body_style),
-            Paragraph(client_dir, body_style),
+            Paragraph(client_address, body_style),
             Paragraph("", body_style),
             Paragraph("", body_style)
         ]
@@ -157,32 +157,32 @@ def generate_receipt_pdf(payment: ClientPayment, company: Company | None = None)
         ]
     ]
 
-    total_subtotal = 0.0
-    total_iva = 0.0
-    total_items_pago = 0.0
-    payment_total_recaudado = float(payment.monto)
+    subtotal = 0.0
+    total_tax = 0.0
+    total_items_amount = 0.0
+    payment_amount = float(payment.amount)
 
     invoice = payment.invoice
     if invoice:
-        periodo = invoice.periodo
+        period = invoice.period
         # 1. Plan Base
         if invoice.plan:
             plan = invoice.plan
-            plan_name = f"Plan de Internet: {plan.nombre}"
-            plan_total = float(plan.precio)
-            plan_taxes = float(plan.impuestos) if plan.impuestos else 0.0
-            plan_sub = plan_total / (1 + plan_taxes / 100) if plan_taxes > 0 else plan_total
-            plan_iva = plan_total - plan_sub
+            plan_name = f"Plan de Internet: {plan.name}"
+            plan_total = float(plan.price)
+            plan_taxes = float(plan.taxes) if plan.taxes else 0.0
+            plan_subtotal = plan_total / (1 + plan_taxes / 100) if plan_taxes > 0 else plan_total
+            plan_tax = plan_total - plan_subtotal
             
             detail_data.append([
                 Paragraph(plan_name, body_style),
-                Paragraph(periodo, body_style),
-                Paragraph(payment.metodo.replace("_", " ").title(), body_style),
+                Paragraph(period, body_style),
+                Paragraph(payment.method.replace("_", " ").title(), body_style),
                 Paragraph(f"${plan_total:.2f}", right_align_body)
             ])
-            total_subtotal += plan_sub
-            total_iva += plan_iva
-            total_items_pago += plan_total
+            subtotal += plan_subtotal
+            total_tax += plan_tax
+            total_items_amount += plan_total
 
         # 2. Servicios de valor agregado de la factura (con fallback al cliente para facturas antiguas)
         client = payment.client
@@ -193,45 +193,45 @@ def generate_receipt_pdf(payment: ClientPayment, company: Company | None = None)
             custom_services_to_bill = client.custom_services
 
         for cs in custom_services_to_bill:
-            cs_name = f"Valor Agregado: {cs.nombre}"
-            cs_total = float(cs.precio)
-            cs_taxes = float(cs.impuestos) if cs.impuestos else 0.0
-            cs_sub = cs_total / (1 + cs_taxes / 100) if cs_taxes > 0 else cs_total
-            cs_iva = cs_total - cs_sub
+            cs_name = f"Valor Agregado: {cs.name}"
+            cs_total = float(cs.price)
+            cs_taxes = float(cs.taxes) if cs.taxes else 0.0
+            cs_subtotal = cs_total / (1 + cs_taxes / 100) if cs_taxes > 0 else cs_total
+            cs_tax = cs_total - cs_subtotal
             
             detail_data.append([
                 Paragraph(cs_name, body_style),
-                Paragraph(periodo, body_style),
-                Paragraph(payment.metodo.replace("_", " ").title(), body_style),
+                Paragraph(period, body_style),
+                Paragraph(payment.method.replace("_", " ").title(), body_style),
                 Paragraph(f"${cs_total:.2f}", right_align_body)
             ])
-            total_subtotal += cs_sub
-            total_iva += cs_iva
-            total_items_pago += cs_total
+            subtotal += cs_subtotal
+            total_tax += cs_tax
+            total_items_amount += cs_total
 
         # Caso especial: factura manual o sin plan ni servicios asociados pero con monto directo
-        if total_items_pago == 0.0:
-            total_items_pago = payment_total_recaudado
-            total_subtotal = total_items_pago
-            total_iva = 0.0
+        if total_items_amount == 0.0:
+            total_items_amount = payment_amount
+            subtotal = total_items_amount
+            total_tax = 0.0
             detail_data.append([
                 Paragraph("Servicio de Internet (Monto Manual)", body_style),
-                Paragraph(periodo, body_style),
-                Paragraph(payment.metodo.replace("_", " ").title(), body_style),
-                Paragraph(f"${payment_total_recaudado:.2f}", right_align_body)
+                Paragraph(period, body_style),
+                Paragraph(payment.method.replace("_", " ").title(), body_style),
+                Paragraph(f"${payment_amount:.2f}", right_align_body)
             ])
     else:
         # Fallback si no hay factura asociada
-        periodo = "Mes en Curso"
-        total_items_pago = payment_total_recaudado
-        total_subtotal = total_items_pago
-        total_iva = 0.0
+        period = "Mes en Curso"
+        total_items_amount = payment_amount
+        subtotal = total_items_amount
+        total_tax = 0.0
         
         detail_data.append([
             Paragraph("Servicio de Internet (Abono Directo)", body_style),
-            Paragraph(periodo, body_style),
-            Paragraph(payment.metodo.replace("_", " ").title(), body_style),
-            Paragraph(f"${payment_total_recaudado:.2f}", right_align_body)
+            Paragraph(period, body_style),
+            Paragraph(payment.method.replace("_", " ").title(), body_style),
+            Paragraph(f"${payment_amount:.2f}", right_align_body)
         ])
 
     table_styles = [
@@ -255,17 +255,17 @@ def generate_receipt_pdf(payment: ClientPayment, company: Company | None = None)
         [
             Paragraph("", body_style),
             Paragraph("Subtotal:", right_align_body),
-            Paragraph(f"${total_subtotal:.2f}", right_align_body)
+            Paragraph(f"${subtotal:.2f}", right_align_body)
         ],
         [
             Paragraph("", body_style),
             Paragraph("IVA:", right_align_body),
-            Paragraph(f"${total_iva:.2f}", right_align_body)
+            Paragraph(f"${total_tax:.2f}", right_align_body)
         ],
         [
             Paragraph("", body_style),
             Paragraph("<b>Total Recibido:</b>", right_align_bold),
-            Paragraph(f"<b>${payment_total_recaudado:.2f}</b>", right_align_bold)
+            Paragraph(f"<b>${payment_amount:.2f}</b>", right_align_bold)
         ]
     ]
     
@@ -278,10 +278,10 @@ def generate_receipt_pdf(payment: ClientPayment, company: Company | None = None)
     story.append(summary_table)
     
     # ── Notas / Comentarios ────────────────────────────────────────────────────
-    if payment.notas:
+    if payment.notes:
         story.append(Spacer(1, 15))
         notes_box = Table([
-            [Paragraph(f"<b>Notas / Referencia:</b> {payment.notas}", body_style)]
+            [Paragraph(f"<b>Notas / Referencia:</b> {payment.notes}", body_style)]
         ], colWidths=[530])
         notes_box.setStyle(TableStyle([
             ('BACKGROUND', (0,0), (-1,-1), colors.HexColor('#f3f4f6')),

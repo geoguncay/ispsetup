@@ -32,7 +32,7 @@ class SystemSettings(Base):
 
     # Fiscal
     fiscal_tax_rate: Mapped[float] = mapped_column(Numeric(5, 2), nullable=False, default=0)
-    fiscal_tax_name: Mapped[str] = mapped_column(String(20), nullable=False, default="ITBIS")
+    fiscal_tax_name: Mapped[str] = mapped_column(String(20), nullable=False, default="IVA")
     fiscal_invoice_prefix: Mapped[str] = mapped_column(String(20), nullable=False, default="FAC-")
     fiscal_invoice_next_number: Mapped[int] = mapped_column(Integer, nullable=False, default=1)
 
@@ -63,44 +63,45 @@ class SystemSettings(Base):
     pg_api_key: Mapped[str | None] = mapped_column(String(255), nullable=True)
     pg_api_secret_encrypted: Mapped[str | None] = mapped_column(Text, nullable=True)
 
-    # Facturación (migrado desde localStorage wisp_billing_*)
-    billing_hora_generacion: Mapped[str] = mapped_column(String(5), nullable=False, default="08:00")
-    billing_ciclo: Mapped[str] = mapped_column(String(20), nullable=False, default="mensual")
-    billing_modo_precio: Mapped[str] = mapped_column(String(20), nullable=False, default="incluido")
-    billing_auto_aprobar_enviar: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
-    billing_detener_suspendidos: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
+    # Facturación 
+    billing_generation_time: Mapped[str] = mapped_column(String(5), nullable=False, default="08:00")
+    billing_cycle: Mapped[str] = mapped_column(String(20), nullable=False, default="monthly")
+    billing_price_mode: Mapped[str] = mapped_column(String(20), nullable=False, default="included")
+    billing_auto_approve_send: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
+    billing_stop_suspended: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
     billing_notify_new_invoice: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
     billing_attach_pdf_receipt: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
-    billing_default_dia_pago: Mapped[int] = mapped_column(Integer, nullable=False, default=5)
-    billing_default_dias_gracia: Mapped[int] = mapped_column(Integer, nullable=False, default=10)
-    # Cómo se determina el día en que se genera cada factura: "dia_fijo" (billing_default_dia_pago,
-    # igual para todos los clientes), "fecha_corte" (coincide con el día de corte del cliente,
-    # dia_inicio_periodo) o "inicio_facturacion" (coincide con el día del mes de inicio_facturacion
-    # del cliente, o su fecha de alta si no tiene inicio_facturacion definido).
-    billing_generacion_modo: Mapped[str] = mapped_column(String(20), nullable=False, default="dia_fijo")
-    # Cómo se calcula fecha_vencimiento de cada factura: "plazo_fijo" (fecha_emision + billing_default_dias_gracia
-    # días) o "fecha_corte" (coincide con el día de corte del cliente, dia_inicio_periodo).
-    billing_vencimiento_modo: Mapped[str] = mapped_column(String(20), nullable=False, default="plazo_fijo")
-    # Hora del día en que vence la factura: "inicio_dia" (00:00:00) o "fin_dia" (23:59:59).
-    billing_vencimiento_hora: Mapped[str] = mapped_column(String(20), nullable=False, default="fin_dia")
-    billing_aviso_nueva_factura: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
-    billing_aviso_previo_dias: Mapped[int] = mapped_column(Integer, nullable=False, default=5)
-    billing_recordatorios_pago: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
-    billing_recordatorio_frecuencia_dias: Mapped[int] = mapped_column(Integer, nullable=False, default=3)
+    billing_default_payment_day: Mapped[int] = mapped_column(Integer, nullable=False, default=5)
+    billing_default_grace_days: Mapped[int] = mapped_column(Integer, nullable=False, default=10)
+    
+    # Cómo se genera la factura: "fixed_day" (día fijo del mes, billing_default_payment_day) o
+    # "cutoff_day" (día de corte del cliente, billing_period_start_day).
+    billing_generation_mode: Mapped[str] = mapped_column(String(20), nullable=False, default="fixed_day")
 
-    # Suspensión (migrado desde localStorage wisp_suspension_*)
-    suspension_automatica: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
-    suspension_hora: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
-    suspension_retraso_dias: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
-    suspension_permitir_aplazamiento: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
-    suspension_notify_suspendido: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
-    suspension_notify_pospuesto: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
-    suspension_motivos: Mapped[list | None] = mapped_column(JSON, nullable=True)
+    # Cómo se determina la fecha de vencimiento de la factura: "fixed_term" (plazo fijo, billing_default_grace_days)
+    # o "cutoff_term" (plazo desde el día de corte del cliente, billing_period_start_day + billing_default_grace_days).
+    billing_due_mode: Mapped[str] = mapped_column(String(20), nullable=False, default="fixed_term")
+    
+    # Hora del día en que vence la factura: "start_of_day" (00:00:00) o "end_of_day" (23:59:59).
+    billing_due_time: Mapped[str] = mapped_column(String(20), nullable=False, default="end_of_day")
+    billing_advance_notice_enabled: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
+    billing_advance_notice_days: Mapped[int] = mapped_column(Integer, nullable=False, default=5)
+    billing_payment_reminders: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
+    billing_reminder_frequency_days: Mapped[int] = mapped_column(Integer, nullable=False, default=3)
 
-    # Catálogos (migrado desde localStorage)
+    # Suspensión automática de clientes morosos
+    suspension_automatic: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
+    suspension_hour: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    suspension_delay_days: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    suspension_allow_deferral: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
+    suspension_notify_suspended: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
+    suspension_notify_deferred: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
+    suspension_reasons: Mapped[list | None] = mapped_column(JSON, nullable=True)
+
+    # Catálogos
     payment_methods: Mapped[list | None] = mapped_column(JSON, nullable=True)
-    fechas_corte: Mapped[list | None] = mapped_column(JSON, nullable=True)
-    colas_padre: Mapped[list | None] = mapped_column(JSON, nullable=True)
+    cutoff_dates: Mapped[list | None] = mapped_column(JSON, nullable=True)
+    parent_queues: Mapped[list | None] = mapped_column(JSON, nullable=True)
     address_lists: Mapped[list | None] = mapped_column(JSON, nullable=True)
 
     updated_at: Mapped[datetime] = mapped_column(

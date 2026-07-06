@@ -15,7 +15,7 @@ logger = logging.getLogger(__name__)
 def parse_rate_limit(rate_limit: str | None) -> tuple[int | None, int | None]:
     """
     Parsea el rate-limit de RouterOS (ej. '5M/10M' o '512k/1024k')
-    y devuelve una tupla (velocidad_down_mbps, velocidad_up_mbps).
+    y devuelve una tupla (speed_down_mbps, speed_up_mbps).
     El formato de rate-limit en MikroTik es rx-rate/tx-rate (Upload/Download).
     """
     if not rate_limit:
@@ -62,19 +62,19 @@ def bytes_to_human(n: int | str | None) -> str:
     return f"{val:.1f} PB"
 
 
-def sync_pppoe_profile_in_router(gateway: Gateway, plan: Plan) -> str:
+def sync_pppoe_profile_in_gateway(gateway: Gateway, plan: Plan) -> str:
     """
     Sincroniza el perfil PPPoE del plan en el MikroTik.
     Lo crea si no existe o actualiza su rate-limit.
     Retorna el nombre del perfil creado/actualizado.
     """
-    profile_name = plan.nombre
+    profile_name = plan.name
     
     # Calcular el rate-limit (rx-rate/tx-rate: Upload/Download)
-    if plan.velocidad_up_kbps > 0 and plan.velocidad_down_kbps > 0:
-        rate_limit = f"{plan.velocidad_up_kbps}k/{plan.velocidad_down_kbps}k"
+    if plan.speed_up_kbps > 0 and plan.speed_down_kbps > 0:
+        rate_limit = f"{plan.speed_up_kbps}k/{plan.speed_down_kbps}k"
     else:
-        rate_limit = f"{plan.velocidad_up_mbps}M/{plan.velocidad_down_mbps}M"
+        rate_limit = f"{plan.speed_up_mbps}M/{plan.speed_down_mbps}M"
         
     try:
         with gateway_pool.connect_to(gateway) as api:
@@ -90,18 +90,18 @@ def sync_pppoe_profile_in_router(gateway: Gateway, plan: Plan) -> str:
             if existing:
                 entry_id = existing[0].get(".id")
                 list(api("/ppp/profile/set", **{".id": entry_id, **params}))
-                logger.info(f"Perfil PPPoE '{profile_name}' actualizado en gateway {gateway.nombre}")
+                logger.info(f"Perfil PPPoE '{profile_name}' actualizado en gateway {gateway.name}")
             else:
                 list(api("/ppp/profile/add", **params))
-                logger.info(f"Perfil PPPoE '{profile_name}' creado en gateway {gateway.nombre}")
+                logger.info(f"Perfil PPPoE '{profile_name}' creado en gateway {gateway.name}")
                 
             return profile_name
     except Exception as e:
-        logger.error(f"Error al sincronizar perfil PPPoE '{profile_name}' en {gateway.nombre}: {e}")
+        logger.error(f"Error al sincronizar perfil PPPoE '{profile_name}' en {gateway.name}: {e}")
         raise e
 
 
-def sync_pppoe_profiles_from_router(db: Session, gateway: Gateway) -> int:
+def sync_pppoe_profiles_from_gateway(db: Session, gateway: Gateway) -> int:
     """
     Sincroniza todos los planes locales como perfiles PPPoE en el MikroTik
     y actualiza la tabla local de PPPoEProfile.
@@ -113,23 +113,23 @@ def sync_pppoe_profiles_from_router(db: Session, gateway: Gateway) -> int:
         
         for plan in plans:
             # Sincronizar en MikroTik
-            profile_name = sync_pppoe_profile_in_router(gateway, plan)
+            profile_name = sync_pppoe_profile_in_gateway(gateway, plan)
             active_names.append(profile_name)
             
             # Buscar o crear perfil en BD
             profile = db.query(PPPoEProfile).filter(
                 PPPoEProfile.gateway_id == gateway.id,
-                PPPoEProfile.nombre == profile_name
+                PPPoEProfile.name == profile_name
             ).first()
             
             if profile:
-                profile.velocidad_down_mbps = plan.velocidad_down_mbps
-                profile.velocidad_up_mbps = plan.velocidad_up_mbps
+                profile.speed_down_mbps = plan.speed_down_mbps
+                profile.speed_up_mbps = plan.speed_up_mbps
             else:
                 profile = PPPoEProfile(
-                    nombre=profile_name,
-                    velocidad_down_mbps=plan.velocidad_down_mbps,
-                    velocidad_up_mbps=plan.velocidad_up_mbps,
+                    name=profile_name,
+                    speed_down_mbps=plan.speed_down_mbps,
+                    speed_up_mbps=plan.speed_up_mbps,
                     gateway_id=gateway.id
                 )
                 db.add(profile)
@@ -140,18 +140,18 @@ def sync_pppoe_profiles_from_router(db: Session, gateway: Gateway) -> int:
         if active_names:
             db.query(PPPoEProfile).filter(
                 PPPoEProfile.gateway_id == gateway.id,
-                ~PPPoEProfile.nombre.in_(active_names)
+                ~PPPoEProfile.name.in_(active_names)
             ).delete(synchronize_session=False)
             
         db.commit()
-        logger.info(f"Sincronizados {synced_count} perfiles PPPoE (basados en planes) para el gateway {gateway.nombre}")
+        logger.info(f"Sincronizados {synced_count} perfiles PPPoE (basados en planes) para el gateway {gateway.name}")
         return synced_count
     except Exception as e:
-        logger.error(f"Error al sincronizar perfiles PPPoE hacia {gateway.nombre}: {e}")
+        logger.error(f"Error al sincronizar perfiles PPPoE hacia {gateway.name}: {e}")
         raise e
 
 
-def sync_pppoe_secret_in_router(
+def sync_pppoe_secret_in_gateway(
     gateway: Gateway,
     username: str,
     password: str,
@@ -181,17 +181,17 @@ def sync_pppoe_secret_in_router(
             if existing:
                 entry_id = existing[0].get(".id")
                 list(api("/ppp/secret/set", **{".id": entry_id, **params}))
-                logger.info(f"Secreto PPPoE '{username}' actualizado en gateway {gateway.nombre}")
+                logger.info(f"Secreto PPPoE '{username}' actualizado en gateway {gateway.name}")
             else:
                 list(api("/ppp/secret/add", **params))
-                logger.info(f"Secreto PPPoE '{username}' creado en gateway {gateway.nombre}")
+                logger.info(f"Secreto PPPoE '{username}' creado en gateway {gateway.name}")
                 
     except Exception as e:
-        logger.error(f"Error al sincronizar secreto PPPoE {username} en {gateway.nombre}: {e}")
+        logger.error(f"Error al sincronizar secreto PPPoE {username} en {gateway.name}: {e}")
         raise e
 
 
-def remove_pppoe_secret_from_router(gateway: Gateway, username: str) -> None:
+def remove_pppoe_secret_from_gateway(gateway: Gateway, username: str) -> None:
     """
     Elimina un secreto PPPoE del MikroTik si existe.
     """
@@ -204,10 +204,10 @@ def remove_pppoe_secret_from_router(gateway: Gateway, username: str) -> None:
             for entry in existing:
                 entry_id = entry.get(".id")
                 list(api("/ppp/secret/remove", **{".id": entry_id}))
-                logger.info(f"Secreto PPPoE '{username}' eliminado del gateway {gateway.nombre}")
+                logger.info(f"Secreto PPPoE '{username}' eliminado del gateway {gateway.name}")
                 
     except Exception as e:
-        logger.error(f"Error al eliminar secreto PPPoE {username} en {gateway.nombre}: {e}")
+        logger.error(f"Error al eliminar secreto PPPoE {username} en {gateway.name}: {e}")
         raise e
 
 
@@ -237,7 +237,7 @@ def fetch_active_pppoe_sessions(gateway: Gateway) -> list[dict]:
                 })
             return formatted_sessions
     except Exception as e:
-        logger.error(f"Error al obtener sesiones PPPoE activas en {gateway.nombre}: {e}")
+        logger.error(f"Error al obtener sesiones PPPoE activas en {gateway.name}: {e}")
         raise e
 
 
@@ -252,14 +252,14 @@ def disconnect_pppoe_session(gateway: Gateway, username: str) -> bool:
             existing = list(query)
             
             if not existing:
-                logger.info(f"No se encontró sesión activa para {username} en {gateway.nombre}")
+                logger.info(f"No se encontró sesión activa para {username} en {gateway.name}")
                 return False
                 
             for entry in existing:
                 entry_id = entry.get(".id")
                 list(api("/ppp/active/remove", **{".id": entry_id}))
-                logger.info(f"Sesión activa del usuario '{username}' desconectada en {gateway.nombre}")
+                logger.info(f"Sesión activa del usuario '{username}' desconectada en {gateway.name}")
             return True
     except Exception as e:
-        logger.error(f"Error al desconectar sesión activa de {username} en {gateway.nombre}: {e}")
+        logger.error(f"Error al desconectar sesión activa de {username} en {gateway.name}: {e}")
         raise e

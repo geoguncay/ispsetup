@@ -19,30 +19,30 @@ def list_audit_logs(
     _: AdminOnly,
     skip: int = Query(0, ge=0),
     limit: int = Query(50, ge=1, le=200),
-    accion: str | None = Query(None, description="Filtrar por tipo de acción"),
-    entidad_tipo: str | None = Query(None, description="Filtrar por tipo de entidad"),
-    entidad_id: str | None = Query(None, description="Filtrar por ID de entidad"),
-    usuario_id: str | None = Query(None, description="Filtrar por usuario"),
-    fecha_desde: datetime | None = Query(None, description="Desde fecha (ISO 8601)"),
-    fecha_hasta: datetime | None = Query(None, description="Hasta fecha (ISO 8601)"),
+    action: str | None = Query(None, description="Filtrar por tipo de acción"),
+    entity_type: str | None = Query(None, description="Filtrar por tipo de entidad"),
+    entity_id: str | None = Query(None, description="Filtrar por ID de entidad"),
+    user_id: str | None = Query(None, description="Filtrar por usuario"),
+    date_from: datetime | None = Query(None, description="Desde fecha (ISO 8601)"),
+    date_to: datetime | None = Query(None, description="Hasta fecha (ISO 8601)"),
 ) -> AuditLogListResponse:
     """
     Lista los eventos de auditoría con filtros opcionales. Solo accesible por admins.
     """
     q = db.query(AuditLog)
 
-    if accion:
-        q = q.filter(AuditLog.accion == accion)
-    if entidad_tipo:
-        q = q.filter(AuditLog.entidad_tipo == entidad_tipo)
-    if entidad_id:
-        q = q.filter(AuditLog.entidad_id == entidad_id)
-    if usuario_id:
-        q = q.filter(AuditLog.usuario_id == usuario_id)
-    if fecha_desde:
-        q = q.filter(AuditLog.created_at >= fecha_desde)
-    if fecha_hasta:
-        q = q.filter(AuditLog.created_at <= fecha_hasta)
+    if action:
+        q = q.filter(AuditLog.action == action)
+    if entity_type:
+        q = q.filter(AuditLog.entity_type == entity_type)
+    if entity_id:
+        q = q.filter(AuditLog.entity_id == entity_id)
+    if user_id:
+        q = q.filter(AuditLog.user_id == user_id)
+    if date_from:
+        q = q.filter(AuditLog.created_at >= date_from)
+    if date_to:
+        q = q.filter(AuditLog.created_at <= date_to)
 
     total = q.count()
     items = q.order_by(desc(AuditLog.created_at)).offset(skip).limit(limit).all()

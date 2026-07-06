@@ -26,9 +26,9 @@ const DEFAULT_CENTER: [number, number] = [-0.180653, -78.467834]
 
 export interface SiteItem {
   id: string
-  nombre: string
-  latitud: number | null
-  longitud: number | null
+  name: string
+  latitude: number | null
+  longitude: number | null
 }
 
 interface SiteFormModalProps {
@@ -87,9 +87,9 @@ export function SiteFormModal({ open, onClose, site }: SiteFormModalProps) {
 
   useEffect(() => {
     if (open) {
-      setName(site?.nombre ?? '')
-      setLat(site?.latitud != null ? String(site.latitud) : '')
-      setLng(site?.longitud != null ? String(site.longitud) : '')
+      setName(site?.name ?? '')
+      setLat(site?.latitude != null ? String(site.latitude) : '')
+      setLng(site?.longitude != null ? String(site.longitude) : '')
       setError(null)
     }
   }, [open, site])
@@ -108,7 +108,7 @@ export function SiteFormModal({ open, onClose, site }: SiteFormModalProps) {
   }, [])
 
   const createMutation = useMutation({
-    mutationFn: async (payload: { nombre: string; latitud: number | null; longitud: number | null }) => {
+    mutationFn: async (payload: { name: string; latitude: number | null; longitude: number | null }) => {
       const { data } = await api.post('/sites', payload)
       return data
     },
@@ -120,7 +120,7 @@ export function SiteFormModal({ open, onClose, site }: SiteFormModalProps) {
   })
 
   const updateMutation = useMutation({
-    mutationFn: async (payload: { nombre: string; latitud: number | null; longitud: number | null }) => {
+    mutationFn: async (payload: { name: string; latitude: number | null; longitude: number | null }) => {
       const { data } = await api.put(`/sites/${site!.id}`, payload)
       return data
     },
@@ -137,9 +137,9 @@ export function SiteFormModal({ open, onClose, site }: SiteFormModalProps) {
     e.preventDefault()
     if (!name.trim()) return
     const payload = {
-      nombre: name.trim(),
-      latitud: lat ? parseFloat(lat) : null,
-      longitud: lng ? parseFloat(lng) : null,
+      name: name.trim(),
+      latitude: lat ? parseFloat(lat) : null,
+      longitude: lng ? parseFloat(lng) : null,
     }
     if (isEdit) {
       updateMutation.mutate(payload)
@@ -158,7 +158,7 @@ export function SiteFormModal({ open, onClose, site }: SiteFormModalProps) {
           <div className="flex items-center gap-2">
             <MapPin className="w-5 h-5 text-brand-400" />
             <h2 className="text-lg font-semibold text-foreground">
-              {isEdit ? `Editar sitio: ${site!.nombre}` : 'Agregar sitio'}
+              {isEdit ? `Editar sitio: ${site!.name}` : 'Agregar sitio'}
             </h2>
           </div>
           <button

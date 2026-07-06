@@ -16,19 +16,19 @@ router = APIRouter(prefix="/custom-services", tags=["custom-services"])
 @router.get("", response_model=list[CustomServiceResponse])
 def list_custom_services(db: DBSession, _: CurrentUser) -> list[CustomService]:
     """Lista todos los servicios personalizados."""
-    return db.query(CustomService).order_by(CustomService.precio.asc()).all()
+    return db.query(CustomService).order_by(CustomService.price.asc()).all()
 
 
 @router.post("", response_model=CustomServiceResponse, status_code=status.HTTP_201_CREATED)
 def create_custom_service(payload: CustomServiceCreate, db: DBSession, _: AdminOnly) -> CustomService:
     """Crea un nuevo servicio personalizado (Solo Administradores)."""
     cs = CustomService(
-        nombre=payload.nombre,
-        precio=payload.precio,
-        descripcion=payload.descripcion,
-        impuestos=payload.impuestos,
-        recurrente=payload.recurrente,
-        activo=payload.activo,
+        name=payload.name,
+        price=payload.price,
+        description=payload.description,
+        taxes=payload.taxes,
+        recurring=payload.recurring,
+        active=payload.active,
     )
     db.add(cs)
     try:
@@ -38,7 +38,7 @@ def create_custom_service(payload: CustomServiceCreate, db: DBSession, _: AdminO
         db.rollback()
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
-            detail=f"Ya existe un servicio con el nombre: {payload.nombre}",
+            detail=f"Ya existe un servicio con el nombre: {payload.name}",
         )
     return cs
 
@@ -72,7 +72,7 @@ def update_custom_service(
         db.rollback()
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
-            detail=f"Ya existe un servicio con el nombre: {payload.nombre}",
+            detail=f"Ya existe un servicio con el nombre: {payload.name}",
         )
 
     return cs

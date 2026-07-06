@@ -16,12 +16,12 @@ class Company(Base):
     id: Mapped[uuid.UUID] = mapped_column(
         Uuid(native_uuid=False), primary_key=True, default=uuid.uuid4
     )
-    nombre: Mapped[str] = mapped_column(String(120), nullable=False, default="Mi ISP")
+    name: Mapped[str] = mapped_column(String(120), nullable=False, default="Mi ISP")
     ruc: Mapped[str | None] = mapped_column(String(20), nullable=True)
-    direccion: Mapped[str | None] = mapped_column(String(255), nullable=True)
-    telefono: Mapped[str | None] = mapped_column(String(40), nullable=True)
+    address: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    phone: Mapped[str | None] = mapped_column(String(40), nullable=True)
     email: Mapped[str | None] = mapped_column(String(255), nullable=True)
-    sitio_web: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    website: Mapped[str | None] = mapped_column(String(255), nullable=True)
     logo_url: Mapped[str | None] = mapped_column(String(255), nullable=True)
     use_logo_on_login: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
     login_bg_url: Mapped[str | None] = mapped_column(String(255), nullable=True)
@@ -38,4 +38,4 @@ class Company(Base):
     )
 
     def __repr__(self) -> str:
-        return f"<Company id={self.id} nombre={self.nombre}>"
+        return f"<Company id={self.id} name={self.name}>"

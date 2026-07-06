@@ -11,20 +11,20 @@ import {
 
 type StatusSetter = (msg: { type: 'success' | 'error'; text: string } | null) => void
 
-const DEFAULT_MOTIVOS = ['Falta de pago', 'Solicitud del cliente', 'Mantenimiento', 'Incumplimiento de contrato']
-const DEFAULT_FECHAS_CORTE = [1, 5, 10, 15, 28]
+const DEFAULT_REASONS = ['Falta de pago', 'Solicitud del cliente', 'Mantenimiento', 'Incumplimiento de contrato']
+const DEFAULT_CUTOFF_DATES = [1, 5, 10, 15, 28]
 
 function SuspensionSettingsForm({
   data, catalogs, onSaved, setStatusMessage,
 }: { data: SuspensionSettings; catalogs: CatalogSettings; onSaved: () => void; setStatusMessage: StatusSetter }) {
   const [dirty, setDirty] = useState(false)
-  const [motivos, setMotivos] = useState<string[]>([])
-  const [newMotivo, setNewMotivo] = useState('')
+  const [reasons, setReasons] = useState<string[]>([])
+  const [newReason, setNewReason] = useState('')
 
-  const [fechasCorte, setFechasCorte] = useState<number[]>([])
-  const [newFechaCorteInput, setNewFechaCorteInput] = useState('')
-  const [editingFechaCorteDay, setEditingFechaCorteDay] = useState<number | null>(null)
-  const [editingFechaCorteVal, setEditingFechaCorteVal] = useState('')
+  const [cutoffDates, setCutoffDates] = useState<number[]>([])
+  const [newCutoffDateInput, setNewCutoffDateInput] = useState('')
+  const [editingCutoffDay, setEditingCutoffDay] = useState<number | null>(null)
+  const [editingCutoffVal, setEditingCutoffVal] = useState('')
 
   const mutation = useMutation({
     mutationFn: updateSuspension,
@@ -45,87 +45,87 @@ function SuspensionSettingsForm({
   })
 
   useEffect(() => {
-    if (data.suspension_motivos && data.suspension_motivos.length > 0) {
-      setMotivos(data.suspension_motivos)
+    if (data.suspension_reasons && data.suspension_reasons.length > 0) {
+      setReasons(data.suspension_reasons)
     } else {
-      setMotivos(DEFAULT_MOTIVOS)
-      mutation.mutate({ suspension_motivos: DEFAULT_MOTIVOS })
+      setReasons(DEFAULT_REASONS)
+      mutation.mutate({ suspension_reasons: DEFAULT_REASONS })
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [data.suspension_motivos])
+  }, [data.suspension_reasons])
 
-  const handleAddMotivo = (e: React.FormEvent) => {
+  const handleAddReason = (e: React.FormEvent) => {
     e.preventDefault()
-    const val = newMotivo.trim()
+    const val = newReason.trim()
     if (!val) return
-    if (motivos.includes(val)) {
+    if (reasons.includes(val)) {
       setStatusMessage({ type: 'error', text: 'Este motivo ya existe.' })
       return
     }
-    const updated = [...motivos, val]
-    setMotivos(updated)
-    mutation.mutate({ suspension_motivos: updated })
-    setNewMotivo('')
+    const updated = [...reasons, val]
+    setReasons(updated)
+    mutation.mutate({ suspension_reasons: updated })
+    setNewReason('')
     setStatusMessage({ type: 'success', text: `Motivo "${val}" agregado.` })
   }
 
-  const handleDeleteMotivo = (val: string) => {
-    const updated = motivos.filter((m) => m !== val)
-    setMotivos(updated)
-    mutation.mutate({ suspension_motivos: updated })
+  const handleDeleteReason = (val: string) => {
+    const updated = reasons.filter((m) => m !== val)
+    setReasons(updated)
+    mutation.mutate({ suspension_reasons: updated })
     setStatusMessage({ type: 'success', text: 'Motivo eliminado.' })
   }
 
   useEffect(() => {
-    const loaded = catalogs.fechas_corte
+    const loaded = catalogs.cutoff_dates
     if (loaded && loaded.length > 0) {
-      setFechasCorte(loaded)
+      setCutoffDates(loaded)
     } else {
-      setFechasCorte(DEFAULT_FECHAS_CORTE)
-      catalogsMutation.mutate({ fechas_corte: DEFAULT_FECHAS_CORTE })
+      setCutoffDates(DEFAULT_CUTOFF_DATES)
+      catalogsMutation.mutate({ cutoff_dates: DEFAULT_CUTOFF_DATES })
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [catalogs.fechas_corte])
+  }, [catalogs.cutoff_dates])
 
-  const handleAddFechaCorte = (e: React.FormEvent) => {
+  const handleAddCutoffDate = (e: React.FormEvent) => {
     e.preventDefault()
-    const val = parseInt(newFechaCorteInput.trim(), 10)
+    const val = parseInt(newCutoffDateInput.trim(), 10)
     if (isNaN(val) || val < 1 || val > 31) {
       setStatusMessage({ type: 'error', text: 'Ingrese un día válido entre 1 y 31.' })
       return
     }
-    if (fechasCorte.includes(val)) {
+    if (cutoffDates.includes(val)) {
       setStatusMessage({ type: 'error', text: `El día ${val} ya está en la lista.` })
       return
     }
-    const updated = [...fechasCorte, val].sort((a, b) => a - b)
-    setFechasCorte(updated)
-    catalogsMutation.mutate({ fechas_corte: updated })
-    setNewFechaCorteInput('')
+    const updated = [...cutoffDates, val].sort((a, b) => a - b)
+    setCutoffDates(updated)
+    catalogsMutation.mutate({ cutoff_dates: updated })
+    setNewCutoffDateInput('')
     setStatusMessage({ type: 'success', text: `Día ${val} agregado como fecha de corte.` })
   }
 
-  const handleDeleteFechaCorte = (day: number) => {
-    const updated = fechasCorte.filter((d) => d !== day)
-    setFechasCorte(updated)
-    catalogsMutation.mutate({ fechas_corte: updated })
+  const handleDeleteCutoffDate = (day: number) => {
+    const updated = cutoffDates.filter((d) => d !== day)
+    setCutoffDates(updated)
+    catalogsMutation.mutate({ cutoff_dates: updated })
     setStatusMessage({ type: 'success', text: `Día ${day} eliminado.` })
   }
 
-  const handleSaveFechaCorte = (oldDay: number) => {
-    const val = parseInt(editingFechaCorteVal.trim(), 10)
+  const handleSaveCutoffDate = (oldDay: number) => {
+    const val = parseInt(editingCutoffVal.trim(), 10)
     if (isNaN(val) || val < 1 || val > 31) {
       setStatusMessage({ type: 'error', text: 'Ingrese un día válido entre 1 y 31.' })
       return
     }
-    if (val !== oldDay && fechasCorte.includes(val)) {
+    if (val !== oldDay && cutoffDates.includes(val)) {
       setStatusMessage({ type: 'error', text: `El día ${val} ya existe en la lista.` })
       return
     }
-    const updated = fechasCorte.map((d) => (d === oldDay ? val : d)).sort((a, b) => a - b)
-    setFechasCorte(updated)
-    catalogsMutation.mutate({ fechas_corte: updated })
-    setEditingFechaCorteDay(null)
+    const updated = cutoffDates.map((d) => (d === oldDay ? val : d)).sort((a, b) => a - b)
+    setCutoffDates(updated)
+    catalogsMutation.mutate({ cutoff_dates: updated })
+    setEditingCutoffDay(null)
     setStatusMessage({ type: 'success', text: `Fecha de corte actualizada a día ${val}.` })
   }
 
@@ -147,18 +147,18 @@ function SuspensionSettingsForm({
           </div>
         </div>
 
-        {motivos.length === 0 ? (
+        {reasons.length === 0 ? (
           <p className="text-xs text-muted-foreground italic p-3 text-center border border-dashed border-border/50 rounded-lg">
             No hay motivos configurados. Agrega al menos uno.
           </p>
         ) : (
           <div className="flex flex-wrap gap-2">
-            {motivos.map((motivo) => (
-              <div key={motivo} className="group flex items-center gap-1.5 pl-3 pr-2 py-1.5 rounded-lg bg-secondary/40 border border-border/60 text-sm text-foreground hover:border-destructive/40 transition-colors">
-                <span>{motivo}</span>
+            {reasons.map((reason) => (
+              <div key={reason} className="group flex items-center gap-1.5 pl-3 pr-2 py-1.5 rounded-lg bg-secondary/40 border border-border/60 text-sm text-foreground hover:border-destructive/40 transition-colors">
+                <span>{reason}</span>
                 <button
                   type="button"
-                  onClick={() => handleDeleteMotivo(motivo)}
+                  onClick={() => handleDeleteReason(reason)}
                   className="text-muted-foreground hover:text-destructive transition-colors opacity-40 group-hover:opacity-100"
                   title="Eliminar motivo"
                 >
@@ -169,17 +169,17 @@ function SuspensionSettingsForm({
           </div>
         )}
 
-        <form onSubmit={handleAddMotivo} className="flex gap-2 pt-1">
+        <form onSubmit={handleAddReason} className="flex gap-2 pt-1">
           <input
             type="text"
-            value={newMotivo}
-            onChange={(e) => setNewMotivo(e.target.value)}
+            value={newReason}
+            onChange={(e) => setNewReason(e.target.value)}
             placeholder="Agregar nuevo motivo..."
             className="input-field flex-1 text-sm"
           />
           <button
             type="submit"
-            disabled={!newMotivo.trim()}
+            disabled={!newReason.trim()}
             className="btn-primary px-3 disabled:opacity-40"
           >
             <Plus className="w-4 h-4" />
@@ -194,12 +194,12 @@ function SuspensionSettingsForm({
           e.preventDefault()
           const target = e.currentTarget as any
           mutation.mutate({
-            suspension_automatica: target.suspensionAutomatica.checked,
-            suspension_hora: parseInt(target.horaSuspension.value, 10),
-            suspension_retraso_dias: parseInt(target.retrasoDias.value, 10),
-            suspension_permitir_aplazamiento: target.permitirAplazamiento.checked,
-            suspension_notify_suspendido: target.notifySuspendido.checked,
-            suspension_notify_pospuesto: target.notifyPospuesto.checked,
+            suspension_automatic: target.suspensionAutomatic.checked,
+            suspension_hour: parseInt(target.suspensionHour.value, 10),
+            suspension_delay_days: parseInt(target.delayDays.value, 10),
+            suspension_allow_deferral: target.allowDeferral.checked,
+            suspension_notify_suspended: target.notifySuspended.checked,
+            suspension_notify_deferred: target.notifyDeferred.checked,
           })
           setDirty(false)
           setStatusMessage({ type: 'success', text: 'Políticas de suspensión actualizadas correctamente.' })
@@ -221,11 +221,11 @@ function SuspensionSettingsForm({
                   Hora de corte (24h)
                 </label>
                 <input
-                  name="horaSuspension"
+                  name="suspensionHour"
                   type="number"
                   min="0"
                   max="23"
-                  defaultValue={String(data.suspension_hora ?? 0)}
+                  defaultValue={String(data.suspension_hour ?? 0)}
                   className="input-field font-mono"
                   placeholder="0"
                 />
@@ -238,10 +238,10 @@ function SuspensionSettingsForm({
                   Días de gracia
                 </label>
                 <input
-                  name="retrasoDias"
+                  name="delayDays"
                   type="number"
                   min="0"
-                  defaultValue={String(data.suspension_retraso_dias ?? 0)}
+                  defaultValue={String(data.suspension_delay_days ?? 0)}
                   className="input-field font-mono"
                   placeholder="0"
                 />
@@ -254,7 +254,7 @@ function SuspensionSettingsForm({
             <div className="space-y-3 pt-2 border-t border-border/40">
               <div className="flex items-start gap-3">
                 <label className="relative inline-flex items-center cursor-pointer select-none flex-shrink-0 mt-0.5">
-                  <input name="suspensionAutomatica" type="checkbox" defaultChecked={data.suspension_automatica ?? true} className="sr-only peer" />
+                  <input name="suspensionAutomatic" type="checkbox" defaultChecked={data.suspension_automatic ?? true} className="sr-only peer" />
                   <div className="w-9 h-5 bg-secondary peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-muted-foreground after:border-border after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-brand-500 peer-checked:after:bg-white peer-checked:after:border-brand-500"></div>
                 </label>
                 <div>
@@ -265,7 +265,7 @@ function SuspensionSettingsForm({
 
               <div className="flex items-start gap-3">
                 <label className="relative inline-flex items-center cursor-pointer select-none flex-shrink-0 mt-0.5">
-                  <input name="permitirAplazamiento" type="checkbox" defaultChecked={data.suspension_permitir_aplazamiento ?? true} className="sr-only peer" />
+                  <input name="allowDeferral" type="checkbox" defaultChecked={data.suspension_allow_deferral ?? true} className="sr-only peer" />
                   <div className="w-9 h-5 bg-secondary peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-muted-foreground after:border-border after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-brand-500 peer-checked:after:bg-white peer-checked:after:border-brand-500"></div>
                 </label>
                 <div>
@@ -285,7 +285,7 @@ function SuspensionSettingsForm({
             <div className="space-y-3">
               <div className="flex items-start gap-3 p-3 rounded-lg bg-secondary/20 border border-border/40">
                 <label className="relative inline-flex items-center cursor-pointer select-none flex-shrink-0 mt-0.5">
-                  <input name="notifySuspendido" type="checkbox" defaultChecked={data.suspension_notify_suspendido ?? true} className="sr-only peer" />
+                  <input name="notifySuspended" type="checkbox" defaultChecked={data.suspension_notify_suspended ?? true} className="sr-only peer" />
                   <div className="w-9 h-5 bg-secondary peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-muted-foreground after:border-border after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-brand-500 peer-checked:after:bg-white peer-checked:after:border-brand-500"></div>
                 </label>
                 <div>
@@ -296,7 +296,7 @@ function SuspensionSettingsForm({
 
               <div className="flex items-start gap-3 p-3 rounded-lg bg-secondary/20 border border-border/40">
                 <label className="relative inline-flex items-center cursor-pointer select-none flex-shrink-0 mt-0.5">
-                  <input name="notifyPospuesto" type="checkbox" defaultChecked={data.suspension_notify_pospuesto ?? true} className="sr-only peer" />
+                  <input name="notifyDeferred" type="checkbox" defaultChecked={data.suspension_notify_deferred ?? true} className="sr-only peer" />
                   <div className="w-9 h-5 bg-secondary peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-muted-foreground after:border-border after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-brand-500 peer-checked:after:bg-white peer-checked:after:border-brand-500"></div>
                 </label>
                 <div>
@@ -323,7 +323,7 @@ function SuspensionSettingsForm({
             <Hash className="w-4 h-4" /> Fechas de Corte Disponibles
           </div>
           <span className="text-[10px] text-muted-foreground bg-secondary/40 px-2 py-0.5 rounded-full border border-border/40">
-            {fechasCorte.length} fechas
+            {cutoffDates.length} fechas
           </span>
         </div>
 
@@ -333,7 +333,7 @@ function SuspensionSettingsForm({
           y, según la configuración de suspensión, cuándo se ejecuta la suspensión automática.
         </p>
 
-        <form onSubmit={handleAddFechaCorte} className="flex gap-3 max-w-md items-end">
+        <form onSubmit={handleAddCutoffDate} className="flex gap-3 max-w-md items-end">
           <div className="flex-1 space-y-1.5">
             <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider block">
               Nuevo día (1 – 31)
@@ -342,8 +342,8 @@ function SuspensionSettingsForm({
               type="number"
               min="1"
               max="31"
-              value={newFechaCorteInput}
-              onChange={(e) => setNewFechaCorteInput(e.target.value)}
+              value={newCutoffDateInput}
+              onChange={(e) => setNewCutoffDateInput(e.target.value)}
               className="input-field font-mono"
               placeholder="Ej: 20"
             />
@@ -364,42 +364,42 @@ function SuspensionSettingsForm({
               </tr>
             </thead>
             <tbody className="divide-y divide-border/40 text-sm">
-              {fechasCorte.length === 0 ? (
+              {cutoffDates.length === 0 ? (
                 <tr>
                   <td colSpan={3} className="px-4 py-6 text-center text-xs text-muted-foreground italic">
                     No hay fechas de corte configuradas.
                   </td>
                 </tr>
               ) : (
-                fechasCorte.map((dia) => (
-                  <tr key={dia} className="hover:bg-secondary/20 transition-colors">
+                cutoffDates.map((day) => (
+                  <tr key={day} className="hover:bg-secondary/20 transition-colors">
                     <td className="px-4 py-3">
-                      {editingFechaCorteDay === dia ? (
+                      {editingCutoffDay === day ? (
                         <input
                           type="number"
                           min="1"
                           max="31"
-                          value={editingFechaCorteVal}
-                          onChange={(e) => setEditingFechaCorteVal(e.target.value)}
+                          value={editingCutoffVal}
+                          onChange={(e) => setEditingCutoffVal(e.target.value)}
                           className="input-field py-1 px-2 text-sm font-mono w-24"
                           placeholder="Día"
                           title="Día del mes"
                           autoFocus
                         />
                       ) : (
-                        <span className="font-mono font-bold text-foreground">{String(dia).padStart(2, '0')}</span>
+                        <span className="font-mono font-bold text-foreground">{String(day).padStart(2, '0')}</span>
                       )}
                     </td>
                     <td className="px-4 py-3 text-muted-foreground">
-                      Día {dia} de cada mes
+                      Día {day} de cada mes
                     </td>
                     <td className="px-4 py-3 text-right">
                       <div className="flex justify-end gap-2">
-                        {editingFechaCorteDay === dia ? (
+                        {editingCutoffDay === day ? (
                           <>
                             <button
                               type="button"
-                              onClick={() => handleSaveFechaCorte(dia)}
+                              onClick={() => handleSaveCutoffDate(day)}
                               className="p-1 text-emerald-400 hover:bg-emerald-500/10 rounded transition-all cursor-pointer"
                               title="Guardar"
                             >
@@ -407,7 +407,7 @@ function SuspensionSettingsForm({
                             </button>
                             <button
                               type="button"
-                              onClick={() => setEditingFechaCorteDay(null)}
+                              onClick={() => setEditingCutoffDay(null)}
                               className="p-1 text-muted-foreground hover:bg-secondary/50 rounded transition-all cursor-pointer"
                               title="Cancelar"
                             >
@@ -418,7 +418,7 @@ function SuspensionSettingsForm({
                           <>
                             <button
                               type="button"
-                              onClick={() => { setEditingFechaCorteDay(dia); setEditingFechaCorteVal(String(dia)) }}
+                              onClick={() => { setEditingCutoffDay(day); setEditingCutoffVal(String(day)) }}
                               className="p-1 text-muted-foreground hover:text-foreground hover:bg-secondary/50 rounded transition-all cursor-pointer"
                               title="Editar"
                             >
@@ -426,7 +426,7 @@ function SuspensionSettingsForm({
                             </button>
                             <button
                               type="button"
-                              onClick={() => handleDeleteFechaCorte(dia)}
+                              onClick={() => handleDeleteCutoffDate(day)}
                               className="p-1 text-destructive hover:text-red-400 hover:bg-red-500/10 rounded transition-all cursor-pointer"
                               title="Eliminar"
                             >

@@ -13,12 +13,12 @@ from app.schemas.company import CompanyPublic, CompanyRead, CompanyUpdate
 router = APIRouter(prefix="/company", tags=["company"])
 
 _DEFAULT_COMPANY_FIELDS = dict(
-    nombre="Mi WISP",
+    name="Mi ISP",
     ruc="",
-    direccion="",
-    telefono="",
+    address="",
+    phone="",
     email=None,
-    sitio_web="",
+    website="",
     logo_url=None,
 )
 

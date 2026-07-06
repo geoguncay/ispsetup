@@ -8,12 +8,12 @@ import api from '@/services/api'
 
 interface Supplier {
   id: string
-  nombre: string
+  name: string
   ruc: string
-  telefono: string
+  phone: string
   email: string | null
-  direccion: string
-  notas: string | null
+  address: string
+  notes: string | null
 }
 
 export function ProvidersPage() {
@@ -23,12 +23,12 @@ export function ProvidersPage() {
   const [editingSupplier, setEditingSupplier] = useState<Supplier | null>(null)
   
   // Form State
-  const [nombre, setNombre] = useState('')
+  const [name, setName] = useState('')
   const [ruc, setRuc] = useState('')
-  const [telefono, setTelefono] = useState('')
+  const [phone, setPhone] = useState('')
   const [email, setEmail] = useState('')
-  const [direccion, setDireccion] = useState('')
-  const [notas, setNotas] = useState('')
+  const [address, setAddress] = useState('')
+  const [notes, setNotes] = useState('')
   const [errorMsg, setErrorMsg] = useState<string | null>(null)
 
   // Query suppliers
@@ -46,20 +46,20 @@ export function ProvidersPage() {
     setErrorMsg(null)
     if (supplier) {
       setEditingSupplier(supplier)
-      setNombre(supplier.nombre)
+      setName(supplier.name)
       setRuc(supplier.ruc)
-      setTelefono(supplier.telefono)
+      setPhone(supplier.phone)
       setEmail(supplier.email || '')
-      setDireccion(supplier.direccion)
-      setNotas(supplier.notas || '')
+      setAddress(supplier.address)
+      setNotes(supplier.notes || '')
     } else {
       setEditingSupplier(null)
-      setNombre('')
+      setName('')
       setRuc('')
-      setTelefono('')
+      setPhone('')
       setEmail('')
-      setDireccion('')
-      setNotas('')
+      setAddress('')
+      setNotes('')
     }
     setFormOpen(true)
   }
@@ -68,12 +68,12 @@ export function ProvidersPage() {
   const saveMutation = useMutation({
     mutationFn: async () => {
       const payload = {
-        nombre: nombre.trim(),
+        name: name.trim(),
         ruc: ruc.trim(),
-        telefono: telefono.trim(),
+        phone: phone.trim(),
         email: email.trim() || null,
-        direccion: direccion.trim(),
-        notas: notas.trim() || null,
+        address: address.trim(),
+        notes: notes.trim() || null,
       }
       if (editingSupplier) {
         await api.put(`/suppliers/${editingSupplier.id}`, payload)
@@ -105,7 +105,7 @@ export function ProvidersPage() {
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault()
-    if (!nombre || !ruc || !telefono || !direccion) {
+    if (!name || !ruc || !phone || !address) {
       setErrorMsg('Por favor complete todos los campos obligatorios.')
       return
     }
@@ -185,11 +185,11 @@ export function ProvidersPage() {
             <tbody>
               {suppliers.map((s) => (
                 <tr key={s.id} className="hover:bg-secondary/40 transition-colors">
-                  <td className="font-semibold text-foreground">{s.nombre}</td>
+                  <td className="font-semibold text-foreground">{s.name}</td>
                   <td className="font-mono text-xs text-muted-foreground">{s.ruc}</td>
-                  <td className="text-sm text-foreground">{s.telefono}</td>
+                  <td className="text-sm text-foreground">{s.phone}</td>
                   <td className="text-sm text-muted-foreground">{s.email ?? '—'}</td>
-                  <td className="text-sm text-muted-foreground truncate max-w-xs">{s.direccion}</td>
+                  <td className="text-sm text-muted-foreground truncate max-w-xs">{s.address}</td>
                   <td>
                     <div className="flex justify-end gap-2" onClick={(e) => e.stopPropagation()}>
                       <button
@@ -249,8 +249,8 @@ export function ProvidersPage() {
                 <input
                   type="text"
                   required
-                  value={nombre}
-                  onChange={(e) => setNombre(e.target.value)}
+                  value={name}
+                  onChange={(e) => setName(e.target.value)}
                   className="input-field"
                   placeholder="Ej. Distribuidora del Austro"
                 />
@@ -278,8 +278,8 @@ export function ProvidersPage() {
                   <input
                     type="text"
                     required
-                    value={telefono}
-                    onChange={(e) => setTelefono(e.target.value)}
+                    value={phone}
+                    onChange={(e) => setPhone(e.target.value)}
                     className="input-field"
                     placeholder="0998887766"
                   />
@@ -308,8 +308,8 @@ export function ProvidersPage() {
                 <input
                   type="text"
                   required
-                  value={direccion}
-                  onChange={(e) => setDireccion(e.target.value)}
+                  value={address}
+                  onChange={(e) => setAddress(e.target.value)}
                   className="input-field"
                   placeholder="Av. Principal y Secundaria, Quito"
                 />
@@ -321,8 +321,8 @@ export function ProvidersPage() {
                   Notas u Observaciones
                 </label>
                 <textarea
-                  value={notas}
-                  onChange={(e) => setNotas(e.target.value)}
+                  value={notes}
+                  onChange={(e) => setNotes(e.target.value)}
                   className="input-field h-20 resize-none py-2"
                   placeholder="Referencias de pago, líneas de crédito, etc."
                 />

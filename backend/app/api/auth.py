@@ -38,9 +38,9 @@ class SetupRequest(BaseModel):
         min_length=8,
         description="Si se omite, usa ADMIN_SEED_PASSWORD del .env",
     )
-    nombre: str | None = Field(
+    name: str | None = Field(
         default=None,
-        description="Si se omite, usa ADMIN_SEED_NOMBRE del .env",
+        description="Si se omite, usa ADMIN_SEED_NAME del .env",
     )
 
 
@@ -64,14 +64,14 @@ async def login(payload: LoginRequest, db: DBSession, request: Request) -> Token
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Email o contraseña incorrectos",
         )
-    if not user.activo:
+    if not user.active:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Usuario inactivo. Contacte al administrador.",
         )
 
     user_id = str(user.id)
-    access_token = create_access_token({"sub": user_id, "rol": user.rol})
+    access_token = create_access_token({"sub": user_id, "role": user.role})
     refresh_token = create_refresh_token(user_id)
 
     # Guardar refresh token en Redis con TTL de 7 días
@@ -84,12 +84,12 @@ async def login(payload: LoginRequest, db: DBSession, request: Request) -> Token
     from app.services.audit_service import AuditAction, log_event
     log_event(
         db,
-        accion=AuditAction.USER_LOGIN,
-        entidad_tipo="User",
-        entidad_id=str(user.id),
-        entidad_nombre=user.nombre,
-        usuario_id=user.id,
-        usuario_nombre=user.nombre,
+        action=AuditAction.USER_LOGIN,
+        entity_type="User",
+        entity_id=str(user.id),
+        entity_name=user.name,
+        user_id=user.id,
+        user_name=user.name,
         ip_address=request.client.host if request.client else None,
     )
 
@@ -119,10 +119,10 @@ async def refresh(payload: RefreshRequest, db: DBSession) -> TokenResponse:
         raise credentials_exception
 
     user = db.get(User, user_id)
-    if not user or not user.activo:
+    if not user or not user.active:
         raise credentials_exception
 
-    new_access = create_access_token({"sub": user_id, "rol": user.rol})
+    new_access = create_access_token({"sub": user_id, "role": user.role})
     new_refresh = create_refresh_token(user_id)
 
     # Rotar refresh token
@@ -191,20 +191,20 @@ def setup_admin(payload: SetupRequest, db: DBSession) -> SetupResponse:
     # 3. Determinar datos del admin (payload tiene prioridad sobre el .env)
     admin_email = payload.email or settings.ADMIN_SEED_EMAIL
     admin_password = payload.password or settings.ADMIN_SEED_PASSWORD
-    admin_nombre = payload.nombre or settings.ADMIN_SEED_NOMBRE
+    admin_name = payload.name or settings.ADMIN_SEED_NAME
 
     # 4. Verificar si ya existe un usuario con ese email
     existing = db.query(User).filter(User.email == admin_email).first()
     if existing:
-        if existing.rol == "admin":
+        if existing.role == "admin":
             return SetupResponse(
                 created=False,
                 message=f"El administrador '{admin_email}' ya existe. No se realizaron cambios.",
                 email=admin_email,
             )
         # Existe pero no es admin → promoverlo
-        existing.rol = "admin"
-        existing.activo = True
+        existing.role = "admin"
+        existing.active = True
         db.commit()
         return SetupResponse(
             created=False,
@@ -214,7 +214,7 @@ def setup_admin(payload: SetupRequest, db: DBSession) -> SetupResponse:
 
     # 5. Verificar que no haya ya otro admin activo (protección extra)
     existing_admin = (
-        db.query(User).filter(User.rol == "admin", User.activo == True).first()
+        db.query(User).filter(User.role == "admin", User.active == True).first()
     )
     if existing_admin:
         raise HTTPException(
@@ -227,11 +227,11 @@ def setup_admin(payload: SetupRequest, db: DBSession) -> SetupResponse:
 
     # 6. Crear el usuario admin
     admin = User(
-        nombre=admin_nombre,
+        name=admin_name,
         email=admin_email,
         hashed_password=hash_password(admin_password),
-        rol="admin",
-        activo=True,
+        role="admin",
+        active=True,
     )
     db.add(admin)
     try:
@@ -246,6 +246,6 @@ def setup_admin(payload: SetupRequest, db: DBSession) -> SetupResponse:
 
     return SetupResponse(
         created=True,
-        message=f"✅ Administrador '{admin_nombre}' creado exitosamente con email {admin_email}.",
+        message=f"✅ Administrador '{admin_name}' creado exitosamente con email {admin_email}.",
         email=admin_email,
     )

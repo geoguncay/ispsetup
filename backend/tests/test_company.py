@@ -49,19 +49,19 @@ def setup_db(monkeypatch):
     db = TestingSessionLocal()
     # Agregar un administrador
     db.add(User(
-        nombre="Test Admin",
+        name="Test Admin",
         email="admin@test.com",
         hashed_password=hash_password("adminpass123"),
-        rol="admin",
-        activo=True,
+        role="admin",
+        active=True,
     ))
     # Agregar un técnico
     db.add(User(
-        nombre="Test Tecnico",
+        name="Test Tecnico",
         email="tecnico@test.com",
         hashed_password=hash_password("tecnicopass123"),
-        rol="tecnico",
-        activo=True,
+        role="technician",
+        active=True,
     ))
     db.commit()
     db.close()
@@ -93,7 +93,7 @@ def test_get_company_creates_default(client: TestClient):
     )
     assert response.status_code == 200
     data = response.json()
-    assert data["nombre"] == "Mi WISP"
+    assert data["name"] == "Mi ISP"
     assert data["ruc"] == ""
 
 
@@ -110,21 +110,21 @@ def test_update_company_admin_success(client: TestClient):
         "/api/company",
         headers={"Authorization": f"Bearer {token}"},
         json={
-            "nombre": "WISP Quito",
+            "name": "ISP Quito",
             "ruc": "1792949583001",
-            "direccion": "Av. Amazonas, Quito",
-            "telefono": "+593999999999",
-            "email": "contacto@wispquito.com",
-            "sitio_web": "https://wispquito.com",
-            "logo_url": "https://wispquito.com/logo.png",
+            "address": "Av. Amazonas, Quito",
+            "phone": "+593999999999",
+            "email": "contacto@ispquito.com",
+            "website": "https://ispquito.com",
+            "logo_url": "https://ispquito.com/logo.png",
         },
     )
     assert response.status_code == 200
     data = response.json()
-    assert data["nombre"] == "WISP Quito"
+    assert data["name"] == "ISP Quito"
     assert data["ruc"] == "1792949583001"
-    assert data["direccion"] == "Av. Amazonas, Quito"
-    assert data["logo_url"] == "https://wispquito.com/logo.png"
+    assert data["address"] == "Av. Amazonas, Quito"
+    assert data["logo_url"] == "https://ispquito.com/logo.png"
 
 
 
@@ -140,7 +140,7 @@ def test_update_company_tecnico_forbidden(client: TestClient):
     response = client.put(
         "/api/company",
         headers={"Authorization": f"Bearer {token}"},
-        json={"nombre": "WISP Hack"},
+        json={"name": "ISP Hack"},
     )
     assert response.status_code == 403
 

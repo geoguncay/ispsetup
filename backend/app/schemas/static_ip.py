@@ -9,7 +9,7 @@ from pydantic import BaseModel, Field
 class StaticIPBase(BaseModel):
     ip: str = Field(min_length=7, max_length=45, description="Dirección IP del cliente")
     mac: str | None = Field(default=None, min_length=17, max_length=17, description="Dirección MAC física")
-    notas: str | None = None
+    notes: str | None = None
 
 
 class StaticIPCreate(StaticIPBase):
@@ -19,7 +19,7 @@ class StaticIPCreate(StaticIPBase):
 class StaticIPUpdate(BaseModel):
     ip: str | None = Field(default=None, min_length=7, max_length=45)
     mac: str | None = Field(default=None, min_length=17, max_length=17)
-    notas: str | None = None
+    notes: str | None = None
     gateway_id: uuid.UUID | None = None
 
 
@@ -27,7 +27,7 @@ class StaticIPResponse(StaticIPBase):
     model_config = {"from_attributes": True}
 
     id: uuid.UUID
-    cliente_id: uuid.UUID
+    client_id: uuid.UUID
     gateway_id: uuid.UUID
     created_at: datetime
     updated_at: datetime

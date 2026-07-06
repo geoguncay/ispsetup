@@ -7,7 +7,7 @@ import { Loader2 } from 'lucide-react'
 import { useAuthStore } from '@/stores/authStore'
 
 interface ProtectedRouteProps {
-  roles?: Array<'admin' | 'tecnico' | 'viewer'>
+  roles?: Array<'admin' | 'technician' | 'viewer'>
 }
 
 export function ProtectedRoute({ roles }: ProtectedRouteProps) {
@@ -26,7 +26,7 @@ export function ProtectedRoute({ roles }: ProtectedRouteProps) {
     )
   }
 
-  if (roles && !roles.includes(user.rol)) {
+  if (roles && !roles.includes(user.role)) {
     return (
       <div className="flex items-center justify-center min-h-screen">
         <div className="text-center">

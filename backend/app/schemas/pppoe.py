@@ -7,9 +7,9 @@ from pydantic import BaseModel, Field
 
 
 class PPPoEProfileBase(BaseModel):
-    nombre: str = Field(min_length=1, max_length=100)
-    velocidad_down_mbps: int | None = Field(default=None, ge=0)
-    velocidad_up_mbps: int | None = Field(default=None, ge=0)
+    name: str = Field(min_length=1, max_length=100)
+    speed_down_mbps: int | None = Field(default=None, ge=0)
+    speed_up_mbps: int | None = Field(default=None, ge=0)
 
 
 class PPPoEProfileCreate(PPPoEProfileBase):
@@ -26,29 +26,29 @@ class PPPoEProfileRead(PPPoEProfileBase):
 
 
 class PPPoESecretBase(BaseModel):
-    usuario_ppp: str = Field(min_length=1, max_length=100)
-    perfil_id: uuid.UUID | None = None
+    ppp_username: str = Field(min_length=1, max_length=100)
+    profile_id: uuid.UUID | None = None
 
 
 class PPPoESecretCreate(PPPoESecretBase):
-    cliente_id: uuid.UUID
-    contraseña_ppp: str = Field(min_length=1, max_length=255)
+    client_id: uuid.UUID
+    ppp_password: str = Field(min_length=1, max_length=255)
     gateway_id: uuid.UUID
 
 
 class PPPoESecretUpdate(BaseModel):
-    usuario_ppp: str | None = Field(default=None, min_length=1, max_length=100)
-    contraseña_ppp: str | None = Field(default=None, min_length=1, max_length=255)
-    perfil_id: uuid.UUID | None = None
+    ppp_username: str | None = Field(default=None, min_length=1, max_length=100)
+    ppp_password: str | None = Field(default=None, min_length=1, max_length=255)
+    profile_id: uuid.UUID | None = None
 
 
 class PPPoESecretRead(PPPoESecretBase):
     model_config = {"from_attributes": True}
 
     id: uuid.UUID
-    cliente_id: uuid.UUID
+    client_id: uuid.UUID
     gateway_id: uuid.UUID
-    contraseña_ppp: str | None = None
+    ppp_password: str | None = None
     created_at: datetime
     updated_at: datetime
 

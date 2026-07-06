@@ -12,7 +12,6 @@ from app.core.security import hash_password
 from app.main import app
 from app.models.user import User
 from app.models.plan import Plan
-from app.models.router import Router
 from app.models.client import Client
 from app.models.client_plan import ClientPlan
 
@@ -51,19 +50,19 @@ def setup_db(monkeypatch):
     db = TestingSessionLocal()
     # Agregar un administrador
     db.add(User(
-        nombre="Test Admin",
+        name="Test Admin",
         email="admin@test.com",
         hashed_password=hash_password("adminpass123"),
-        rol="admin",
-        activo=True,
+        role="admin",
+        active=True,
     ))
     # Agregar un técnico
     db.add(User(
-        nombre="Test Tecnico",
+        name="Test Tecnico",
         email="tecnico@test.com",
         hashed_password=hash_password("tecnicopass123"),
-        rol="tecnico",
-        activo=True,
+        role="technician",
+        active=True,
     ))
     db.commit()
     db.close()
@@ -108,12 +107,12 @@ def test_create_plan_forbidden_for_tecnico(client: TestClient):
         "/api/plans",
         headers={"Authorization": f"Bearer {token}"},
         json={
-            "nombre": "Plan Oro 50M",
-            "velocidad_down_mbps": 50,
-            "velocidad_up_mbps": 25,
-            "velocidad_down_kbps": 50000,
-            "velocidad_up_kbps": 25000,
-            "precio": 30.00,
+            "name": "Plan Oro 50M",
+            "speed_down_mbps": 50,
+            "speed_up_mbps": 25,
+            "speed_down_kbps": 50000,
+            "speed_up_kbps": 25000,
+            "price": 30.00,
         },
     )
     assert response.status_code == 403
@@ -130,19 +129,19 @@ def test_create_plan_success_for_admin(client: TestClient):
         "/api/plans",
         headers={"Authorization": f"Bearer {token}"},
         json={
-            "nombre": "Plan Oro 50M",
-            "velocidad_down_mbps": 50,
-            "velocidad_up_mbps": 25,
-            "velocidad_down_kbps": 50000,
-            "velocidad_up_kbps": 25000,
-            "precio": 30.00,
+            "name": "Plan Oro 50M",
+            "speed_down_mbps": 50,
+            "speed_up_mbps": 25,
+            "speed_down_kbps": 50000,
+            "speed_up_kbps": 25000,
+            "price": 30.00,
         },
     )
     assert response.status_code == 201
     data = response.json()
-    assert data["nombre"] == "Plan Oro 50M"
-    assert data["velocidad_down_mbps"] == 50
-    assert data["precio"] == 30.00
+    assert data["name"] == "Plan Oro 50M"
+    assert data["speed_down_mbps"] == 50
+    assert data["price"] == 30.00
 
 
 def test_update_plan(client: TestClient):
@@ -157,12 +156,12 @@ def test_update_plan(client: TestClient):
         "/api/plans",
         headers={"Authorization": f"Bearer {token}"},
         json={
-            "nombre": "Plan Oro 50M",
-            "velocidad_down_mbps": 50,
-            "velocidad_up_mbps": 25,
-            "velocidad_down_kbps": 50000,
-            "velocidad_up_kbps": 25000,
-            "precio": 30.00,
+            "name": "Plan Oro 50M",
+            "speed_down_mbps": 50,
+            "speed_up_mbps": 25,
+            "speed_down_kbps": 50000,
+            "speed_up_kbps": 25000,
+            "price": 30.00,
         },
     )
     plan_id = create_resp.json()["id"]
@@ -172,17 +171,17 @@ def test_update_plan(client: TestClient):
         f"/api/plans/{plan_id}",
         headers={"Authorization": f"Bearer {token}"},
         json={
-            "nombre": "Plan Oro 60M",
-            "velocidad_down_mbps": 60,
-            "velocidad_down_kbps": 60000,
-            "precio": 35.00,
+            "name": "Plan Oro 60M",
+            "speed_down_mbps": 60,
+            "speed_down_kbps": 60000,
+            "price": 35.00,
         },
     )
     assert response.status_code == 200
     data = response.json()
-    assert data["nombre"] == "Plan Oro 60M"
-    assert data["velocidad_down_mbps"] == 60
-    assert data["precio"] == 35.00
+    assert data["name"] == "Plan Oro 60M"
+    assert data["speed_down_mbps"] == 60
+    assert data["price"] == 35.00
 
 
 def test_delete_plan_success(client: TestClient):
@@ -197,12 +196,12 @@ def test_delete_plan_success(client: TestClient):
         "/api/plans",
         headers={"Authorization": f"Bearer {token}"},
         json={
-            "nombre": "Plan Temporal",
-            "velocidad_down_mbps": 10,
-            "velocidad_up_mbps": 5,
-            "velocidad_down_kbps": 10000,
-            "velocidad_up_kbps": 5000,
-            "precio": 10.00,
+            "name": "Plan Temporal",
+            "speed_down_mbps": 10,
+            "speed_up_mbps": 5,
+            "speed_down_kbps": 10000,
+            "speed_up_kbps": 5000,
+            "price": 10.00,
         },
     )
     plan_id = create_resp.json()["id"]

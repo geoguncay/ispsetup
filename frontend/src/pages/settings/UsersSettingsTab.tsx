@@ -14,39 +14,39 @@ type StatusSetter = (msg: { type: 'success' | 'error'; text: string } | null) =>
 
 interface UserItem {
   id: string
-  nombre: string
+  name: string
   email: string
-  rol: 'admin' | 'tecnico' | 'viewer'
-  activo: boolean
+  role: 'admin' | 'technician' | 'viewer'
+  active: boolean
   inactivity_timeout: number
-  tipo_operador?: string
-  permisos_router?: string
-  horario_acceso?: string
-  permisos?: string
+  operator_type?: string
+  gateway_permissions?: string
+  access_schedule?: string
+  permissions?: string
   created_at: string
 }
 
 const userSchema = z.object({
-  nombre: z.string().min(2, 'Mínimo 2 caracteres').max(120),
+  name: z.string().min(2, 'Mínimo 2 caracteres').max(120),
   email: z.string().email('Email inválido'),
   password: z.string().optional().or(z.literal('')),
-  rol: z.enum(['admin', 'tecnico', 'viewer']),
-  tipo_operador: z.string(),
-  activo: z.boolean().default(true),
+  role: z.enum(['admin', 'technician', 'viewer']),
+  operator_type: z.string(),
+  active: z.boolean().default(true),
   inactivity_timeout: z.coerce.number().default(0),
-  horario_inicio: z.string().default('00:00'),
-  horario_fin: z.string().default('23:59'),
+  start_time: z.string().default('00:00'),
+  end_time: z.string().default('23:59'),
 })
 
 type UserFormData = z.infer<typeof userSchema>
 
-const DISPONIBLE_PERMISOS = [
-  { value: 'clientes:ver', label: 'Ver Clientes' },
-  { value: 'clientes:crear', label: 'Registrar/Editar Clientes' },
-  { value: 'pagos:registrar', label: 'Registrar Pagos/Cobros' },
-  { value: 'facturas:administrar', label: 'Administrar Facturas' },
-  { value: 'inventario:administrar', label: 'Administrar Stock/Inventario' },
-  { value: 'routers:administrar', label: 'Administrar Routers' },
+const AVAILABLE_PERMISSIONS = [
+  { value: 'clients:view', label: 'Ver Clientes' },
+  { value: 'clients:create', label: 'Registrar/Editar Clientes' },
+  { value: 'payments:register', label: 'Registrar Pagos/Cobros' },
+  { value: 'invoices:manage', label: 'Administrar Facturas' },
+  { value: 'inventory:manage', label: 'Administrar Stock/Inventario' },
+  { value: 'gateways:manage', label: 'Administrar Routers' },
 ]
 
 export function UsersSettingsTab({ setStatusMessage }: { setStatusMessage: StatusSetter }) {
@@ -54,8 +54,8 @@ export function UsersSettingsTab({ setStatusMessage }: { setStatusMessage: Statu
 
   const [isUserModalOpen, setIsUserModalOpen] = useState(false)
   const [editingUser, setEditingUser] = useState<UserItem | null>(null)
-  const [selectedRouters, setSelectedRouters] = useState<string[]>([])
-  const [selectedPermisos, setSelectedPermisos] = useState<string[]>([])
+  const [selectedGateways, setSelectedGateways] = useState<string[]>([])
+  const [selectedPermissions, setSelectedPermissions] = useState<string[]>([])
 
   const { data: usersList = [], refetch: refetchUsers, isLoading: loadingUsers } = useQuery<UserItem[]>({
     queryKey: ['users-list'],
@@ -65,8 +65,8 @@ export function UsersSettingsTab({ setStatusMessage }: { setStatusMessage: Statu
     },
   })
 
-  const { data: routers = [] } = useQuery<{ id: string; nombre: string }[]>({
-    queryKey: ['routers-list-settings'],
+  const { data: gateways = [] } = useQuery<{ id: string; name: string }[]>({
+    queryKey: ['gateways-list-settings'],
     queryFn: async () => {
       const { data } = await api.get('/gateways')
       return data
@@ -83,46 +83,46 @@ export function UsersSettingsTab({ setStatusMessage }: { setStatusMessage: Statu
   } = useForm<UserFormData>({
     resolver: zodResolver(userSchema) as any,
     defaultValues: {
-      rol: 'viewer',
-      tipo_operador: 'soporte_tecnico',
-      activo: true,
+      role: 'viewer',
+      operator_type: 'technical_support',
+      active: true,
       inactivity_timeout: 0,
-      horario_inicio: '00:00',
-      horario_fin: '23:59',
+      start_time: '00:00',
+      end_time: '23:59',
     }
   })
 
-  const watchOperatorType = watchUser('tipo_operador')
+  const watchOperatorType = watchUser('operator_type')
 
   // Auto-map operator type to standard role and default permissions
   useEffect(() => {
-    if (watchOperatorType === 'administrador') {
-      setValueUser('rol', 'admin')
-      setSelectedPermisos(DISPONIBLE_PERMISOS.map(p => p.value))
-    } else if (watchOperatorType === 'operador_pagos') {
-      setValueUser('rol', 'viewer')
-      setSelectedPermisos(['pagos:registrar', 'clientes:ver'])
-    } else if (watchOperatorType === 'instalador') {
-      setValueUser('rol', 'tecnico')
-      setSelectedPermisos(['clientes:ver', 'clientes:crear'])
-    } else if (watchOperatorType === 'soporte_tecnico') {
-      setValueUser('rol', 'tecnico')
-      setSelectedPermisos(['clientes:ver', 'clientes:crear', 'routers:administrar'])
+    if (watchOperatorType === 'administrator') {
+      setValueUser('role', 'admin')
+      setSelectedPermissions(AVAILABLE_PERMISSIONS.map(p => p.value))
+    } else if (watchOperatorType === 'payments_operator') {
+      setValueUser('role', 'viewer')
+      setSelectedPermissions(['payments:register', 'clients:view'])
+    } else if (watchOperatorType === 'installer') {
+      setValueUser('role', 'technician')
+      setSelectedPermissions(['clients:view', 'clients:create'])
+    } else if (watchOperatorType === 'technical_support') {
+      setValueUser('role', 'technician')
+      setSelectedPermissions(['clients:view', 'clients:create', 'gateways:manage'])
     }
   }, [watchOperatorType, setValueUser])
 
   const userMutation = useMutation({
     mutationFn: async (data: UserFormData) => {
       const payload: any = {
-        nombre: data.nombre,
+        name: data.name,
         email: data.email,
-        rol: data.rol,
-        activo: data.activo,
+        role: data.role,
+        active: data.active,
         inactivity_timeout: data.inactivity_timeout,
-        tipo_operador: data.tipo_operador,
-        permisos_router: selectedRouters.join(','),
-        horario_acceso: `${data.horario_inicio}-${data.horario_fin}`,
-        permisos: selectedPermisos.join(','),
+        operator_type: data.operator_type,
+        gateway_permissions: selectedGateways.join(','),
+        access_schedule: `${data.start_time}-${data.end_time}`,
+        permissions: selectedPermissions.join(','),
       }
 
       if (data.password && data.password.trim() !== '') {
@@ -156,18 +156,18 @@ export function UsersSettingsTab({ setStatusMessage }: { setStatusMessage: Statu
   const handleOpenCreateUser = () => {
     setEditingUser(null)
     resetUser({
-      nombre: '',
+      name: '',
       email: '',
       password: '',
-      rol: 'viewer',
-      tipo_operador: 'soporte_tecnico',
-      activo: true,
+      role: 'viewer',
+      operator_type: 'technical_support',
+      active: true,
       inactivity_timeout: 0,
-      horario_inicio: '08:00',
-      horario_fin: '18:00',
+      start_time: '08:00',
+      end_time: '18:00',
     })
-    setSelectedRouters([])
-    setSelectedPermisos(['clientes:ver', 'clientes:crear', 'routers:administrar'])
+    setSelectedGateways([])
+    setSelectedPermissions(['clients:view', 'clients:create', 'gateways:manage'])
     setIsUserModalOpen(true)
   }
 
@@ -175,24 +175,24 @@ export function UsersSettingsTab({ setStatusMessage }: { setStatusMessage: Statu
     setEditingUser(u)
     let start = '00:00'
     let end = '23:59'
-    if (u.horario_acceso && u.horario_acceso.includes('-')) {
-      const split = u.horario_acceso.split('-')
+    if (u.access_schedule && u.access_schedule.includes('-')) {
+      const split = u.access_schedule.split('-')
       start = split[0]
       end = split[1]
     }
     resetUser({
-      nombre: u.nombre,
+      name: u.name,
       email: u.email,
       password: '',
-      rol: u.rol,
-      tipo_operador: u.tipo_operador || 'soporte_tecnico',
-      activo: u.activo,
+      role: u.role,
+      operator_type: u.operator_type || 'technical_support',
+      active: u.active,
       inactivity_timeout: u.inactivity_timeout,
-      horario_inicio: start,
-      horario_fin: end,
+      start_time: start,
+      end_time: end,
     })
-    setSelectedRouters(u.permisos_router ? u.permisos_router.split(',') : [])
-    setSelectedPermisos(u.permisos ? u.permisos.split(',') : [])
+    setSelectedGateways(u.gateway_permissions ? u.gateway_permissions.split(',') : [])
+    setSelectedPermissions(u.permissions ? u.permissions.split(',') : [])
     setIsUserModalOpen(true)
   }
 
@@ -209,7 +209,7 @@ export function UsersSettingsTab({ setStatusMessage }: { setStatusMessage: Statu
 
   const handleToggleUserStatus = async (u: UserItem) => {
     try {
-      await api.put(`/users/${u.id}`, { activo: !u.activo })
+      await api.put(`/users/${u.id}`, { active: !u.active })
       setStatusMessage({ type: 'success', text: `Estado del usuario actualizado.` })
       refetchUsers()
     } catch (e: any) {
@@ -258,15 +258,15 @@ export function UsersSettingsTab({ setStatusMessage }: { setStatusMessage: Statu
             <tbody className="divide-y divide-border/40 text-sm">
               {usersList.map((u) => (
                 <tr key={u.id} className="hover:bg-secondary/20 transition-colors">
-                  <td className="px-4 py-3 font-semibold text-foreground">{u.nombre}</td>
+                  <td className="px-4 py-3 font-semibold text-foreground">{u.name}</td>
                   <td className="px-4 py-3 text-muted-foreground font-mono text-xs">{u.email}</td>
                   <td className="px-4 py-3 capitalize">
                     <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-brand-500/10 text-brand-400 border border-brand-500/20">
-                      {(u.tipo_operador || u.rol).replace('_', ' ')}
+                      {(u.operator_type || u.role).replace('_', ' ')}
                     </span>
                   </td>
                   <td className="px-4 py-3 text-xs font-mono text-muted-foreground">
-                    {u.horario_acceso || 'Libre'}
+                    {u.access_schedule || 'Libre'}
                   </td>
                   <td className="px-4 py-3">
                     <button
@@ -274,7 +274,7 @@ export function UsersSettingsTab({ setStatusMessage }: { setStatusMessage: Statu
                       className="flex items-center gap-1.5 focus:outline-none cursor-pointer"
                       title="Hacer clic para activar/desactivar"
                     >
-                      {u.activo ? (
+                      {u.active ? (
                         <span className="flex items-center gap-1 text-emerald-400 text-xs font-semibold">
                           <ToggleRight className="w-5 h-5 text-emerald-400" /> Activo
                         </span>
@@ -340,12 +340,12 @@ export function UsersSettingsTab({ setStatusMessage }: { setStatusMessage: Statu
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div className="space-y-1">
                     <label className="text-xs font-semibold text-muted-foreground uppercase block">Nombre Completo *</label>
-                    <input type="text" {...registerUser('nombre')} className="input-field" placeholder="Geo Guncay" required />
-                    {userErrors.nombre && <p className="text-xs text-destructive">{userErrors.nombre.message}</p>}
+                    <input type="text" {...registerUser('name')} className="input-field" placeholder="Geo Guncay" required />
+                    {userErrors.name && <p className="text-xs text-destructive">{userErrors.name.message}</p>}
                   </div>
                   <div className="space-y-1">
                     <label className="text-xs font-semibold text-muted-foreground uppercase block">Correo Electrónico *</label>
-                    <input type="email" {...registerUser('email')} className="input-field" placeholder="geo@wisp.com" required />
+                    <input type="email" {...registerUser('email')} className="input-field" placeholder="geo@isp.com" required />
                     {userErrors.email && <p className="text-xs text-destructive">{userErrors.email.message}</p>}
                   </div>
                 </div>
@@ -360,11 +360,11 @@ export function UsersSettingsTab({ setStatusMessage }: { setStatusMessage: Statu
                   </div>
                   <div className="space-y-1">
                     <label className="text-xs font-semibold text-muted-foreground uppercase block">Tipo de Operador *</label>
-                    <select {...registerUser('tipo_operador')} className="input-field">
-                      <option value="administrador">Administrador</option>
-                      <option value="operador_pagos">Operador de Pagos</option>
-                      <option value="instalador">Instalador</option>
-                      <option value="soporte_tecnico">Soporte Técnico</option>
+                    <select {...registerUser('operator_type')} className="input-field">
+                      <option value="administrator">Administrador</option>
+                      <option value="payments_operator">Operador de Pagos</option>
+                      <option value="installer">Instalador</option>
+                      <option value="technical_support">Soporte Técnico</option>
                     </select>
                   </div>
                 </div>
@@ -380,11 +380,11 @@ export function UsersSettingsTab({ setStatusMessage }: { setStatusMessage: Statu
                 <div className="grid grid-cols-2 gap-4 max-w-sm">
                   <div className="space-y-1">
                     <label className="text-[10px] font-bold text-muted-foreground block">Hora Inicio</label>
-                    <input type="time" {...registerUser('horario_inicio')} className="input-field font-mono text-center" />
+                    <input type="time" {...registerUser('start_time')} className="input-field font-mono text-center" />
                   </div>
                   <div className="space-y-1">
                     <label className="text-[10px] font-bold text-muted-foreground block">Hora Fin</label>
-                    <input type="time" {...registerUser('horario_fin')} className="input-field font-mono text-center" />
+                    <input type="time" {...registerUser('end_time')} className="input-field font-mono text-center" />
                   </div>
                 </div>
               </div>
@@ -398,27 +398,27 @@ export function UsersSettingsTab({ setStatusMessage }: { setStatusMessage: Statu
                 </h4>
                 <p className="text-xs text-muted-foreground mt-0.5">Asigna los routers específicos a los que este operador tendrá acceso.</p>
                 <div className="grid grid-cols-2 gap-2 p-3 rounded-xl bg-background/30 border border-border/50 max-h-[120px] overflow-y-auto">
-                  {routers.map((r) => (
-                    <label key={r.id} className="flex items-center gap-2 cursor-pointer text-xs font-medium text-foreground py-0.5">
+                  {gateways.map((g) => (
+                    <label key={g.id} className="flex items-center gap-2 cursor-pointer text-xs font-medium text-foreground py-0.5">
                       <div className="relative inline-flex items-center flex-shrink-0">
                         <input
                           type="checkbox"
-                          checked={selectedRouters.includes(r.id)}
+                          checked={selectedGateways.includes(g.id)}
                           onChange={(e) => {
                             if (e.target.checked) {
-                              setSelectedRouters([...selectedRouters, r.id])
+                              setSelectedGateways([...selectedGateways, g.id])
                             } else {
-                              setSelectedRouters(selectedRouters.filter(id => id !== r.id))
+                              setSelectedGateways(selectedGateways.filter(id => id !== g.id))
                             }
                           }}
                           className="sr-only peer"
                         />
                         <div className="w-9 h-5 bg-secondary peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-muted-foreground after:border-border after:border after:rounded-full after:h-[13px] after:w-[13px] after:transition-all peer-checked:bg-brand-500 peer-checked:after:bg-white peer-checked:after:border-brand-500"></div>
                       </div>
-                      <span>{r.nombre}</span>
+                      <span>{g.name}</span>
                     </label>
                   ))}
-                  {routers.length === 0 && (
+                  {gateways.length === 0 && (
                     <p className="text-xs text-muted-foreground col-span-2 text-center py-2">No hay routers registrados.</p>
                   )}
                 </div>
@@ -432,17 +432,17 @@ export function UsersSettingsTab({ setStatusMessage }: { setStatusMessage: Statu
                   <Shield className="w-3.5 h-3.5" /> Permisos Operativos
                 </h4>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 p-3 rounded-xl bg-background/30 border border-border/50">
-                  {DISPONIBLE_PERMISOS.map((p) => (
+                  {AVAILABLE_PERMISSIONS.map((p) => (
                     <label key={p.value} className="flex items-center gap-2 cursor-pointer text-xs font-medium text-foreground py-0.5">
                       <div className="relative inline-flex items-center flex-shrink-0">
                         <input
                           type="checkbox"
-                          checked={selectedPermisos.includes(p.value)}
+                          checked={selectedPermissions.includes(p.value)}
                           onChange={(e) => {
                             if (e.target.checked) {
-                              setSelectedPermisos([...selectedPermisos, p.value])
+                              setSelectedPermissions([...selectedPermissions, p.value])
                             } else {
-                              setSelectedPermisos(selectedPermisos.filter(val => val !== p.value))
+                              setSelectedPermissions(selectedPermissions.filter(val => val !== p.value))
                             }
                           }}
                           className="sr-only peer"

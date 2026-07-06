@@ -7,10 +7,10 @@ import api from '@/services/api'
 
 export interface AuthUser {
   id: string
-  nombre: string
+  name: string
   email: string
-  rol: 'admin' | 'tecnico' | 'viewer'
-  activo: boolean
+  role: 'admin' | 'technician' | 'viewer'
+  active: boolean
   inactivity_timeout?: number
   avatar_url?: string | null
 }

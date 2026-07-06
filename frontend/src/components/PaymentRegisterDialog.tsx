@@ -11,11 +11,11 @@ interface PaymentRegisterDialogProps {
   onClose: () => void
   invoice: {
     id: string
-    cliente_nombre: string
-    cliente_cedula: string
-    periodo: string
-    monto: number
-    estado: string
+    client_name: string
+    client_cedula: string
+    period: string
+    amount: number
+    status: string
   } | null
   onSuccess?: () => void
 }
@@ -27,24 +27,24 @@ export function PaymentRegisterDialog({
   onSuccess,
 }: PaymentRegisterDialogProps) {
   const queryClient = useQueryClient()
-  
-  const [monto, setMonto] = useState<string>('')
-  const [metodo, setMetodo] = useState<string>('efectivo')
-  const [notas, setNotas] = useState<string>('')
+
+  const [amount, setAmount] = useState<string>('')
+  const [method, setMethod] = useState<string>('cash')
+  const [notes, setNotes] = useState<string>('')
   const [errorMsg, setErrorMsg] = useState<string | null>(null)
   const [methods, setMethods] = useState<{ value: string; label: string }[]>([])
 
   // Sincronizar monto por defecto cuando se abre con una factura
   useEffect(() => {
     if (invoice) {
-      setMonto(invoice.monto.toString())
-      
-      const saved = localStorage.getItem('wisp_payment_methods')
+      setAmount(invoice.amount.toString())
+
+      const saved = localStorage.getItem('isp_payment_methods')
       let loadedMethods = [
-        { value: 'efectivo', label: 'Efectivo' },
-        { value: 'transferencia', label: 'Transferencia' },
-        { value: 'tarjeta', label: 'Tarjeta' },
-        { value: 'deposito', label: 'Depósito' }
+        { value: 'cash', label: 'Efectivo' },
+        { value: 'transfer', label: 'Transferencia' },
+        { value: 'card', label: 'Tarjeta' },
+        { value: 'deposit', label: 'Depósito' }
       ]
       if (saved) {
         try {
@@ -53,16 +53,16 @@ export function PaymentRegisterDialog({
           // ignore
         }
       } else {
-        localStorage.setItem('wisp_payment_methods', JSON.stringify(loadedMethods))
+        localStorage.setItem('isp_payment_methods', JSON.stringify(loadedMethods))
       }
       setMethods(loadedMethods)
 
       if (loadedMethods.length > 0) {
-        setMetodo(loadedMethods[0].value)
+        setMethod(loadedMethods[0].value)
       } else {
-        setMetodo('efectivo')
+        setMethod('cash')
       }
-      setNotas('')
+      setNotes('')
       setErrorMsg(null)
     }
   }, [invoice, isOpen])
@@ -70,14 +70,14 @@ export function PaymentRegisterDialog({
   const registerMutation = useMutation({
     mutationFn: async () => {
       if (!invoice) return
-      
+
       const payload = {
         invoice_id: invoice.id,
-        monto: parseFloat(monto),
-        metodo: metodo,
-        notas: notas.trim() || null,
+        amount: parseFloat(amount),
+        method: method,
+        notes: notes.trim() || null,
       }
-      
+
       const { data } = await api.post('/payments', payload)
       return data
     },
@@ -88,7 +88,7 @@ export function PaymentRegisterDialog({
       queryClient.invalidateQueries({ queryKey: ['client-payments'] })
       queryClient.invalidateQueries({ queryKey: ['today-cash'] })
       queryClient.invalidateQueries({ queryKey: ['client'] }) // Para actualizar estado activo del cliente
-      
+
       if (onSuccess) onSuccess()
       onClose()
     },
@@ -103,13 +103,13 @@ export function PaymentRegisterDialog({
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault()
     setErrorMsg(null)
-    
-    const parsedMonto = parseFloat(monto)
-    if (isNaN(parsedMonto) || parsedMonto <= 0) {
+
+    const parsedAmount = parseFloat(amount)
+    if (isNaN(parsedAmount) || parsedAmount <= 0) {
       setErrorMsg('El monto debe ser un número superior a 0')
       return
     }
-    
+
     registerMutation.mutate()
   }
 
@@ -146,19 +146,19 @@ export function PaymentRegisterDialog({
             <div className="grid grid-cols-2 gap-y-2 gap-x-4 text-sm">
               <div>
                 <span className="text-muted-foreground text-xs block">Cliente</span>
-                <span className="font-semibold text-foreground truncate block">{invoice.cliente_nombre}</span>
+                <span className="font-semibold text-foreground truncate block">{invoice.client_name}</span>
               </div>
               <div>
                 <span className="text-muted-foreground text-xs block">Cédula / RUC</span>
-                <span className="font-semibold text-foreground font-mono block">{invoice.cliente_cedula}</span>
+                <span className="font-semibold text-foreground font-mono block">{invoice.client_cedula}</span>
               </div>
               <div>
                 <span className="text-muted-foreground text-xs block">Periodo</span>
-                <span className="font-semibold text-foreground block">{invoice.periodo}</span>
+                <span className="font-semibold text-foreground block">{invoice.period}</span>
               </div>
               <div>
                 <span className="text-muted-foreground text-xs block">Monto Factura</span>
-                <span className="font-bold text-brand-400 font-mono block">${invoice.monto.toFixed(2)}</span>
+                <span className="font-bold text-brand-400 font-mono block">${invoice.amount.toFixed(2)}</span>
               </div>
             </div>
           </div>
@@ -172,8 +172,8 @@ export function PaymentRegisterDialog({
               type="number"
               step="0.01"
               required
-              value={monto}
-              onChange={(e) => setMonto(e.target.value)}
+              value={amount}
+              onChange={(e) => setAmount(e.target.value)}
               className="input-field font-mono text-base font-bold text-brand-300"
               placeholder="0.00"
             />
@@ -189,9 +189,9 @@ export function PaymentRegisterDialog({
                 <button
                   key={m.value}
                   type="button"
-                  onClick={() => setMetodo(m.value)}
+                  onClick={() => setMethod(m.value)}
                   className={`px-3 py-2.5 rounded-lg border text-xs font-semibold transition-all cursor-pointer text-center ${
-                    metodo === m.value
+                    method === m.value
                       ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/30'
                       : 'bg-secondary/40 text-muted-foreground border-border hover:bg-secondary/60 hover:text-foreground'
                   }`}
@@ -209,8 +209,8 @@ export function PaymentRegisterDialog({
             </label>
             <input
               type="text"
-              value={notas}
-              onChange={(e) => setNotas(e.target.value)}
+              value={notes}
+              onChange={(e) => setNotes(e.target.value)}
               placeholder="Ej: Transferencia Banco Pichincha Nº 829302"
               className="input-field"
             />

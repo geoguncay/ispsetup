@@ -10,12 +10,12 @@ import { getLogoUrl } from '@/components/AppLayout'
 type StatusSetter = (msg: { type: 'success' | 'error'; text: string } | null) => void
 
 const companySchema = z.object({
-  nombre: z.string().min(2, 'Mínimo 2 caracteres').max(120),
+  name: z.string().min(2, 'Mínimo 2 caracteres').max(120),
   ruc: z.string().max(20).optional().or(z.literal('')),
-  direccion: z.string().max(255).optional().or(z.literal('')),
-  telefono: z.string().max(40).optional().or(z.literal('')),
+  address: z.string().max(255).optional().or(z.literal('')),
+  phone: z.string().max(40).optional().or(z.literal('')),
   email: z.string().email('Correo inválido').optional().or(z.literal('')).or(z.null()),
-  sitio_web: z.string().max(255).optional().or(z.literal('')),
+  website: z.string().max(255).optional().or(z.literal('')),
   logo_url: z.string().max(255).optional().or(z.literal('')).or(z.null()),
   use_logo_on_login: z.boolean().default(false),
   login_bg_url: z.string().max(255).optional().or(z.literal('')).or(z.null()),
@@ -60,12 +60,12 @@ export function CompanySettingsTab({ setStatusMessage }: { setStatusMessage: Sta
   useEffect(() => {
     if (companyData) {
       resetCompany({
-        nombre: companyData.nombre,
+        name: companyData.name,
         ruc: companyData.ruc || '',
-        direccion: companyData.direccion || '',
-        telefono: companyData.telefono || '',
+        address: companyData.address || '',
+        phone: companyData.phone || '',
         email: companyData.email || '',
-        sitio_web: companyData.sitio_web || '',
+        website: companyData.website || '',
         logo_url: companyData.logo_url || '',
         use_logo_on_login: companyData.use_logo_on_login ?? false,
         login_bg_url: companyData.login_bg_url || '',
@@ -195,15 +195,15 @@ export function CompanySettingsTab({ setStatusMessage }: { setStatusMessage: Sta
               <div className="relative">
                 <Building className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
                 <input
-                  id="company-nombre"
+                  id="company-name"
                   type="text"
-                  {...registerCompany('nombre')}
+                  {...registerCompany('name')}
                   className="input-field pl-10"
-                  placeholder="Mi WISP S.A."
+                  placeholder="Mi ISP S.A."
                 />
               </div>
-              {companyErrors.nombre && (
-                <p className="text-xs text-destructive mt-1">{companyErrors.nombre.message}</p>
+              {companyErrors.name && (
+                <p className="text-xs text-destructive mt-1">{companyErrors.name.message}</p>
               )}
             </div>
 
@@ -233,15 +233,15 @@ export function CompanySettingsTab({ setStatusMessage }: { setStatusMessage: Sta
               <div className="relative">
                 <Phone className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
                 <input
-                  id="company-telefono"
+                  id="company-phone"
                   type="text"
-                  {...registerCompany('telefono')}
+                  {...registerCompany('phone')}
                   className="input-field pl-10"
                   placeholder="+593 2-123-4567 o +593 99 999 9999"
                 />
               </div>
-              {companyErrors.telefono && (
-                <p className="text-xs text-destructive mt-1">{companyErrors.telefono.message}</p>
+              {companyErrors.phone && (
+                <p className="text-xs text-destructive mt-1">{companyErrors.phone.message}</p>
               )}
             </div>
 
@@ -255,7 +255,7 @@ export function CompanySettingsTab({ setStatusMessage }: { setStatusMessage: Sta
                   type="email"
                   {...registerCompany('email')}
                   className="input-field pl-10"
-                  placeholder="facturacion@miwisp.com"
+                  placeholder="facturacion@miisp.com"
                 />
               </div>
               {companyErrors.email && (
@@ -271,15 +271,15 @@ export function CompanySettingsTab({ setStatusMessage }: { setStatusMessage: Sta
               <div className="relative">
                 <MapPin className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
                 <input
-                  id="company-direccion"
+                  id="company-address"
                   type="text"
-                  {...registerCompany('direccion')}
+                  {...registerCompany('address')}
                   className="input-field pl-10"
                   placeholder="Av. Principal N34-12 y Calle Secundaria, Quito, Ecuador"
                 />
               </div>
-              {companyErrors.direccion && (
-                <p className="text-xs text-destructive mt-1">{companyErrors.direccion.message}</p>
+              {companyErrors.address && (
+                <p className="text-xs text-destructive mt-1">{companyErrors.address.message}</p>
               )}
             </div>
           </div>
@@ -291,15 +291,15 @@ export function CompanySettingsTab({ setStatusMessage }: { setStatusMessage: Sta
               <div className="relative">
                 <Globe className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
                 <input
-                  id="company-sitio-web"
+                  id="company-website"
                   type="text"
-                  {...registerCompany('sitio_web')}
+                  {...registerCompany('website')}
                   className="input-field pl-10 font-mono"
-                  placeholder="https://www.miwisp.com"
+                  placeholder="https://www.miisp.com"
                 />
               </div>
-              {companyErrors.sitio_web && (
-                <p className="text-xs text-destructive mt-1">{companyErrors.sitio_web.message}</p>
+              {companyErrors.website && (
+                <p className="text-xs text-destructive mt-1">{companyErrors.website.message}</p>
               )}
             </div>
           </div>
@@ -375,7 +375,7 @@ export function CompanySettingsTab({ setStatusMessage }: { setStatusMessage: Sta
                     type="text"
                     {...registerCompany('logo_url')}
                     className="input-field pl-10 font-mono text-sm"
-                    placeholder="https://www.miwisp.com/logo.png"
+                    placeholder="https://www.miisp.com/logo.png"
                   />
                 </div>
                 {companyErrors.logo_url && (

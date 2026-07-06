@@ -19,7 +19,7 @@ class TrafficSample(Base):
     gateway_id: Mapped[uuid.UUID] = mapped_column(
         Uuid(native_uuid=False), ForeignKey("gateways.id", ondelete="CASCADE"), nullable=False, index=True
     )
-    cliente_id: Mapped[uuid.UUID | None] = mapped_column(
+    client_id: Mapped[uuid.UUID | None] = mapped_column(
         Uuid(native_uuid=False), ForeignKey("clients.id", ondelete="CASCADE"), nullable=True, index=True
     )
     interface_name: Mapped[str | None] = mapped_column(
@@ -47,5 +47,5 @@ class TrafficSample(Base):
     client = relationship("Client")
 
     def __repr__(self) -> str:
-        client_part = f"client={self.cliente_id}" if self.cliente_id else f"iface={self.interface_name}"
+        client_part = f"client={self.client_id}" if self.client_id else f"iface={self.interface_name}"
         return f"<TrafficSample id={self.id} {client_part} rx_rate={self.rx_rate} tx_rate={self.tx_rate} ts={self.timestamp}>"

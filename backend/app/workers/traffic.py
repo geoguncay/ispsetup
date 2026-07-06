@@ -17,11 +17,11 @@ from app.models.client import Client
 from app.models.traffic_sample import TrafficSample
 from app.core.redis import redis_client
 from app.workers.celery_app import celery_app
-from app.services.mikrotik.gateway_pool import router_pool
+from app.services.mikrotik.gateway_pool import gateway_pool
 
 logger = logging.getLogger(__name__)
 
-POLL_TRAFFIC_ROUTER_TIMEOUT_SECONDS = 4.5
+POLL_TRAFFIC_GATEWAY_TIMEOUT_SECONDS = 4.5
 
 
 def ensure_partition_exists(db: Session, dt: datetime) -> str:
@@ -67,7 +67,7 @@ def sync_poll_gateway(gateway: Gateway, static_ips_map: dict, now: datetime) -> 
     interface_samples = []
 
     try:
-        with router_pool.connect_to(gateway) as api:
+        with gateway_pool.connect_to(gateway) as api:
             # 1. Obtener Simple Queues (Tráfico de Clientes)
             try:
                 queues = list(api.path('/queue/simple'))
@@ -101,8 +101,8 @@ def sync_poll_gateway(gateway: Gateway, static_ips_map: dict, now: datetime) -> 
 
                     client_samples.append({
                         "gateway_id": gateway.id,
-                        "cliente_id": client_id,
-                        "nombre": name,
+                        "client_id": client_id,
+                        "name": name,
                         "rx_bytes": rx_bytes,
                         "tx_bytes": tx_bytes,
                         "rx_rate": rx_rate,
@@ -110,7 +110,7 @@ def sync_poll_gateway(gateway: Gateway, static_ips_map: dict, now: datetime) -> 
                         "timestamp": now,
                     })
             except Exception as eq:
-                logger.error(f"Error al consultar colas en {gateway.nombre}: {eq}")
+                logger.error(f"Error al consultar colas en {gateway.name}: {eq}")
 
             # 2. Obtener Interfaces (Consumo Global)
             try:
@@ -133,10 +133,10 @@ def sync_poll_gateway(gateway: Gateway, static_ips_map: dict, now: datetime) -> 
                         "timestamp": now,
                     })
             except Exception as ei:
-                logger.error(f"Error al consultar interfaces en {gateway.nombre}: {ei}")
+                logger.error(f"Error al consultar interfaces en {gateway.name}: {ei}")
 
     except Exception as e:
-        logger.error(f"Fallo de conexión al colectar tráfico en router {gateway.nombre}: {e}")
+        logger.error(f"Fallo de conexión al colectar tráfico en router {gateway.name}: {e}")
         return [], []
 
     return client_samples, interface_samples
@@ -151,7 +151,7 @@ async def calculate_interface_rates(gateway_id: uuid.UUID, interface_samples: li
 
     for sample in interface_samples:
         iface_name = sample["interface_name"]
-        cache_key = f"router:iface_bytes:{gateway_id}:{iface_name}"
+        cache_key = f"gateway:iface_bytes:{gateway_id}:{iface_name}"
 
         # Obtener muestra anterior de Redis
         prev_data_str = await redis_conn.get(cache_key)
@@ -211,24 +211,24 @@ def poll_traffic():
         ensure_partition_exists(db, now)
 
         # Cargar routers activos
-        routers = db.query(Gateway).filter(Gateway.activo == True).all()
-        if not routers:
+        gateways = db.query(Gateway).filter(Gateway.active == True).all()
+        if not gateways:
             logger.debug("No hay routers activos para monitorear.")
             return
 
-        logger.info(f"poll_traffic: iniciando recolección para {len(routers)} routers activos")
+        logger.info(f"poll_traffic: iniciando recolección para {len(gateways)} routers activos")
 
         # Cargar mapa de IPs estáticas de clientes activos para relacionar muestras
         # Filtramos clientes activos que tengan IP estática
         static_ips = (
-            db.query(StaticIP.gateway_id, StaticIP.ip, StaticIP.cliente_id)
-            .join(Client, StaticIP.cliente_id == Client.id)
-            .filter(Client.activo == True)
+            db.query(StaticIP.gateway_id, StaticIP.ip, StaticIP.client_id)
+            .join(Client, StaticIP.client_id == Client.id)
+            .filter(Client.active == True)
             .all()
         )
         static_ips_map = {
-            (gateway_id, ip): cliente_id 
-            for gateway_id, ip, cliente_id in static_ips
+            (gateway_id, ip): client_id
+            for gateway_id, ip, client_id in static_ips
         }
 
         # Ejecutar recolección en paralelo usando subprocesos/hilos
@@ -245,11 +245,11 @@ def poll_traffic():
             try:
                 loop = asyncio.get_running_loop()
                 tasks = []
-                for r in routers:
+                for r in gateways:
                     # Correr en un hilo separado de forma no bloqueante
                     task = asyncio.wait_for(
                         loop.run_in_executor(None, sync_poll_gateway, r, static_ips_map, now),
-                        timeout=POLL_TRAFFIC_ROUTER_TIMEOUT_SECONDS,
+                        timeout=POLL_TRAFFIC_GATEWAY_TIMEOUT_SECONDS,
                     )
                     tasks.append(task)
 
@@ -259,14 +259,14 @@ def poll_traffic():
                 published_clients = 0
                 published_interfaces = 0
                 
-                for r, result in zip(routers, results):
+                for r, result in zip(gateways, results):
                     if isinstance(result, Exception):
                         if isinstance(result, asyncio.TimeoutError):
                             logger.warning(
-                                f"Timeout colectando tráfico en router {r.nombre} tras {POLL_TRAFFIC_ROUTER_TIMEOUT_SECONDS}s"
+                                f"Timeout colectando tráfico en router {r.name} tras {POLL_TRAFFIC_GATEWAY_TIMEOUT_SECONDS}s"
                             )
                         else:
-                            logger.error(f"Error colectando tráfico en router {r.nombre}: {result}")
+                            logger.error(f"Error colectando tráfico en router {r.name}: {result}")
                         continue
 
                     client_samples, interface_samples = result
@@ -281,7 +281,7 @@ def poll_traffic():
                         db_records.append(TrafficSample(
                             id=uuid.uuid4(),
                             gateway_id=cs["gateway_id"],
-                            cliente_id=cs["cliente_id"],
+                            client_id=cs["client_id"],
                             rx_bytes=cs["rx_bytes"],
                             tx_bytes=cs["tx_bytes"],
                             rx_rate=cs["rx_rate"],
@@ -307,8 +307,8 @@ def poll_traffic():
                         "timestamp": now.isoformat(),
                         "clients": [
                             {
-                                "cliente_id": str(cs["cliente_id"]),
-                                "nombre": cs["nombre"],
+                                "client_id": str(cs["client_id"]),
+                                "name": cs["name"],
                                 "rx_bytes": cs["rx_bytes"],
                                 "tx_bytes": cs["tx_bytes"],
                                 "rx_rate": cs["rx_rate"],
@@ -330,11 +330,11 @@ def poll_traffic():
 
                     try:
                         await local_redis.publish(
-                            f"router_traffic:{r.id}",
+                            f"gateway_traffic:{r.id}",
                             json.dumps(pub_payload)
                         )
                     except Exception as publish_err:
-                        logger.error(f"Error publicando tráfico en Redis para {r.nombre}: {publish_err}")
+                        logger.error(f"Error publicando tráfico en Redis para {r.name}: {publish_err}")
 
                 # Insertar todas las muestras recolectadas de una sola vez
                 if db_records:

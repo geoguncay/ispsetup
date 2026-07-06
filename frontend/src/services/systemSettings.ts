@@ -50,32 +50,32 @@ export interface IntegrationSettingsRead {
 }
 
 export interface BillingSettings {
-  billing_hora_generacion: string
-  billing_ciclo: string
-  billing_modo_precio: string
-  billing_auto_aprobar_enviar: boolean
-  billing_detener_suspendidos: boolean
+  billing_generation_time: string
+  billing_cycle: string
+  billing_price_mode: string
+  billing_auto_approve_send: boolean
+  billing_stop_suspended: boolean
   billing_notify_new_invoice: boolean
   billing_attach_pdf_receipt: boolean
-  billing_default_dia_pago: number
-  billing_default_dias_gracia: number
-  billing_generacion_modo: 'dia_fijo' | 'fecha_corte' | 'inicio_facturacion'
-  billing_vencimiento_modo: 'plazo_fijo' | 'fecha_corte'
-  billing_vencimiento_hora: 'inicio_dia' | 'fin_dia'
-  billing_aviso_nueva_factura: boolean
-  billing_aviso_previo_dias: number
-  billing_recordatorios_pago: boolean
-  billing_recordatorio_frecuencia_dias: number
+  billing_default_payment_day: number
+  billing_default_grace_days: number
+  billing_generation_mode: 'fixed_day' | 'cutoff_date' | 'billing_start'
+  billing_due_mode: 'fixed_term' | 'cutoff_date'
+  billing_due_time: 'start_of_day' | 'end_of_day'
+  billing_advance_notice_enabled: boolean
+  billing_advance_notice_days: number
+  billing_payment_reminders: boolean
+  billing_reminder_frequency_days: number
 }
 
 export interface SuspensionSettings {
-  suspension_automatica: boolean
-  suspension_hora: number
-  suspension_retraso_dias: number
-  suspension_permitir_aplazamiento: boolean
-  suspension_notify_suspendido: boolean
-  suspension_notify_pospuesto: boolean
-  suspension_motivos: string[]
+  suspension_automatic: boolean
+  suspension_hour: number
+  suspension_delay_days: number
+  suspension_allow_deferral: boolean
+  suspension_notify_suspended: boolean
+  suspension_notify_deferred: boolean
+  suspension_reasons: string[]
 }
 
 export interface PaymentMethodItem {
@@ -86,8 +86,8 @@ export interface PaymentMethodItem {
 
 export interface CatalogSettings {
   payment_methods: PaymentMethodItem[]
-  fechas_corte: number[]
-  colas_padre: string[]
+  cutoff_dates: number[]
+  parent_queues: string[]
   address_lists: string[]
 }
 
@@ -122,9 +122,9 @@ export async function getLocalizationSettings(): Promise<LocalizationSettings> {
 }
 
 export interface BillingDueDateSettings {
-  billing_vencimiento_modo: 'plazo_fijo' | 'fecha_corte'
-  billing_vencimiento_hora: 'inicio_dia' | 'fin_dia'
-  billing_default_dias_gracia: number
+  billing_due_mode: 'fixed_term' | 'cutoff_date'
+  billing_due_time: 'start_of_day' | 'end_of_day'
+  billing_default_grace_days: number
 }
 
 /** Reglas de vencimiento de facturas, accesibles para cualquier usuario autenticado (usado por el simulador de facturación). */

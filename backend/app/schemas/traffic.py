@@ -4,13 +4,13 @@ from pydantic import BaseModel
 
 
 class MonthlyTraffic(BaseModel):
-    mes: str
-    consumo_down_gb: float
-    consumo_up_gb: float
+    month: str
+    down_gb: float
+    up_gb: float
 
 
 class TrafficResponse(BaseModel):
-    cliente_id: uuid.UUID
+    client_id: uuid.UUID
     history: list[MonthlyTraffic]
 
 
@@ -23,6 +23,6 @@ class TrafficDataPoint(BaseModel):
 
 
 class ClientTrafficHistory(BaseModel):
-    cliente_id: uuid.UUID
+    client_id: uuid.UUID
     range: str
     samples: list[TrafficDataPoint]

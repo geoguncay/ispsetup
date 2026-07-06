@@ -11,7 +11,7 @@ from app.core.deps import get_db
 from app.core.security import hash_password
 from app.main import app
 from app.models.user import User
-from app.models.router import Router
+from app.models.gateway import Gateway
 from app.models.client import Client
 from app.models.static_ip import StaticIP
 
@@ -50,28 +50,28 @@ def setup_db(monkeypatch):
     db = TestingSessionLocal()
     # Agregar un administrador
     db.add(User(
-        nombre="Test Admin",
+        name="Test Admin",
         email="admin@test.com",
         hashed_password=hash_password("adminpass123"),
-        rol="admin",
-        activo=True,
+        role="admin",
+        active=True,
     ))
-    # Agregar dos routers
-    r1 = Router(
-        nombre="Router Quito",
+    # Agregar dos gateways
+    r1 = Gateway(
+        name="Router Quito",
         ip="10.0.0.1",
-        puerto_api=8728,
-        usuario_api="admin",
+        api_port=8728,
+        api_username="admin",
         password_enc="enc_pass",
-        activo=True,
+        active=True,
     )
-    r2 = Router(
-        nombre="Router Guayaquil",
+    r2 = Gateway(
+        name="Router Guayaquil",
         ip="10.0.0.2",
-        puerto_api=8728,
-        usuario_api="admin",
+        api_port=8728,
+        api_username="admin",
         password_enc="enc_pass",
-        activo=True,
+        active=True,
     )
     db.add(r1)
     db.add(r2)
@@ -100,20 +100,20 @@ def test_create_client_static_ip_success(mock_sync, client: TestClient):
     token = login.json()["access_token"]
 
     db = TestingSessionLocal()
-    router = db.query(Router).filter(Router.nombre == "Router Quito").first()
-    router_id = str(router.id)
+    gateway = db.query(Gateway).filter(Gateway.name == "Router Quito").first()
+    gateway_id = str(gateway.id)
     db.close()
 
     response = client.post(
         "/api/clients",
         headers={"Authorization": f"Bearer {token}"},
         json={
-            "nombre": "Alex Guncay",
+            "name": "Alex Guncay",
             "cedula": "1724024888",
-            "telefono": "0999999999",
-            "direccion": "Av. Amazonas, Quito",
-            "router_id": router_id,
-            "tipo": "static",
+            "phone": "0999999999",
+            "address": "Av. Amazonas, Quito",
+            "gateway_id": gateway_id,
+            "connection_type": "static",
             "ip": "192.168.10.50",
             "mac": "11:22:33:44:55:66",
         },
@@ -134,10 +134,10 @@ def test_static_ip_duplication_validation(mock_sync, client: TestClient):
     token = login.json()["access_token"]
 
     db = TestingSessionLocal()
-    r_quito = db.query(Router).filter(Router.nombre == "Router Quito").first()
-    r_gye = db.query(Router).filter(Router.nombre == "Router Guayaquil").first()
-    r_quito_id = str(r_quito.id)
-    r_gye_id = str(r_gye.id)
+    g_quito = db.query(Gateway).filter(Gateway.name == "Router Quito").first()
+    g_gye = db.query(Gateway).filter(Gateway.name == "Router Guayaquil").first()
+    g_quito_id = str(g_quito.id)
+    g_gye_id = str(g_gye.id)
     db.close()
 
     # 1. Crear primer cliente con IP 192.168.1.100 en Router Quito (Succeeds)
@@ -145,12 +145,12 @@ def test_static_ip_duplication_validation(mock_sync, client: TestClient):
         "/api/clients",
         headers={"Authorization": f"Bearer {token}"},
         json={
-            "nombre": "Cliente A",
+            "name": "Cliente A",
             "cedula": "1724024888",
-            "telefono": "0999999999",
-            "direccion": "Sector A",
-            "router_id": r_quito_id,
-            "tipo": "static",
+            "phone": "0999999999",
+            "address": "Sector A",
+            "gateway_id": g_quito_id,
+            "connection_type": "static",
             "ip": "192.168.1.100",
         },
     )
@@ -161,12 +161,12 @@ def test_static_ip_duplication_validation(mock_sync, client: TestClient):
         "/api/clients",
         headers={"Authorization": f"Bearer {token}"},
         json={
-            "nombre": "Cliente B",
+            "name": "Cliente B",
             "cedula": "0926079971",
-            "telefono": "0988888888",
-            "direccion": "Sector B",
-            "router_id": r_quito_id,
-            "tipo": "static",
+            "phone": "0988888888",
+            "address": "Sector B",
+            "gateway_id": g_quito_id,
+            "connection_type": "static",
             "ip": "192.168.1.100",
         },
     )
@@ -178,12 +178,12 @@ def test_static_ip_duplication_validation(mock_sync, client: TestClient):
         "/api/clients",
         headers={"Authorization": f"Bearer {token}"},
         json={
-            "nombre": "Cliente C",
+            "name": "Cliente C",
             "cedula": "0926079971",
-            "telefono": "0988888888",
-            "direccion": "Sector B",
-            "router_id": r_gye_id,
-            "tipo": "static",
+            "phone": "0988888888",
+            "address": "Sector B",
+            "gateway_id": g_gye_id,
+            "connection_type": "static",
             "ip": "192.168.1.100",
         },
     )
@@ -200,8 +200,8 @@ def test_update_client_ip_sync(mock_sync, mock_remove, client: TestClient):
     token = login.json()["access_token"]
 
     db = TestingSessionLocal()
-    r = db.query(Router).first()
-    router_id = str(r.id)
+    g = db.query(Gateway).first()
+    gateway_id = str(g.id)
     db.close()
 
     # Crear cliente
@@ -209,12 +209,12 @@ def test_update_client_ip_sync(mock_sync, mock_remove, client: TestClient):
         "/api/clients",
         headers={"Authorization": f"Bearer {token}"},
         json={
-            "nombre": "Carlos Perez",
+            "name": "Carlos Perez",
             "cedula": "1724024888",
-            "telefono": "0999999999",
-            "direccion": "Dir A",
-            "router_id": router_id,
-            "tipo": "static",
+            "phone": "0999999999",
+            "address": "Dir A",
+            "gateway_id": gateway_id,
+            "connection_type": "static",
             "ip": "192.168.1.50",
         },
     )
@@ -231,13 +231,13 @@ def test_update_client_ip_sync(mock_sync, mock_remove, client: TestClient):
     )
     assert u_resp.status_code == 200
     assert u_resp.json()["static_ip"]["ip"] == "192.168.1.60"
-    
+
     # Debe remover la IP anterior e ingresar la nueva
     assert mock_remove.call_count == 1
     assert mock_sync.call_count == 1
 
 
-@patch("app.api.routers_api.fetch_clients_from_address_list")
+@patch("app.api.gateways_api.fetch_clients_from_address_list")
 def test_import_clients_from_router(mock_fetch, client: TestClient):
     login = client.post(
         "/api/auth/login",
@@ -246,9 +246,9 @@ def test_import_clients_from_router(mock_fetch, client: TestClient):
     token = login.json()["access_token"]
 
     db = TestingSessionLocal()
-    r = db.query(Router).first()
-    router_uuid = r.id
-    router_id = str(r.id)
+    g = db.query(Gateway).first()
+    gateway_uuid = g.id
+    gateway_id = str(g.id)
     db.close()
 
     # Mock response from router address-list
@@ -259,7 +259,7 @@ def test_import_clients_from_router(mock_fetch, client: TestClient):
     ]
 
     response = client.post(
-        f"/api/routers/{router_id}/import-clients",
+        f"/api/gateways/{gateway_id}/import-clients",
         headers={"Authorization": f"Bearer {token}"},
     )
     assert response.status_code == 200
@@ -268,10 +268,10 @@ def test_import_clients_from_router(mock_fetch, client: TestClient):
 
     # Verificar que los clientes fueron agregados a la DB
     db = TestingSessionLocal()
-    clients = db.query(Client).filter(Client.router_id == router_uuid).all()
+    clients = db.query(Client).filter(Client.gateway_id == gateway_uuid).all()
     assert len(clients) == 3
-    assert clients[0].nombre == "Imported User A"
-    assert clients[2].nombre == "Importado IP 192.168.50.12"
+    assert clients[0].name == "Imported User A"
+    assert clients[2].name == "Importado IP 192.168.50.12"
     # Cédulas generadas deben empezar con 30
     assert clients[0].cedula.startswith("3099999")
     db.close()

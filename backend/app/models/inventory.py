@@ -16,20 +16,20 @@ class InventoryItem(Base):
     id: Mapped[uuid.UUID] = mapped_column(
         Uuid(native_uuid=False), primary_key=True, default=uuid.uuid4
     )
-    nombre: Mapped[str] = mapped_column(String(120), nullable=False)
-    codigo: Mapped[str] = mapped_column(String(50), unique=True, index=True, nullable=False)
-    cantidad: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
-    minimo_alerta: Mapped[int] = mapped_column(Integer, default=5, nullable=False)
-    precio_compra: Mapped[float] = mapped_column(Float, default=0.0, nullable=False)
-    precio_venta: Mapped[float] = mapped_column(Float, default=0.0, nullable=False)
-    descripcion: Mapped[str | None] = mapped_column(Text, nullable=True)
-    categoria: Mapped[str | None] = mapped_column(String(50), nullable=True)
-    modelo: Mapped[str | None] = mapped_column(String(80), nullable=True)
-    
-    proveedor_id: Mapped[uuid.UUID | None] = mapped_column(
+    name: Mapped[str] = mapped_column(String(120), nullable=False)
+    code: Mapped[str] = mapped_column(String(50), unique=True, index=True, nullable=False)
+    quantity: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    min_alert: Mapped[int] = mapped_column(Integer, default=5, nullable=False)
+    purchase_price: Mapped[float] = mapped_column(Float, default=0.0, nullable=False)
+    sale_price: Mapped[float] = mapped_column(Float, default=0.0, nullable=False)
+    description: Mapped[str | None] = mapped_column(Text, nullable=True)
+    category: Mapped[str | None] = mapped_column(String(50), nullable=True)
+    model: Mapped[str | None] = mapped_column(String(80), nullable=True)
+
+    supplier_id: Mapped[uuid.UUID | None] = mapped_column(
         Uuid(native_uuid=False), ForeignKey("suppliers.id", ondelete="SET NULL"), nullable=True
     )
-    
+
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), nullable=False
     )
@@ -41,8 +41,8 @@ class InventoryItem(Base):
     )
 
     # Relaciones
-    proveedor = relationship("Supplier", back_populates="inventory_items")
+    supplier = relationship("Supplier", back_populates="inventory_items")
     client_assignments = relationship("ClientInventoryItem", back_populates="inventory_item")
 
     def __repr__(self) -> str:
-        return f"<InventoryItem id={self.id} nombre={self.nombre} codigo={self.codigo} cantidad={self.cantidad}>"
+        return f"<InventoryItem id={self.id} name={self.name} code={self.code} quantity={self.quantity}>"

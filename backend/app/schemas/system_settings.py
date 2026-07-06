@@ -131,88 +131,88 @@ class IntegrationSettingsRead(BaseModel):
     pg_api_secret_set: bool
 
 
-# ── Facturación (migrado desde localStorage wisp_billing_*) ────────────────
+# ── Facturación (migrado desde localStorage isp_billing_*) ────────────────
 class BillingSettings(BaseModel):
-    billing_hora_generacion: str | None = Field(default=None, max_length=5)
-    billing_ciclo: str | None = Field(default=None, max_length=20)
-    billing_modo_precio: str | None = Field(default=None, max_length=20)
-    billing_auto_aprobar_enviar: bool | None = None
-    billing_detener_suspendidos: bool | None = None
+    billing_generation_time: str | None = Field(default=None, max_length=5)
+    billing_cycle: str | None = Field(default=None, max_length=20)
+    billing_price_mode: str | None = Field(default=None, max_length=20)
+    billing_auto_approve_send: bool | None = None
+    billing_stop_suspended: bool | None = None
     billing_notify_new_invoice: bool | None = None
     billing_attach_pdf_receipt: bool | None = None
-    billing_default_dia_pago: int | None = Field(default=None, ge=1, le=28)
-    billing_default_dias_gracia: int | None = Field(default=None, ge=0, le=90)
-    billing_generacion_modo: Literal["dia_fijo", "fecha_corte", "inicio_facturacion"] | None = None
-    billing_vencimiento_modo: Literal["plazo_fijo", "fecha_corte"] | None = None
-    billing_vencimiento_hora: Literal["inicio_dia", "fin_dia"] | None = None
-    billing_aviso_nueva_factura: bool | None = None
-    billing_aviso_previo_dias: int | None = Field(default=None, ge=0, le=90)
-    billing_recordatorios_pago: bool | None = None
-    billing_recordatorio_frecuencia_dias: int | None = Field(default=None, ge=1, le=90)
+    billing_default_payment_day: int | None = Field(default=None, ge=1, le=28)
+    billing_default_grace_days: int | None = Field(default=None, ge=0, le=90)
+    billing_generation_mode: Literal["fixed_day", "cutoff_date", "billing_start"] | None = None
+    billing_due_mode: Literal["fixed_term", "cutoff_date"] | None = None
+    billing_due_time: Literal["start_of_day", "end_of_day"] | None = None
+    billing_advance_notice_enabled: bool | None = None
+    billing_advance_notice_days: int | None = Field(default=None, ge=0, le=90)
+    billing_payment_reminders: bool | None = None
+    billing_reminder_frequency_days: int | None = Field(default=None, ge=1, le=90)
 
 
 class BillingDueDateSettingsRead(BaseModel):
     model_config = {"from_attributes": True}
 
-    billing_vencimiento_modo: str
-    billing_vencimiento_hora: str
-    billing_default_dias_gracia: int
+    billing_due_mode: str
+    billing_due_time: str
+    billing_default_grace_days: int
 
 
 class BillingSettingsRead(BaseModel):
     model_config = {"from_attributes": True}
 
-    billing_hora_generacion: str
-    billing_ciclo: str
-    billing_modo_precio: str
-    billing_auto_aprobar_enviar: bool
-    billing_detener_suspendidos: bool
+    billing_generation_time: str
+    billing_cycle: str
+    billing_price_mode: str
+    billing_auto_approve_send: bool
+    billing_stop_suspended: bool
     billing_notify_new_invoice: bool
     billing_attach_pdf_receipt: bool
-    billing_default_dia_pago: int
-    billing_default_dias_gracia: int
-    billing_generacion_modo: str
-    billing_vencimiento_modo: str
-    billing_vencimiento_hora: str
-    billing_aviso_nueva_factura: bool
-    billing_aviso_previo_dias: int
-    billing_recordatorios_pago: bool
-    billing_recordatorio_frecuencia_dias: int
+    billing_default_payment_day: int
+    billing_default_grace_days: int
+    billing_generation_mode: str
+    billing_due_mode: str
+    billing_due_time: str
+    billing_advance_notice_enabled: bool
+    billing_advance_notice_days: int
+    billing_payment_reminders: bool
+    billing_reminder_frequency_days: int
 
 
-# ── Suspensión (migrado desde localStorage wisp_suspension_*) ──────────────
+# ── Suspensión (migrado desde localStorage isp_suspension_*) ──────────────
 class SuspensionSettings(BaseModel):
-    suspension_automatica: bool | None = None
-    suspension_hora: int | None = Field(default=None, ge=0, le=23)
-    suspension_retraso_dias: int | None = Field(default=None, ge=0, le=90)
-    suspension_permitir_aplazamiento: bool | None = None
-    suspension_notify_suspendido: bool | None = None
-    suspension_notify_pospuesto: bool | None = None
-    suspension_motivos: list[str] | None = None
+    suspension_automatic: bool | None = None
+    suspension_hour: int | None = Field(default=None, ge=0, le=23)
+    suspension_delay_days: int | None = Field(default=None, ge=0, le=90)
+    suspension_allow_deferral: bool | None = None
+    suspension_notify_suspended: bool | None = None
+    suspension_notify_deferred: bool | None = None
+    suspension_reasons: list[str] | None = None
 
 
 class SuspensionSettingsRead(BaseModel):
-    suspension_automatica: bool
-    suspension_hora: int
-    suspension_retraso_dias: int
-    suspension_permitir_aplazamiento: bool
-    suspension_notify_suspendido: bool
-    suspension_notify_pospuesto: bool
-    suspension_motivos: list[str]
+    suspension_automatic: bool
+    suspension_hour: int
+    suspension_delay_days: int
+    suspension_allow_deferral: bool
+    suspension_notify_suspended: bool
+    suspension_notify_deferred: bool
+    suspension_reasons: list[str]
 
 
 # ── Catálogos (métodos de pago, fechas de corte, colas padre, address lists) ─
 class CatalogSettings(BaseModel):
     payment_methods: list[dict] | None = None
-    fechas_corte: list[int] | None = None
-    colas_padre: list[str] | None = None
+    cutoff_dates: list[int] | None = None
+    parent_queues: list[str] | None = None
     address_lists: list[str] | None = None
 
 
 class CatalogSettingsRead(BaseModel):
     payment_methods: list[dict]
-    fechas_corte: list[int]
-    colas_padre: list[str]
+    cutoff_dates: list[int]
+    parent_queues: list[str]
     address_lists: list[str]
 
 

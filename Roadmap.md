@@ -166,7 +166,7 @@ isp-platform/
 
 ---
 
-## Fase 4 — Facturación, reportes y app móvil
+## Fase 4 — Facturación, reportes
 
 **Duración estimada:** 5–6 semanas  
 **Objetivo:** Sistema de cobro con emisión de facturas electrónicas SRI, reportes exportables y app móvil para técnicos en campo.
@@ -204,18 +204,6 @@ isp-platform/
 - [ ] Export Excel (openpyxl) con formato de tabla y totales
 - [ ] UI: módulo de reportes con selector de período, filtros y botones de descarga
 
-### 4.4 App móvil — React Native / Expo
-
-- [ ] Setup Expo + TypeScript + React Navigation (tabs + stack) + NativeWind
-- [ ] Autenticación JWT con almacenamiento seguro (Expo SecureStore)
-- [ ] Dashboard: resumen de routers (estado), clientes activos, alertas sin resolver
-- [ ] Búsqueda de cliente por nombre o IP — ver estado, plan, consumo, suspender/reactivar
-- [ ] Vista de sesiones PPPoE activas con opción de desconectar
-- [ ] Registro de pago desde la app (cobro en campo)
-- [ ] Notificaciones push (Expo Notifications) para alertas críticas de router offline
-- [ ] Build con EAS (Expo Application Services) para distribución interna (APK directo)
-
----
 
 ## Decisiones de arquitectura clave
 

@@ -32,7 +32,7 @@ const NAV_ITEMS: NavItem[] = [
 
 export function SettingsPage() {
   const { user: currentUser } = useAuthStore()
-  const isAdmin = currentUser?.rol === 'admin'
+  const isAdmin = currentUser?.role === 'admin'
 
   const [activeTab, setActiveTab] = useState<TabType>('general')
   const [statusMessage, setStatusMessage] = useState<StatusMessage>(null)

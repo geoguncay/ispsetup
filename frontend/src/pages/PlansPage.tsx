@@ -12,38 +12,38 @@ import { useAuthStore } from '@/stores/authStore'
 
 interface Plan {
   id: string
-  nombre: string
-  velocidad_down_mbps: number
-  velocidad_up_mbps: number
-  precio: number
+  name: string
+  speed_down_mbps: number
+  speed_up_mbps: number
+  price: number
   created_at: string
-  velocidad_down_kbps?: number
-  velocidad_up_kbps?: number
-  descripcion?: string
-  impuestos?: number
+  speed_down_kbps?: number
+  speed_up_kbps?: number
+  description?: string
+  taxes?: number
   limit_at_down_kbps?: number | null
   limit_at_up_kbps?: number | null
   burst_threshold_down_kbps?: number | null
   burst_threshold_up_kbps?: number | null
-  prioridad?: number | null
+  priority?: number | null
   address_list?: string | null
   parent?: string | null
-  clientes_activos?: number
-  clientes_suspendidos?: number
+  active_clients?: number
+  suspended_clients?: number
 }
 
 const planSchema = z.object({
-  nombre: z.string().min(2, 'Mínimo 2 caracteres').max(120),
-  descripcion: z.string().max(255).optional().or(z.literal('')),
-  precio: z.coerce.number().min(0.01, 'Mínimo $0.01'),
-  impuestos: z.coerce.number().min(0, 'No puede ser negativo').default(0),
-  velocidad_down_kbps: z.coerce.number().min(1, 'Mínimo 1 Kbps'),
-  velocidad_up_kbps: z.coerce.number().min(1, 'Mínimo 1 Kbps'),
+  name: z.string().min(2, 'Mínimo 2 caracteres').max(120),
+  description: z.string().max(255).optional().or(z.literal('')),
+  price: z.coerce.number().min(0.01, 'Mínimo $0.01'),
+  taxes: z.coerce.number().min(0, 'No puede ser negativo').default(0),
+  speed_down_kbps: z.coerce.number().min(1, 'Mínimo 1 Kbps'),
+  speed_up_kbps: z.coerce.number().min(1, 'Mínimo 1 Kbps'),
   limit_at_down_kbps: z.coerce.number().min(0).optional().nullable().or(z.literal('').transform(() => null)),
   limit_at_up_kbps: z.coerce.number().min(0).optional().nullable().or(z.literal('').transform(() => null)),
   burst_threshold_down_kbps: z.coerce.number().min(0).optional().nullable().or(z.literal('').transform(() => null)),
   burst_threshold_up_kbps: z.coerce.number().min(0).optional().nullable().or(z.literal('').transform(() => null)),
-  prioridad: z.coerce.number().min(1).max(8).default(8).optional().nullable(),
+  priority: z.coerce.number().min(1).max(8).default(8).optional().nullable(),
 })
 
 type PlanFormData = z.infer<typeof planSchema>
@@ -56,7 +56,7 @@ async function fetchPlans(): Promise<Plan[]> {
 export function PlansPage() {
   const { user } = useAuthStore()
   const queryClient = useQueryClient()
-  const isAdmin = user?.rol === 'admin'
+  const isAdmin = user?.role === 'admin'
 
   const [dialogOpen, setDialogOpen] = useState(false)
   const [editingPlan, setEditingPlan] = useState<Plan | null>(null)
@@ -73,8 +73,8 @@ export function PlansPage() {
     resolver: zodResolver(planSchema) as any,
   })
 
-  const watchDownKbps = watch('velocidad_down_kbps')
-  const watchUpKbps = watch('velocidad_up_kbps')
+  const watchDownKbps = watch('speed_down_kbps')
+  const watchUpKbps = watch('speed_up_kbps')
 
   const formatKbpsHelper = (kbpsVal: any) => {
     const num = Number(kbpsVal)
@@ -124,17 +124,17 @@ export function PlansPage() {
     setEditingPlan(null)
     setErrorMessage(null)
     reset({
-      nombre: '',
-      descripcion: '',
-      precio: 15.0,
-      impuestos: 15.0,
-      velocidad_down_kbps: 20000,
-      velocidad_up_kbps: 10000,
+      name: '',
+      description: '',
+      price: 15.0,
+      taxes: 15.0,
+      speed_down_kbps: 20000,
+      speed_up_kbps: 10000,
       limit_at_down_kbps: null,
       limit_at_up_kbps: null,
       burst_threshold_down_kbps: null,
       burst_threshold_up_kbps: null,
-      prioridad: 8,
+      priority: 8,
     })
     setDialogOpen(true)
   }
@@ -143,17 +143,17 @@ export function PlansPage() {
     setEditingPlan(plan)
     setErrorMessage(null)
     reset({
-      nombre: plan.nombre,
-      descripcion: plan.descripcion || '',
-      precio: plan.precio,
-      impuestos: plan.impuestos || 0,
-      velocidad_down_kbps: plan.velocidad_down_kbps || (plan.velocidad_down_mbps * 1000),
-      velocidad_up_kbps: plan.velocidad_up_kbps || (plan.velocidad_up_mbps * 1000),
+      name: plan.name,
+      description: plan.description || '',
+      price: plan.price,
+      taxes: plan.taxes || 0,
+      speed_down_kbps: plan.speed_down_kbps || (plan.speed_down_mbps * 1000),
+      speed_up_kbps: plan.speed_up_kbps || (plan.speed_up_mbps * 1000),
       limit_at_down_kbps: plan.limit_at_down_kbps,
       limit_at_up_kbps: plan.limit_at_up_kbps,
       burst_threshold_down_kbps: plan.burst_threshold_down_kbps,
       burst_threshold_up_kbps: plan.burst_threshold_up_kbps,
-      prioridad: plan.prioridad || 8,
+      priority: plan.priority || 8,
     })
     setDialogOpen(true)
   }
@@ -223,25 +223,25 @@ export function PlansPage() {
                     <Zap className="w-5 h-5 text-brand-400" />
                   </div>
                   <div className="text-right">
-                    <span className="text-2xl font-bold text-brand-400 font-mono">${Number(plan.precio).toFixed(2)}</span>
+                    <span className="text-2xl font-bold text-brand-400 font-mono">${Number(plan.price).toFixed(2)}</span>
                     <span className="text-xs text-muted-foreground block">/mes</span>
                   </div>
                 </div>
 
-                <h3 className="text-lg font-semibold text-foreground truncate mb-2">{plan.nombre}</h3>
+                <h3 className="text-lg font-semibold text-foreground truncate mb-2">{plan.name}</h3>
 
                 {/* Clientes Activos/Suspendidos */}
                 <div className="grid grid-cols-2 gap-3 bg-secondary/35 p-3 rounded-lg border border-border/50 mb-6">
                   <div className="flex items-center gap-2">
                     <span className="flex items-center gap-1.5 text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded-sm border border-emerald-500/15 font-semibold">
                       <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
-                      <p>Activos: {plan.clientes_activos ?? 0}</p>
+                      <p>Activos: {plan.active_clients ?? 0}</p>
                     </span>
                   </div>
                   <div className="flex items-center gap-2">
                     <span className="flex items-center gap-1.5 text-amber-400 bg-amber-500/10 px-2 py-0.5 rounded-sm border border-amber-500/15 font-semibold">
                       <span className="w-2 h-2 rounded-full bg-amber-500 animate-pulse" />
-                      <p>Suspendidos: {plan.clientes_suspendidos ?? 0}</p>
+                      <p>Suspendidos: {plan.suspended_clients ?? 0}</p>
                     </span>
                   </div>
                 </div>
@@ -252,14 +252,14 @@ export function PlansPage() {
                     <ArrowDown className="w-4 h-4 text-emerald-400" />
                     <div>
                       <p className="text-xs text-muted-foreground">Bajada</p>
-                      <p className="text-sm font-semibold text-foreground font-mono">{plan.velocidad_down_mbps} Mbps</p>
+                      <p className="text-sm font-semibold text-foreground font-mono">{plan.speed_down_mbps} Mbps</p>
                     </div>
                   </div>
                   <div className="flex items-center gap-2">
                     <ArrowUp className="w-4 h-4 text-brand-400" />
                     <div>
                       <p className="text-xs text-muted-foreground">Subida</p>
-                      <p className="text-sm font-semibold text-foreground font-mono">{plan.velocidad_up_mbps} Mbps</p>
+                      <p className="text-sm font-semibold text-foreground font-mono">{plan.speed_up_mbps} Mbps</p>
                     </div>
                   </div>
                 </div>
@@ -300,7 +300,7 @@ export function PlansPage() {
           <div className="glass-card w-full max-w-2xl mx-4 animate-fade-in my-auto">
             <div className="flex items-center justify-between p-5 border-b border-border">
               <h2 className="text-lg font-semibold text-foreground">
-                {editingPlan ? `Editar: ${editingPlan.nombre}` : 'Agregar Plan'}
+                {editingPlan ? `Editar: ${editingPlan.name}` : 'Agregar Plan'}
               </h2>
               <button
                 onClick={() => setDialogOpen(false)}
@@ -330,10 +330,10 @@ export function PlansPage() {
                     <input
                       type="text"
                       placeholder="Plan Fibra Hogar 50 Mbps"
-                      {...register('nombre')}
+                      {...register('name')}
                       className="input-field"
                     />
-                    {errors.nombre && <p className="text-xs text-destructive mt-1">{errors.nombre.message}</p>}
+                    {errors.name && <p className="text-xs text-destructive mt-1">{errors.name.message}</p>}
                   </div>
 
                   {/* Descripción */}
@@ -341,11 +341,11 @@ export function PlansPage() {
                     <label className="block text-xs font-medium text-foreground mb-1.5">Descripción</label>
                     <textarea
                       placeholder="Breve descripción del plan..."
-                      {...register('descripcion')}
+                      {...register('description')}
                       rows={3}
                       className="input-field resize-none py-2 text-sm"
                     />
-                    {errors.descripcion && <p className="text-xs text-destructive mt-1">{errors.descripcion.message}</p>}
+                    {errors.description && <p className="text-xs text-destructive mt-1">{errors.description.message}</p>}
                   </div>
 
                   <div className="grid grid-cols-2 gap-3">
@@ -358,11 +358,11 @@ export function PlansPage() {
                           type="number"
                           step="0.01"
                           placeholder="19.99"
-                          {...register('precio')}
+                          {...register('price')}
                           className="input-field pl-7 font-mono text-sm"
                         />
                       </div>
-                      {errors.precio && <p className="text-xs text-destructive mt-1">{errors.precio.message}</p>}
+                      {errors.price && <p className="text-xs text-destructive mt-1">{errors.price.message}</p>}
                     </div>
 
                     {/* Impuestos */}
@@ -373,12 +373,12 @@ export function PlansPage() {
                           type="number"
                           step="0.1"
                           placeholder="15"
-                          {...register('impuestos')}
+                          {...register('taxes')}
                           className="input-field pr-7 font-mono text-sm"
                         />
                         <span className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground text-xs font-mono">%</span>
                       </div>
-                      {errors.impuestos && <p className="text-xs text-destructive mt-1">{errors.impuestos.message}</p>}
+                      {errors.taxes && <p className="text-xs text-destructive mt-1">{errors.taxes.message}</p>}
                     </div>
                   </div>
                 </div>
@@ -396,22 +396,22 @@ export function PlansPage() {
                       <input
                         type="number"
                         placeholder="50000"
-                        {...register('velocidad_down_kbps')}
+                        {...register('speed_down_kbps')}
                         className="input-field font-mono text-sm"
                       />
                       <p className="text-[10px] text-brand-400 mt-1 font-mono">{formatKbpsHelper(watchDownKbps)}</p>
-                      {errors.velocidad_down_kbps && <p className="text-xs text-destructive mt-1">{errors.velocidad_down_kbps.message}</p>}
+                      {errors.speed_down_kbps && <p className="text-xs text-destructive mt-1">{errors.speed_down_kbps.message}</p>}
                     </div>
                     <div>
                       <label className="block text-xs font-medium text-foreground mb-1.5">Subida (Kbps) *</label>
                       <input
                         type="number"
                         placeholder="25000"
-                        {...register('velocidad_up_kbps')}
+                        {...register('speed_up_kbps')}
                         className="input-field font-mono text-sm"
                       />
                       <p className="text-[10px] text-brand-400 mt-1 font-mono">{formatKbpsHelper(watchUpKbps)}</p>
-                      {errors.velocidad_up_kbps && <p className="text-xs text-destructive mt-1">{errors.velocidad_up_kbps.message}</p>}
+                      {errors.speed_up_kbps && <p className="text-xs text-destructive mt-1">{errors.speed_up_kbps.message}</p>}
                     </div>
                   </div>
 
@@ -463,7 +463,7 @@ export function PlansPage() {
                   <div>
                     <label className="block text-xs font-medium text-foreground mb-1.5">Prioridad</label>
                     <select
-                      {...register('prioridad')}
+                      {...register('priority')}
                       className="input-field text-sm"
                     >
                       {[1, 2, 3, 4, 5, 6, 7, 8].map((prio) => (

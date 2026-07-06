@@ -9,12 +9,12 @@ import { getSystemSettings, updateCatalogs, type CatalogSettings, type PaymentMe
 type StatusSetter = (msg: { type: 'success' | 'error'; text: string } | null) => void
 
 const DEFAULT_PAYMENT_METHODS: PaymentMethodItem[] = [
-  { value: 'efectivo', label: 'Efectivo', isSystem: true },
-  { value: 'transferencia', label: 'Transferencia', isSystem: true },
-  { value: 'tarjeta', label: 'Tarjeta', isSystem: true },
-  { value: 'deposito', label: 'Depósito', isSystem: true },
+  { value: 'cash', label: 'Efectivo', isSystem: true },
+  { value: 'transfer', label: 'Transferencia', isSystem: true },
+  { value: 'card', label: 'Tarjeta', isSystem: true },
+  { value: 'deposit', label: 'Depósito', isSystem: true },
 ]
-const SYSTEM_VALUES = ['efectivo', 'transferencia', 'tarjeta', 'deposito']
+const SYSTEM_VALUES = ['cash', 'transfer', 'card', 'deposit']
 
 function PaymentMethodsSettingsForm({
   data, onSaved, setStatusMessage,

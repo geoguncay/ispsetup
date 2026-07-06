@@ -16,9 +16,9 @@ class Site(Base):
     id: Mapped[uuid.UUID] = mapped_column(
         Uuid(native_uuid=False), primary_key=True, default=uuid.uuid4
     )
-    nombre: Mapped[str] = mapped_column(String(120), unique=True, nullable=False, index=True)
-    latitud: Mapped[float | None] = mapped_column(Float, nullable=True)
-    longitud: Mapped[float | None] = mapped_column(Float, nullable=True)
+    name: Mapped[str] = mapped_column(String(120), unique=True, nullable=False, index=True)
+    latitude: Mapped[float | None] = mapped_column(Float, nullable=True)
+    longitude: Mapped[float | None] = mapped_column(Float, nullable=True)
 
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), nullable=False
@@ -34,4 +34,4 @@ class Site(Base):
     gateways = relationship("Gateway", back_populates="site")
 
     def __repr__(self) -> str:
-        return f"<Site id={self.id} nombre={self.nombre}>"
+        return f"<Site id={self.id} name={self.name}>"

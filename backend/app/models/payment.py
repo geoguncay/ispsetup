@@ -16,22 +16,22 @@ class ClientPayment(Base):
     id: Mapped[uuid.UUID] = mapped_column(
         Uuid(native_uuid=False), primary_key=True, default=uuid.uuid4
     )
-    cliente_id: Mapped[uuid.UUID] = mapped_column(
+    client_id: Mapped[uuid.UUID] = mapped_column(
         Uuid(native_uuid=False), ForeignKey("clients.id"), nullable=False
     )
     invoice_id: Mapped[uuid.UUID | None] = mapped_column(
         Uuid(native_uuid=False), ForeignKey("invoices.id", ondelete="SET NULL"), nullable=True
     )
-    usuario_id: Mapped[uuid.UUID | None] = mapped_column(
+    user_id: Mapped[uuid.UUID | None] = mapped_column(
         Uuid(native_uuid=False), ForeignKey("users.id", ondelete="SET NULL"), nullable=True
     )
-    monto: Mapped[float] = mapped_column(Numeric(10, 2), nullable=False)
-    fecha_pago: Mapped[datetime] = mapped_column(
+    amount: Mapped[float] = mapped_column(Numeric(10, 2), nullable=False)
+    payment_date: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), nullable=False
     )
-    metodo: Mapped[str] = mapped_column(String(50), nullable=False)  # "efectivo", "transferencia", "tarjeta", "deposito"
-    estado: Mapped[str] = mapped_column(String(20), nullable=False, default="completado")  # "completado", "pendiente", "fallido"
-    notas: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    method: Mapped[str] = mapped_column(String(50), nullable=False)  # "cash", "transfer", "card", "deposit"
+    status: Mapped[str] = mapped_column(String(20), nullable=False, default="completed")  # "completed", "pending", "failed"
+    notes: Mapped[str | None] = mapped_column(String(255), nullable=True)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), nullable=False
     )
@@ -39,7 +39,7 @@ class ClientPayment(Base):
     # Relaciones
     client = relationship("Client", back_populates="payments")
     invoice = relationship("Invoice", back_populates="payments")
-    usuario = relationship("User")
+    user = relationship("User")
 
     def __repr__(self) -> str:
-        return f"<ClientPayment id={self.id} cliente_id={self.cliente_id} invoice_id={self.invoice_id} monto={self.monto} estado={self.estado}>"
+        return f"<ClientPayment id={self.id} client_id={self.client_id} invoice_id={self.invoice_id} amount={self.amount} status={self.status}>"

@@ -25,66 +25,66 @@ def _get_settings(db) -> SystemSettings:
     return cfg
 
 
-def _dia_generacion_para(client: Client, cfg: SystemSettings) -> int:
+def _billing_day_for(client: Client, cfg: SystemSettings) -> int:
     """
     Día del mes en que corresponde generar la factura del cliente, según
-    la configuración de Ajustes: "dia_fijo" (billing_default_dia_pago, igual
-    para todos), "fecha_corte" (día de corte propio del cliente, dia_inicio_periodo)
-    o "inicio_facturacion" (día del mes en que inició la facturación del cliente,
-    usando su fecha de alta si no tiene inicio_facturacion definido).
+    la configuración de Ajustes: "fixed_day" (billing_default_payment_day, igual
+    para todos), "cutoff_date" (día de corte propio del cliente, billing_period_start_day)
+    o "billing_start" (día del mes en que inició la facturación del cliente,
+    usando su fecha de alta si no tiene billing_start definido).
     """
-    if cfg.billing_generacion_modo == "fecha_corte":
-        return client.dia_inicio_periodo or 1
-    if cfg.billing_generacion_modo == "inicio_facturacion":
-        fecha_inicio = client.inicio_facturacion or client.created_at
-        return fecha_inicio.day if fecha_inicio else 1
-    return cfg.billing_default_dia_pago or 1
+    if cfg.billing_generation_mode == "cutoff_date":
+        return client.billing_period_start_day or 1
+    if cfg.billing_generation_mode == "billing_start":
+        start_date = client.billing_start or client.created_at
+        return start_date.day if start_date else 1
+    return cfg.billing_default_payment_day or 1
 
 
-def _debe_generar_hoy(now: datetime, client: Client, cfg: SystemSettings) -> bool:
+def _should_generate_today(now: datetime, client: Client, cfg: SystemSettings) -> bool:
     """
     True si hoy es el día configurado para generar la factura del cliente y ya
-    se alcanzó la hora de generación configurada (billing_hora_generacion).
+    se alcanzó la hora de generación configurada (billing_generation_time).
     Ajusta al último día del mes cuando el día objetivo no existe (ej. 31 en febrero).
     """
-    dia_objetivo = _dia_generacion_para(client, cfg)
+    target_day = _billing_day_for(client, cfg)
     last_day = calendar.monthrange(now.year, now.month)[1]
-    if now.day != min(dia_objetivo, last_day):
+    if now.day != min(target_day, last_day):
         return False
 
     try:
-        hora_cfg, minuto_cfg = (int(x) for x in (cfg.billing_hora_generacion or "08:00").split(":"))
+        hour_cfg, minute_cfg = (int(x) for x in (cfg.billing_generation_time or "08:00").split(":"))
     except ValueError:
-        hora_cfg, minuto_cfg = 8, 0
-    return (now.hour, now.minute) >= (hora_cfg, minuto_cfg)
+        hour_cfg, minute_cfg = 8, 0
+    return (now.hour, now.minute) >= (hour_cfg, minute_cfg)
 
 
-def _resolve_fecha_vencimiento(fecha_emision: datetime, client: Client, cfg: SystemSettings) -> datetime:
+def _resolve_due_date(issue_date: datetime, client: Client, cfg: SystemSettings) -> datetime:
     """
     Calcula la fecha de vencimiento de una factura según la configuración de Ajustes:
-    - modo "plazo_fijo": fecha_emision + billing_default_dias_gracia días.
-    - modo "fecha_corte": coincide con el día de corte del cliente (dia_inicio_periodo),
+    - modo "fixed_term": issue_date + billing_default_grace_days días.
+    - modo "cutoff_date": coincide con el día de corte del cliente (billing_period_start_day),
       usando el próximo día de corte a partir de la emisión.
-    - hora "inicio_dia"/"fin_dia": fija la hora del resultado a 00:00:00 o 23:59:59.
+    - hora "start_of_day"/"end_of_day": fija la hora del resultado a 00:00:00 o 23:59:59.
     """
-    if cfg.billing_vencimiento_modo == "fecha_corte":
-        dia_corte = client.dia_inicio_periodo or fecha_emision.day
-        last_day = calendar.monthrange(fecha_emision.year, fecha_emision.month)[1]
-        fecha_vencimiento = fecha_emision.replace(day=min(dia_corte, last_day))
-        if fecha_vencimiento.date() < fecha_emision.date():
-            next_month = fecha_emision.month % 12 + 1
-            next_year = fecha_emision.year + (1 if fecha_emision.month == 12 else 0)
+    if cfg.billing_due_mode == "cutoff_date":
+        cutoff_day = client.billing_period_start_day or issue_date.day
+        last_day = calendar.monthrange(issue_date.year, issue_date.month)[1]
+        due_date = issue_date.replace(day=min(cutoff_day, last_day))
+        if due_date.date() < issue_date.date():
+            next_month = issue_date.month % 12 + 1
+            next_year = issue_date.year + (1 if issue_date.month == 12 else 0)
             last_day_next = calendar.monthrange(next_year, next_month)[1]
-            fecha_vencimiento = fecha_emision.replace(
-                year=next_year, month=next_month, day=min(dia_corte, last_day_next)
+            due_date = issue_date.replace(
+                year=next_year, month=next_month, day=min(cutoff_day, last_day_next)
             )
     else:
-        dias = cfg.billing_default_dias_gracia if cfg.billing_default_dias_gracia is not None else 10
-        fecha_vencimiento = fecha_emision + timedelta(days=dias)
+        grace_days = cfg.billing_default_grace_days if cfg.billing_default_grace_days is not None else 10
+        due_date = issue_date + timedelta(days=grace_days)
 
-    if cfg.billing_vencimiento_hora == "inicio_dia":
-        return fecha_vencimiento.replace(hour=0, minute=0, second=0, microsecond=0)
-    return fecha_vencimiento.replace(hour=23, minute=59, second=59, microsecond=0)
+    if cfg.billing_due_time == "start_of_day":
+        return due_date.replace(hour=0, minute=0, second=0, microsecond=0)
+    return due_date.replace(hour=23, minute=59, second=59, microsecond=0)
 
 
 @celery_app.task(name="app.workers.billing.generate_monthly_invoices")
@@ -104,17 +104,17 @@ def generate_monthly_invoices(force: bool = False):
     try:
         # Obtener fecha actual en zona local
         now = datetime.now()
-        periodo_actual = now.strftime("%m/%Y")
+        current_period = now.strftime("%m/%Y")
         cfg = _get_settings(db)
 
         # Obtener todos los clientes activos
-        active_clients = db.query(Client).filter(Client.activo == True).all()
+        active_clients = db.query(Client).filter(Client.active == True).all()
         logger.info(f"Se encontraron {len(active_clients)} clientes activos para facturar.")
-        
+
         invoices_created = 0
-        
+
         for client in active_clients:
-            if not force and not _debe_generar_hoy(now, client, cfg):
+            if not force and not _should_generate_today(now, client, cfg):
                 continue
 
             # Buscar el plan activo del cliente
@@ -123,51 +123,51 @@ def generate_monthly_invoices(force: bool = False):
                 .filter(ClientPlan.cliente_id == client.id, ClientPlan.estado == "activo")
                 .first()
             )
-            
+
             if not active_client_plan or not active_client_plan.plan:
-                logger.warning(f"El cliente {client.nombre} ({client.id}) está activo pero no tiene un plan activo asignado.")
+                logger.warning(f"El cliente {client.name} ({client.id}) está activo pero no tiene un plan activo asignado.")
                 continue
-                
+
             plan = active_client_plan.plan
-            
+
             # Verificar si ya existe factura para este cliente en el periodo actual
             existing_invoice = (
                 db.query(Invoice)
-                .filter(Invoice.cliente_id == client.id, Invoice.periodo == periodo_actual)
+                .filter(Invoice.client_id == client.id, Invoice.period == current_period)
                 .first()
             )
-            
+
             if existing_invoice:
-                logger.info(f"El cliente {client.nombre} ya tiene una factura para el periodo {periodo_actual}.")
+                logger.info(f"El cliente {client.name} ya tiene una factura para el periodo {current_period}.")
                 continue
-                
+
             # Crear factura
-            fecha_emision = now
-            fecha_vencimiento = _resolve_fecha_vencimiento(fecha_emision, client, cfg)
-            
+            issue_date = now
+            due_date = _resolve_due_date(issue_date, client, cfg)
+
             # Calcular monto total: plan base + servicios personalizados
             active_custom_services = list(client.custom_services)
-            monto_total = plan.precio + sum(cs.precio for cs in active_custom_services)
-            
+            total_amount = plan.price + sum(cs.price for cs in active_custom_services)
+
             new_invoice = Invoice(
-                cliente_id=client.id,
+                client_id=client.id,
                 plan_id=plan.id,
-                periodo=periodo_actual,
-                monto=monto_total,
-                fecha_emision=fecha_emision,
-                fecha_vencimiento=fecha_vencimiento,
-                estado="pendiente",
+                period=current_period,
+                amount=total_amount,
+                issue_date=issue_date,
+                due_date=due_date,
+                status="pending",
                 custom_services=active_custom_services
             )
-            
+
             # Remover servicios no recurrentes del cliente
             for cs in active_custom_services:
-                if not cs.recurrente:
+                if not cs.recurring:
                     client.custom_services.remove(cs)
-            
+
             db.add(new_invoice)
             invoices_created += 1
-            logger.info(f"Factura generada para {client.nombre} — Periodo: {periodo_actual}, Monto: ${monto_total:.2f}")
+            logger.info(f"Factura generada para {client.name} — Periodo: {current_period}, Monto: ${total_amount:.2f}")
             
         db.commit()
         logger.info(f"Generación de facturas completada. Facturas creadas: {invoices_created}")
@@ -193,18 +193,18 @@ def check_overdue_invoices():
     try:
         now = datetime.now()
         
-        # Buscar facturas pendientes cuya fecha_vencimiento sea menor que ahora
+        # Buscar facturas pendientes cuya due_date sea menor que ahora
         overdue_invoices = (
             db.query(Invoice)
-            .filter(Invoice.estado == "pendiente", Invoice.fecha_vencimiento < now)
+            .filter(Invoice.status == "pending", Invoice.due_date < now)
             .all()
         )
-        
+
         updated_count = 0
         for invoice in overdue_invoices:
-            invoice.estado = "vencido"
+            invoice.status = "overdue"
             updated_count += 1
-            logger.info(f"Factura {invoice.id} del cliente {invoice.cliente_id} marcada como VENCIDA.")
+            logger.info(f"Factura {invoice.id} del cliente {invoice.client_id} marcada como VENCIDA.")
             
         db.commit()
         logger.info(f"Verificación de vencimientos completada. Facturas marcadas como vencidas: {updated_count}")

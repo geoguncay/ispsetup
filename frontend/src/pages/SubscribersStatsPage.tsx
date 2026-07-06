@@ -10,17 +10,17 @@ import api from '@/services/api'
 
 interface ClientStats {
   total: number
-  conectados: number
-  desconectados: number
-  suspendidos: number
+  connected: number
+  disconnected: number
+  suspended: number
 }
 
 interface Client {
   id: string
-  nombre: string
-  tipo: 'static' | 'pppoe'
-  activo: boolean
-  plan_activo: { id: string; nombre: string; precio: number } | null
+  name: string
+  connection_type: 'static' | 'pppoe'
+  active: boolean
+  plan_activo: { id: string; name: string; price: number } | null
   created_at?: string
 }
 
@@ -65,9 +65,9 @@ export function SubscribersStatsPage() {
 
   // 1. Datos para distribución por estado
   const statusChartData = [
-    { name: 'Conectados', value: clientStats?.conectados || 0, color: '#10b981' },
-    { name: 'Desconectados', value: clientStats?.desconectados || 0, color: '#0ea5e9' },
-    { name: 'Suspendidos', value: clientStats?.suspendidos || 0, color: '#f59e0b' },
+    { name: 'Conectados', value: clientStats?.connected || 0, color: '#10b981' },
+    { name: 'Desconectados', value: clientStats?.disconnected || 0, color: '#0ea5e9' },
+    { name: 'Suspendidos', value: clientStats?.suspended || 0, color: '#f59e0b' },
   ].filter(item => item.value > 0) // Filtrar vacíos para evitar errores gráficos
 
   // Si no hay datos reales cargados pero no hay errores, usar datos de stats directamente
@@ -76,7 +76,7 @@ export function SubscribersStatsPage() {
   // 2. Datos para popularidad de planes
   const planCounts: Record<string, number> = {}
   clientsList.forEach((c) => {
-    const planName = c.plan_activo?.nombre || 'Sin Plan'
+    const planName = c.plan_activo?.name || 'Sin Plan'
     planCounts[planName] = (planCounts[planName] || 0) + 1
   })
   const planChartData = Object.entries(planCounts)
@@ -86,7 +86,7 @@ export function SubscribersStatsPage() {
   // 3. Datos para tipo de conexión
   const typeCounts = { static: 0, pppoe: 0 }
   clientsList.forEach((c) => {
-    if (c.tipo === 'static') {
+    if (c.connection_type === 'static') {
       typeCounts.static += 1
     } else {
       typeCounts.pppoe += 1
@@ -204,7 +204,7 @@ export function SubscribersStatsPage() {
               },
               {
                 label: 'Clientes Conectados',
-                value: statValue(clientStats?.conectados),
+                value: statValue(clientStats?.connected),
                 icon: UserCheck,
                 color: 'text-emerald-400',
                 bg: 'bg-emerald-900/20',
@@ -212,7 +212,7 @@ export function SubscribersStatsPage() {
               },
               {
                 label: 'Clientes Desconectados',
-                value: statValue(clientStats?.desconectados),
+                value: statValue(clientStats?.disconnected),
                 icon: UserMinus,
                 color: 'text-sky-400',
                 bg: 'bg-sky-900/20',
@@ -220,7 +220,7 @@ export function SubscribersStatsPage() {
               },
               {
                 label: 'Clientes Suspendidos',
-                value: statValue(clientStats?.suspendidos),
+                value: statValue(clientStats?.suspended),
                 icon: UserX,
                 color: 'text-orange-400',
                 bg: 'bg-orange-900/20',

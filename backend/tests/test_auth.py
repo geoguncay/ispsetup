@@ -60,11 +60,11 @@ def setup_db(monkeypatch):
 
     db = TestingSessionLocal()
     db.add(User(
-        nombre="Test Admin",
+        name="Test Admin",
         email="admin@test.com",
         hashed_password=hash_password("testpassword123"),
-        rol="admin",
-        activo=True,
+        role="admin",
+        active=True,
     ))
     db.commit()
     db.close()
@@ -130,7 +130,7 @@ def test_me_with_token(client: TestClient):
     )
     assert response.status_code == 200
     assert response.json()["email"] == "admin@test.com"
-    assert response.json()["rol"] == "admin"
+    assert response.json()["role"] == "admin"
 
 
 def test_health_endpoint(client: TestClient):
@@ -207,7 +207,7 @@ def test_setup_creates_admin_when_no_admin_exists(monkeypatch):
                 "seed_key": "test-key",
                 "email": "nuevo@admin.com",
                 "password": "securepass123",
-                "nombre": "Nuevo Admin",
+                "name": "Nuevo Admin",
             },
         )
     app.dependency_overrides.clear()
@@ -242,7 +242,7 @@ def test_inactivity_timeout_flow(client: TestClient):
         f"/api/users/{user_id}",
         headers={"Authorization": f"Bearer {token}"},
         json={
-            "nombre": "Test Admin Modified",
+            "name": "Test Admin Modified",
             "email": "admin@test.com",
             "inactivity_timeout": 15,
         }

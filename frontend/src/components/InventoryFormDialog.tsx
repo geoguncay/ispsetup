@@ -8,27 +8,27 @@ import api from '@/services/api'
 
 interface Supplier {
   id: string
-  nombre: string
+  name: string
 }
 
 interface ProductCategory {
   id: string
-  nombre: string
+  name: string
 }
 
 interface InventoryItem {
   id: string
-  nombre: string
-  codigo: string
-  cantidad: number
-  minimo_alerta: number
-  precio_compra: number
-  precio_venta: number
-  descripcion: string | null
-  categoria: string | null
-  modelo: string | null
-  proveedor_id: string | null
-  proveedor: Supplier | null
+  name: string
+  code: string
+  quantity: number
+  min_alert: number
+  purchase_price: number
+  sale_price: number
+  description: string | null
+  category: string | null
+  model: string | null
+  supplier_id: string | null
+  supplier: Supplier | null
 }
 
 interface InventoryFormDialogProps {
@@ -43,16 +43,16 @@ export function InventoryFormDialog({ isOpen, onClose, item, onSuccess }: Invent
   const [errorMsg, setErrorMsg] = useState<string | null>(null)
 
   // Form State
-  const [nombre, setNombre] = useState('')
-  const [codigo, setCodigo] = useState('')
-  const [cantidad, setCantidad] = useState<string>('0')
-  const [minimoAlerta, setMinimoAlerta] = useState<string>('5')
-  const [precioCompra, setPrecioCompra] = useState<string>('0.00')
-  const [precioVenta, setPrecioVenta] = useState<string>('0.00')
-  const [descripcion, setDescripcion] = useState('')
-  const [categoria, setCategoria] = useState('')
-  const [modelo, setModelo] = useState('')
-  const [proveedorId, setProveedorId] = useState('')
+  const [name, setName] = useState('')
+  const [code, setCode] = useState('')
+  const [quantity, setQuantity] = useState<string>('0')
+  const [minAlert, setMinimoAlerta] = useState<string>('5')
+  const [purchasePrice, setPrecioCompra] = useState<string>('0.00')
+  const [salePrice, setPrecioVenta] = useState<string>('0.00')
+  const [description, setDescription] = useState('')
+  const [category, setCategory] = useState('')
+  const [model, setModel] = useState('')
+  const [supplierId, setProveedorId] = useState('')
 
   // Category inline state
   const [categoryInput, setCategoryInput] = useState('')
@@ -87,26 +87,26 @@ export function InventoryFormDialog({ isOpen, onClose, item, onSuccess }: Invent
       setEditingCategoryId(null)
       setCategoryEditName('')
       if (item) {
-        setNombre(item.nombre)
-        setCodigo(item.codigo)
-        setCantidad(item.cantidad.toString())
-        setMinimoAlerta(item.minimo_alerta.toString())
-        setPrecioCompra(item.precio_compra.toString())
-        setPrecioVenta(item.precio_venta.toString())
-        setDescripcion(item.descripcion || '')
-        setCategoria(item.categoria || '')
-        setModelo(item.modelo || '')
-        setProveedorId(item.proveedor_id || '')
+        setName(item.name)
+        setCode(item.code)
+        setQuantity(item.quantity.toString())
+        setMinimoAlerta(item.min_alert.toString())
+        setPrecioCompra(item.purchase_price.toString())
+        setPrecioVenta(item.sale_price.toString())
+        setDescription(item.description || '')
+        setCategory(item.category || '')
+        setModel(item.model || '')
+        setProveedorId(item.supplier_id || '')
       } else {
-        setNombre('')
-        setCodigo('')
-        setCantidad('0')
+        setName('')
+        setCode('')
+        setQuantity('0')
         setMinimoAlerta('5')
         setPrecioCompra('0.00')
         setPrecioVenta('0.00')
-        setDescripcion('')
-        setCategoria('')
-        setModelo('')
+        setDescription('')
+        setCategory('')
+        setModel('')
         setProveedorId('')
       }
     }
@@ -114,13 +114,13 @@ export function InventoryFormDialog({ isOpen, onClose, item, onSuccess }: Invent
 
   // Create category mutation
   const createCategoryMutation = useMutation({
-    mutationFn: async (nombre: string) => {
-      const { data } = await api.post('/inventory/categories', { nombre })
+    mutationFn: async (name: string) => {
+      const { data } = await api.post('/inventory/categories', { name })
       return data as ProductCategory
     },
     onSuccess: (newCat) => {
       queryClient.invalidateQueries({ queryKey: ['inventory-categories'] })
-      setCategoria(newCat.nombre)
+      setCategory(newCat.name)
       setCategoryInput('')
     },
     onError: (err: any) => {
@@ -130,13 +130,13 @@ export function InventoryFormDialog({ isOpen, onClose, item, onSuccess }: Invent
 
   // Update category mutation
   const updateCategoryMutation = useMutation({
-    mutationFn: async ({ id, nombre }: { id: string; nombre: string }) => {
-      const { data } = await api.put(`/inventory/categories/${id}`, { nombre })
+    mutationFn: async ({ id, name }: { id: string; name: string }) => {
+      const { data } = await api.put(`/inventory/categories/${id}`, { name })
       return data as ProductCategory
     },
     onSuccess: (updated) => {
       queryClient.invalidateQueries({ queryKey: ['inventory-categories'] })
-      setCategoria(updated.nombre)
+      setCategory(updated.name)
       setEditingCategoryId(null)
       setCategoryEditName('')
     },
@@ -149,16 +149,16 @@ export function InventoryFormDialog({ isOpen, onClose, item, onSuccess }: Invent
   const saveMutation = useMutation({
     mutationFn: async () => {
       const payload = {
-        nombre: nombre.trim(),
-        codigo: codigo.trim(),
-        cantidad: parseInt(cantidad) || 0,
-        minimo_alerta: parseInt(minimoAlerta) || 0,
-        precio_compra: parseFloat(precioCompra) || 0.0,
-        precio_venta: parseFloat(precioVenta) || 0.0,
-        descripcion: descripcion.trim() || null,
-        categoria: categoria === '__new__' ? null : (categoria || null),
-        modelo: modelo.trim() || null,
-        proveedor_id: proveedorId || null,
+        name: name.trim(),
+        code: code.trim(),
+        quantity: parseInt(quantity) || 0,
+        min_alert: parseInt(minAlert) || 0,
+        purchase_price: parseFloat(purchasePrice) || 0.0,
+        sale_price: parseFloat(salePrice) || 0.0,
+        description: description.trim() || null,
+        category: category === '__new__' ? null : (category || null),
+        model: model.trim() || null,
+        supplier_id: supplierId || null,
       }
       if (item) {
         await api.put(`/inventory/${item.id}`, payload)
@@ -177,7 +177,7 @@ export function InventoryFormDialog({ isOpen, onClose, item, onSuccess }: Invent
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault()
-    if (!nombre || !codigo || cantidad === '') {
+    if (!name || !code || quantity === '') {
       setErrorMsg('Por favor complete todos los campos obligatorios.')
       return
     }
@@ -185,13 +185,13 @@ export function InventoryFormDialog({ isOpen, onClose, item, onSuccess }: Invent
   }
 
   const handleCategorySelectChange = (value: string) => {
-    setCategoria(value)
+    setCategory(value)
     setCategoryInput('')
     setEditingCategoryId(null)
     setCategoryEditName('')
   }
 
-  const selectedCategory = categories.find(c => c.nombre === categoria)
+  const selectedCategory = categories.find(c => c.name === category)
 
   if (!isOpen) return null
 
@@ -229,8 +229,8 @@ export function InventoryFormDialog({ isOpen, onClose, item, onSuccess }: Invent
               <input
                 type="text"
                 required
-                value={nombre}
-                onChange={(e) => setNombre(e.target.value)}
+                value={name}
+                onChange={(e) => setName(e.target.value)}
                 className="input-field"
                 placeholder="Ej. Router Mikrotik"
               />
@@ -241,8 +241,8 @@ export function InventoryFormDialog({ isOpen, onClose, item, onSuccess }: Invent
               </label>
               <input
                 type="text"
-                value={modelo}
-                onChange={(e) => setModelo(e.target.value)}
+                value={model}
+                onChange={(e) => setModel(e.target.value)}
                 className="input-field"
                 placeholder="Ej. hAP ac2"
               />
@@ -254,8 +254,8 @@ export function InventoryFormDialog({ isOpen, onClose, item, onSuccess }: Invent
               <input
                 type="text"
                 required
-                value={codigo}
-                onChange={(e) => setCodigo(e.target.value)}
+                value={code}
+                onChange={(e) => setCode(e.target.value)}
                 className="input-field font-mono"
                 placeholder="MTK-HAPAC2"
               />
@@ -272,8 +272,8 @@ export function InventoryFormDialog({ isOpen, onClose, item, onSuccess }: Invent
                 type="number"
                 required
                 min="0"
-                value={cantidad}
-                onChange={(e) => setCantidad(e.target.value)}
+                value={quantity}
+                onChange={(e) => setQuantity(e.target.value)}
                 className="input-field font-mono"
                 placeholder="0"
               />
@@ -285,7 +285,7 @@ export function InventoryFormDialog({ isOpen, onClose, item, onSuccess }: Invent
               <input
                 type="number"
                 min="0"
-                value={minimoAlerta}
+                value={minAlert}
                 onChange={(e) => setMinimoAlerta(e.target.value)}
                 className="input-field font-mono"
                 placeholder="5"
@@ -302,7 +302,7 @@ export function InventoryFormDialog({ isOpen, onClose, item, onSuccess }: Invent
               <input
                 type="number"
                 step="0.01"
-                value={precioCompra}
+                value={purchasePrice}
                 onChange={(e) => setPrecioCompra(e.target.value)}
                 className="input-field font-mono"
                 placeholder="0.00"
@@ -315,7 +315,7 @@ export function InventoryFormDialog({ isOpen, onClose, item, onSuccess }: Invent
               <input
                 type="number"
                 step="0.01"
-                value={precioVenta}
+                value={salePrice}
                 onChange={(e) => setPrecioVenta(e.target.value)}
                 className="input-field font-mono"
                 placeholder="0.00"
@@ -334,17 +334,17 @@ export function InventoryFormDialog({ isOpen, onClose, item, onSuccess }: Invent
               {/* Select row */}
               <div className="flex gap-2">
                 <select
-                  value={categoria}
+                  value={category}
                   onChange={(e) => handleCategorySelectChange(e.target.value)}
                   className="input-field cursor-pointer text-sm flex-1"
                 >
                   <option value="">Sin Categoría</option>
                   {/* Preserve unknown legacy category name */}
-                  {categoria && categoria !== '__new__' && !categories.some(c => c.nombre === categoria) && (
-                    <option value={categoria}>{categoria}</option>
+                  {category && category !== '__new__' && !categories.some(c => c.name === category) && (
+                    <option value={category}>{category}</option>
                   )}
                   {categories.map(c => (
-                    <option key={c.id} value={c.nombre}>{c.nombre}</option>
+                    <option key={c.id} value={c.name}>{c.name}</option>
                   ))}
                   <option value="__new__">+ Crear nueva categoría...</option>
                 </select>
@@ -353,10 +353,10 @@ export function InventoryFormDialog({ isOpen, onClose, item, onSuccess }: Invent
                 {selectedCategory && !editingCategoryId && (
                   <button
                     type="button"
-                    title="Editar nombre de categoría"
+                    title="Editar name de categoría"
                     onClick={() => {
                       setEditingCategoryId(selectedCategory.id)
-                      setCategoryEditName(selectedCategory.nombre)
+                      setCategoryEditName(selectedCategory.name)
                     }}
                     className="p-2 border border-border hover:bg-secondary rounded-lg text-muted-foreground hover:text-brand-400 transition-colors"
                   >
@@ -366,7 +366,7 @@ export function InventoryFormDialog({ isOpen, onClose, item, onSuccess }: Invent
               </div>
 
               {/* New category input */}
-              {categoria === '__new__' && (
+              {category === '__new__' && (
                 <div className="flex gap-2 items-center">
                   <input
                     autoFocus
@@ -395,7 +395,7 @@ export function InventoryFormDialog({ isOpen, onClose, item, onSuccess }: Invent
                   </button>
                   <button
                     type="button"
-                    onClick={() => { setCategoria(''); setCategoryInput('') }}
+                    onClick={() => { setCategory(''); setCategoryInput('') }}
                     className="p-2 hover:bg-secondary rounded-lg text-muted-foreground transition-colors shrink-0"
                     title="Cancelar"
                   >
@@ -416,17 +416,17 @@ export function InventoryFormDialog({ isOpen, onClose, item, onSuccess }: Invent
                       if (e.key === 'Enter') {
                         e.preventDefault()
                         if (categoryEditName.trim()) {
-                          updateCategoryMutation.mutate({ id: editingCategoryId, nombre: categoryEditName.trim() })
+                          updateCategoryMutation.mutate({ id: editingCategoryId, name: categoryEditName.trim() })
                         }
                       }
                     }}
                     className="input-field flex-1 text-sm"
-                    placeholder="Nuevo nombre..."
+                    placeholder="Nuevo name..."
                   />
                   <button
                     type="button"
                     disabled={!categoryEditName.trim() || updateCategoryMutation.isPending}
-                    onClick={() => categoryEditName.trim() && updateCategoryMutation.mutate({ id: editingCategoryId, nombre: categoryEditName.trim() })}
+                    onClick={() => categoryEditName.trim() && updateCategoryMutation.mutate({ id: editingCategoryId, name: categoryEditName.trim() })}
                     className="px-3 py-2 bg-brand-600 hover:bg-brand-700 text-white rounded-lg text-sm font-semibold transition-all disabled:opacity-50 flex items-center gap-1.5 shrink-0"
                   >
                     {updateCategoryMutation.isPending
@@ -451,13 +451,13 @@ export function InventoryFormDialog({ isOpen, onClose, item, onSuccess }: Invent
                 Proveedor Asociado
               </label>
               <select
-                value={proveedorId}
+                value={supplierId}
                 onChange={(e) => setProveedorId(e.target.value)}
                 className="input-field cursor-pointer text-sm"
               >
                 <option value="">-- Seleccionar Proveedor --</option>
                 {suppliers.map(s => (
-                  <option key={s.id} value={s.id}>{s.nombre}</option>
+                  <option key={s.id} value={s.id}>{s.name}</option>
                 ))}
               </select>
             </div>
@@ -469,8 +469,8 @@ export function InventoryFormDialog({ isOpen, onClose, item, onSuccess }: Invent
               Descripción / Características
             </label>
             <textarea
-              value={descripcion}
-              onChange={(e) => setDescripcion(e.target.value)}
+              value={description}
+              onChange={(e) => setDescription(e.target.value)}
               className="input-field h-20 resize-none py-2"
               placeholder="Ej. Router doble banda 2.4/5GHz, 5 puertos gigabit..."
             />

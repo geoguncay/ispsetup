@@ -8,13 +8,13 @@ import api from '@/services/api'
 
 interface AuditLog {
   id: string
-  usuario_id: string | null
-  usuario_nombre: string | null
-  accion: string
-  entidad_tipo: string | null
-  entidad_id: string | null
-  entidad_nombre: string | null
-  detalle: Record<string, unknown> | null
+  user_id: string | null
+  user_name: string | null
+  action: string
+  entity_type: string | null
+  entity_id: string | null
+  entity_name: string | null
+  detail: Record<string, unknown> | null
   ip_address: string | null
   created_at: string
 }
@@ -42,10 +42,10 @@ const ACTION_META: Record<string, { label: string; color: string; icon: React.Co
   CREATE_PAYMENT:  { label: 'Pago registrado',         color: 'text-emerald-400 bg-emerald-500/10 border-emerald-500/20', icon: Zap },
 }
 
-const ACCION_OPTIONS = Object.entries(ACTION_META).map(([value, { label }]) => ({ value, label }))
+const ACTION_OPTIONS = Object.entries(ACTION_META).map(([value, { label }]) => ({ value, label }))
 
-function ActionBadge({ accion }: { accion: string }) {
-  const meta = ACTION_META[accion] ?? { label: accion, color: 'text-slate-400 bg-slate-500/10 border-slate-500/20', icon: ClipboardList }
+function ActionBadge({ action }: { action: string }) {
+  const meta = ACTION_META[action] ?? { label: action, color: 'text-slate-400 bg-slate-500/10 border-slate-500/20', icon: ClipboardList }
   const Icon = meta.icon
   return (
     <span className={`inline-flex items-center gap-1.5 text-[10px] font-bold uppercase px-2 py-0.5 rounded-full border ${meta.color}`}>
@@ -55,15 +55,15 @@ function ActionBadge({ accion }: { accion: string }) {
   )
 }
 
-function LogDetailCell({ detalle }: { detalle: Record<string, unknown> | null }) {
-  if (!detalle) return <span className="text-muted-foreground">—</span>
+function LogDetailCell({ detail }: { detail: Record<string, unknown> | null }) {
+  if (!detail) return <span className="text-muted-foreground">—</span>
   const parts: string[] = []
-  if ('motivo' in detalle) parts.push(`Motivo: ${detalle.motivo}`)
-  if ('plan_nombre' in detalle) parts.push(`Plan: ${detalle.plan_nombre}`)
-  if ('imported_count' in detalle) parts.push(`${detalle.imported_count} importados`)
-  if ('list_name' in detalle) parts.push(`Lista: ${detalle.list_name}`)
-  if ('disabled' in detalle) parts.push(detalle.disabled ? 'Deshabilitada' : 'Habilitada')
-  if ('ip' in detalle) parts.push(`IP: ${detalle.ip}`)
+  if ('reason' in detail) parts.push(`Motivo: ${detail.reason}`)
+  if ('plan_name' in detail) parts.push(`Plan: ${detail.plan_name}`)
+  if ('imported_count' in detail) parts.push(`${detail.imported_count} importados`)
+  if ('list_name' in detail) parts.push(`Lista: ${detail.list_name}`)
+  if ('disabled' in detail) parts.push(detail.disabled ? 'Deshabilitada' : 'Habilitada')
+  if ('ip' in detail) parts.push(`IP: ${detail.ip}`)
   return <span className="text-xs text-muted-foreground">{parts.join(' · ') || '—'}</span>
 }
 
@@ -71,15 +71,15 @@ const LOG_LIMIT = 50
 
 export function LogsSettingsTab() {
   const [logPage, setLogPage] = useState(1)
-  const [logFilterAccion, setLogFilterAccion] = useState('')
-  const [logFilterEntidad, setLogFilterEntidad] = useState('')
+  const [logFilterAction, setLogFilterAction] = useState('')
+  const [logFilterEntityType, setLogFilterEntityType] = useState('')
 
   const { data: logsData, isLoading: logsLoading, isFetching: logsFetching, refetch: refetchLogs } = useQuery<AuditLogListResponse>({
-    queryKey: ['audit-logs', logPage, logFilterAccion, logFilterEntidad],
+    queryKey: ['audit-logs', logPage, logFilterAction, logFilterEntityType],
     queryFn: async () => {
       const params: Record<string, string | number> = { skip: (logPage - 1) * LOG_LIMIT, limit: LOG_LIMIT }
-      if (logFilterAccion) params.accion = logFilterAccion
-      if (logFilterEntidad) params.entidad_tipo = logFilterEntidad
+      if (logFilterAction) params.action = logFilterAction
+      if (logFilterEntityType) params.entity_type = logFilterEntityType
       const { data } = await api.get('/audit-logs', { params })
       return data
     },
@@ -96,18 +96,18 @@ export function LogsSettingsTab() {
           Filtros
         </div>
         <select
-          value={logFilterAccion}
-          onChange={(e) => { setLogFilterAccion(e.target.value); setLogPage(1) }}
+          value={logFilterAction}
+          onChange={(e) => { setLogFilterAction(e.target.value); setLogPage(1) }}
           className="input-field w-52"
         >
           <option value="">Todas las acciones</option>
-          {ACCION_OPTIONS.map(({ value, label }) => (
+          {ACTION_OPTIONS.map(({ value, label }) => (
             <option key={value} value={value}>{label}</option>
           ))}
         </select>
         <select
-          value={logFilterEntidad}
-          onChange={(e) => { setLogFilterEntidad(e.target.value); setLogPage(1) }}
+          value={logFilterEntityType}
+          onChange={(e) => { setLogFilterEntityType(e.target.value); setLogPage(1) }}
           className="input-field w-40"
         >
           <option value="">Todas las entidades</option>
@@ -115,9 +115,9 @@ export function LogsSettingsTab() {
           <option value="Client">Cliente</option>
           <option value="User">Usuario</option>
         </select>
-        {(logFilterAccion || logFilterEntidad) && (
+        {(logFilterAction || logFilterEntityType) && (
           <button
-            onClick={() => { setLogFilterAccion(''); setLogFilterEntidad(''); setLogPage(1) }}
+            onClick={() => { setLogFilterAction(''); setLogFilterEntityType(''); setLogPage(1) }}
             className="text-xs text-muted-foreground hover:text-foreground transition-colors"
           >
             Limpiar filtros
@@ -176,23 +176,23 @@ export function LogsSettingsTab() {
                       })}
                     </span>
                   </td>
-                  <td><ActionBadge accion={log.accion} /></td>
+                  <td><ActionBadge action={log.action} /></td>
                   <td>
-                    {log.entidad_nombre ? (
+                    {log.entity_name ? (
                       <div>
-                        <span className="text-xs font-medium text-foreground">{log.entidad_nombre}</span>
-                        {log.entidad_tipo && (
-                          <span className="block text-[10px] text-muted-foreground">{log.entidad_tipo}</span>
+                        <span className="text-xs font-medium text-foreground">{log.entity_name}</span>
+                        {log.entity_type && (
+                          <span className="block text-[10px] text-muted-foreground">{log.entity_type}</span>
                         )}
                       </div>
                     ) : (
                       <span className="text-xs text-muted-foreground">—</span>
                     )}
                   </td>
-                  <td><LogDetailCell detalle={log.detalle} /></td>
+                  <td><LogDetailCell detail={log.detail} /></td>
                   <td>
                     <span className="text-xs text-foreground font-medium">
-                      {log.usuario_nombre ?? <span className="text-muted-foreground italic">Sistema</span>}
+                      {log.user_name ?? <span className="text-muted-foreground italic">Sistema</span>}
                     </span>
                   </td>
                   <td className="hidden md:table-cell">

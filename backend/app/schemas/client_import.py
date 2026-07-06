@@ -16,7 +16,7 @@ class ImportValidationResponse(BaseModel):
     total_rows: int
     valid_rows: int
     invalid_rows: int
-    detected_routers: list[str] = Field(default_factory=list)
+    detected_gateways: list[str] = Field(default_factory=list)
     detected_plans: list[str] = Field(default_factory=list)
 
 class BulkImportPayload(BaseModel):

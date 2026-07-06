@@ -109,21 +109,21 @@ def _to_integrations_read(cfg: SystemSettings) -> IntegrationSettingsRead:
 
 def _to_suspension_read(cfg: SystemSettings) -> SuspensionSettingsRead:
     return SuspensionSettingsRead(
-        suspension_automatica=cfg.suspension_automatica,
-        suspension_hora=cfg.suspension_hora,
-        suspension_retraso_dias=cfg.suspension_retraso_dias,
-        suspension_permitir_aplazamiento=cfg.suspension_permitir_aplazamiento,
-        suspension_notify_suspendido=cfg.suspension_notify_suspendido,
-        suspension_notify_pospuesto=cfg.suspension_notify_pospuesto,
-        suspension_motivos=cfg.suspension_motivos or [],
+        suspension_automatic=cfg.suspension_automatic,
+        suspension_hour=cfg.suspension_hour,
+        suspension_delay_days=cfg.suspension_delay_days,
+        suspension_allow_deferral=cfg.suspension_allow_deferral,
+        suspension_notify_suspended=cfg.suspension_notify_suspended,
+        suspension_notify_deferred=cfg.suspension_notify_deferred,
+        suspension_reasons=cfg.suspension_reasons or [],
     )
 
 
 def _to_catalogs_read(cfg: SystemSettings) -> CatalogSettingsRead:
     return CatalogSettingsRead(
         payment_methods=cfg.payment_methods or [],
-        fechas_corte=cfg.fechas_corte or [],
-        colas_padre=cfg.colas_padre or [],
+        cutoff_dates=cfg.cutoff_dates or [],
+        parent_queues=cfg.parent_queues or [],
         address_lists=cfg.address_lists or [],
     )
 
@@ -177,8 +177,8 @@ def update_localization_settings(
     db.refresh(cfg)
     log_event(
         db, AuditAction.UPDATE_LOCALIZATION_SETTINGS,
-        entidad_tipo="SystemSettings",
-        usuario_id=current_user.id, usuario_nombre=current_user.nombre,
+        entity_type="SystemSettings",
+        user_id=current_user.id, user_name=current_user.name,
     )
     return LocalizationSettingsRead.model_validate(cfg)
 
@@ -194,8 +194,8 @@ def update_fiscal_settings(
     db.refresh(cfg)
     log_event(
         db, AuditAction.UPDATE_FISCAL_SETTINGS,
-        entidad_tipo="SystemSettings",
-        usuario_id=current_user.id, usuario_nombre=current_user.nombre,
+        entity_type="SystemSettings",
+        user_id=current_user.id, user_name=current_user.name,
     )
     return FiscalSettingsRead.model_validate(cfg)
 
@@ -216,8 +216,8 @@ def update_notification_settings(
     db.refresh(cfg)
     log_event(
         db, AuditAction.UPDATE_SMTP_SETTINGS,
-        entidad_tipo="SystemSettings",
-        usuario_id=current_user.id, usuario_nombre=current_user.nombre,
+        entity_type="SystemSettings",
+        user_id=current_user.id, user_name=current_user.name,
     )
     return _to_smtp_read(cfg)
 
@@ -233,8 +233,8 @@ def update_security_settings(
     db.refresh(cfg)
     log_event(
         db, AuditAction.UPDATE_SECURITY_SETTINGS,
-        entidad_tipo="SystemSettings",
-        usuario_id=current_user.id, usuario_nombre=current_user.nombre,
+        entity_type="SystemSettings",
+        user_id=current_user.id, user_name=current_user.name,
     )
     return _to_security_read(cfg)
 
@@ -250,8 +250,8 @@ def update_maintenance_settings(
     db.refresh(cfg)
     log_event(
         db, AuditAction.UPDATE_MAINTENANCE_SETTINGS,
-        entidad_tipo="SystemSettings",
-        usuario_id=current_user.id, usuario_nombre=current_user.nombre,
+        entity_type="SystemSettings",
+        user_id=current_user.id, user_name=current_user.name,
     )
     return MaintenanceSettingsRead.model_validate(cfg)
 
@@ -271,8 +271,8 @@ def update_integration_settings(
     db.refresh(cfg)
     log_event(
         db, AuditAction.UPDATE_INTEGRATION_SETTINGS,
-        entidad_tipo="SystemSettings",
-        usuario_id=current_user.id, usuario_nombre=current_user.nombre,
+        entity_type="SystemSettings",
+        user_id=current_user.id, user_name=current_user.name,
     )
     return _to_integrations_read(cfg)
 
@@ -288,8 +288,8 @@ def update_billing_settings(
     db.refresh(cfg)
     log_event(
         db, AuditAction.UPDATE_BILLING_SETTINGS,
-        entidad_tipo="SystemSettings",
-        usuario_id=current_user.id, usuario_nombre=current_user.nombre,
+        entity_type="SystemSettings",
+        user_id=current_user.id, user_name=current_user.name,
     )
     return BillingSettingsRead.model_validate(cfg)
 
@@ -305,8 +305,8 @@ def update_suspension_settings(
     db.refresh(cfg)
     log_event(
         db, AuditAction.UPDATE_SUSPENSION_SETTINGS,
-        entidad_tipo="SystemSettings",
-        usuario_id=current_user.id, usuario_nombre=current_user.nombre,
+        entity_type="SystemSettings",
+        user_id=current_user.id, user_name=current_user.name,
     )
     return _to_suspension_read(cfg)
 
@@ -322,8 +322,8 @@ def update_catalog_settings(
     db.refresh(cfg)
     log_event(
         db, AuditAction.UPDATE_CATALOG_SETTINGS,
-        entidad_tipo="SystemSettings",
-        usuario_id=current_user.id, usuario_nombre=current_user.nombre,
+        entity_type="SystemSettings",
+        user_id=current_user.id, user_name=current_user.name,
     )
     return _to_catalogs_read(cfg)
 
@@ -357,8 +357,8 @@ def run_manual_backup(db: DBSession, current_user: AdminOnly) -> BackupResult:
     size_bytes = os.path.getsize(file_path)
     log_event(
         db, AuditAction.SYSTEM_BACKUP,
-        entidad_tipo="SystemSettings",
-        usuario_id=current_user.id, usuario_nombre=current_user.nombre,
-        detalle={"filename": filename, "size_bytes": size_bytes},
+        entity_type="SystemSettings",
+        user_id=current_user.id, user_name=current_user.name,
+        detail={"filename": filename, "size_bytes": size_bytes},
     )
     return BackupResult(filename=filename, size_bytes=size_bytes, created_at=created_at)

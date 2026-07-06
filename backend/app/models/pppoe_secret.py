@@ -16,12 +16,12 @@ class PPPoESecret(Base):
     id: Mapped[uuid.UUID] = mapped_column(
         Uuid(native_uuid=False), primary_key=True, default=uuid.uuid4
     )
-    cliente_id: Mapped[uuid.UUID] = mapped_column(
+    client_id: Mapped[uuid.UUID] = mapped_column(
         Uuid(native_uuid=False), ForeignKey("clients.id", ondelete="CASCADE"), nullable=False, unique=True
     )
-    usuario_ppp: Mapped[str] = mapped_column(String(100), nullable=False)
-    contraseña_ppp: Mapped[str] = mapped_column(String(255), nullable=False)  # Fernet cifrado
-    perfil_id: Mapped[uuid.UUID | None] = mapped_column(
+    ppp_username: Mapped[str] = mapped_column(String(100), nullable=False)
+    ppp_password: Mapped[str] = mapped_column(String(255), nullable=False)  # Fernet cifrado
+    profile_id: Mapped[uuid.UUID | None] = mapped_column(
         Uuid(native_uuid=False), ForeignKey("pppoe_profiles.id", ondelete="SET NULL"), nullable=True
     )
     gateway_id: Mapped[uuid.UUID] = mapped_column(
@@ -37,15 +37,15 @@ class PPPoESecret(Base):
         nullable=False,
     )
 
-    # Restricción única: router + usuario_ppp (no puede haber dos usuarios ppp iguales en el mismo router)
+    # Restricción única: router + ppp_username (no puede haber dos usuarios ppp iguales en el mismo router)
     __table_args__ = (
-        UniqueConstraint("gateway_id", "usuario_ppp", name="uq_gateway_usuario_ppp"),
+        UniqueConstraint("gateway_id", "ppp_username", name="uq_gateway_ppp_username"),
     )
 
     # Relaciones
     client = relationship("Client", back_populates="pppoe_secret")
     gateway = relationship("Gateway", back_populates="pppoe_secrets")
-    perfil = relationship("PPPoEProfile", back_populates="pppoe_secrets")
+    profile = relationship("PPPoEProfile", back_populates="pppoe_secrets")
 
     def __repr__(self) -> str:
-        return f"<PPPoESecret id={self.id} usuario={self.usuario_ppp} gateway_id={self.gateway_id}>"
+        return f"<PPPoESecret id={self.id} usuario={self.ppp_username} gateway_id={self.gateway_id}>"

@@ -4,19 +4,19 @@ from pydantic import BaseModel, Field
 
 
 class TicketCreate(BaseModel):
-    titulo: str = Field(min_length=3, max_length=150)
-    descripcion: str = Field(min_length=5)
-    prioridad: str = Field(default="media")  # "baja", "media", "alta"
+    title: str = Field(min_length=3, max_length=150)
+    description: str = Field(min_length=5)
+    priority: str = Field(default="medium")  # "low", "medium", "high"
 
 
 class TicketResponse(BaseModel):
     model_config = {"from_attributes": True}
 
     id: uuid.UUID
-    cliente_id: uuid.UUID
-    titulo: str
-    descripcion: str
-    prioridad: str
-    estado: str
+    client_id: uuid.UUID
+    title: str
+    description: str
+    priority: str
+    status: str
     created_at: datetime
     updated_at: datetime

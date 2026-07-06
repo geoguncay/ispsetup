@@ -16,27 +16,27 @@ class Gateway(Base):
     id: Mapped[uuid.UUID] = mapped_column(
         Uuid(native_uuid=False), primary_key=True, default=uuid.uuid4
     )
-    nombre: Mapped[str] = mapped_column(String(120), nullable=False)
+    name: Mapped[str] = mapped_column(String(120), nullable=False)
     # Nota: Almacena cualquier dirección IP o host de red (LAN, WAN, VPN, Tailscale, ZeroTier, etc.).
     ip: Mapped[str] = mapped_column(String(45), nullable=False, index=True)
-    puerto_api: Mapped[int] = mapped_column(Integer, nullable=False, default=8728)
-    usuario_api: Mapped[str] = mapped_column(String(120), nullable=False)
+    api_port: Mapped[int] = mapped_column(Integer, nullable=False, default=8728)
+    api_username: Mapped[str] = mapped_column(String(120), nullable=False)
     password_enc: Mapped[str] = mapped_column(String(512), nullable=False)  # Fernet cifrado
-    activo: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
-    modelo_hw: Mapped[str | None] = mapped_column(String(120), nullable=True)
-    notas: Mapped[str | None] = mapped_column(Text, nullable=True)
-    latitud: Mapped[float | None] = mapped_column(Float, nullable=True)
-    longitud: Mapped[float | None] = mapped_column(Float, nullable=True)
-    monitoreo_trafico: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
-    control_velocidad: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
-    sincronizar_logs: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
-    notificaciones_alertas: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
+    active: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
+    hw_model: Mapped[str | None] = mapped_column(String(120), nullable=True)
+    notes: Mapped[str | None] = mapped_column(Text, nullable=True)
+    latitude: Mapped[float | None] = mapped_column(Float, nullable=True)
+    longitude: Mapped[float | None] = mapped_column(Float, nullable=True)
+    traffic_monitoring: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
+    speed_control: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
+    sync_logs: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
+    alert_notifications: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
 
     # Campos de colas y firewall MikroTik
-    cola_padre: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    parent_queue: Mapped[str | None] = mapped_column(String(100), nullable=True)
     address_list: Mapped[str | None] = mapped_column(String(100), nullable=True)
-    ancho_banda_up: Mapped[int | None] = mapped_column(Integer, nullable=True, default=0)
-    ancho_banda_down: Mapped[int | None] = mapped_column(Integer, nullable=True, default=0)
+    bandwidth_up: Mapped[int | None] = mapped_column(Integer, nullable=True, default=0)
+    bandwidth_down: Mapped[int | None] = mapped_column(Integer, nullable=True, default=0)
 
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), nullable=False
@@ -59,8 +59,8 @@ class Gateway(Base):
     site = relationship("Site", back_populates="gateways")
 
     @property
-    def site_nombre(self) -> str | None:
-        return self.site.nombre if self.site else None
+    def site_name(self) -> str | None:
+        return self.site.name if self.site else None
 
     def __repr__(self) -> str:
-        return f"<Gateway id={self.id} nombre={self.nombre} ip={self.ip}>"
+        return f"<Gateway id={self.id} name={self.name} ip={self.ip}>"

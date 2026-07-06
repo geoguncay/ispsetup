@@ -8,7 +8,7 @@ from fastapi import APIRouter, HTTPException, status, Depends, Response
 from sqlalchemy import func
 from sqlalchemy.orm import Session
 
-from app.core.deps import AdminOrTecnico, DBSession, CurrentUser
+from app.core.deps import AdminOrTechnician, DBSession, CurrentUser
 from app.models.payment import ClientPayment
 from app.models.invoice import Invoice
 from app.models.client import Client
@@ -17,7 +17,7 @@ from app.models.suspension_log import SuspensionLog
 from app.models.company import Company
 from app.schemas.payment import PaymentCreate, PaymentResponse
 from app.core.security import decrypt_secret
-from app.services.mikrotik.pppoe import sync_pppoe_secret_in_router
+from app.services.mikrotik.pppoe import sync_pppoe_secret_in_gateway
 from app.services.mikrotik.address_list import unsuspend_ip_in_firewall
 from app.services.mikrotik.queue import toggle_client_queue
 from app.services.notifications.twilio_service import send_suspension_notification
@@ -47,34 +47,34 @@ def create_payment(
             detail="Factura no encontrada"
         )
         
-    if invoice.estado == "pagado":
+    if invoice.status == "paid":
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="La factura ya se encuentra pagada"
         )
-        
+
     # 1. Marcar la factura como pagada
-    invoice.estado = "pagado"
-    
+    invoice.status = "paid"
+
     # 2. Registrar el pago
     payment = ClientPayment(
-        cliente_id=invoice.cliente_id,
+        client_id=invoice.client_id,
         invoice_id=invoice.id,
-        monto=payment_in.monto,
-        metodo=payment_in.metodo,
-        estado="completado",
-        notas=payment_in.notas,
-        usuario_id=current_user.id
+        amount=payment_in.amount,
+        method=payment_in.method,
+        status="completed",
+        notes=payment_in.notes,
+        user_id=current_user.id
     )
     db.add(payment)
-    
+
     client = invoice.client
-    
+
     # 3. Reactivar cliente si estaba inactivo/suspendido
-    if not client.activo:
-        logger.info(f"Detectado cliente suspendido {client.nombre} ({client.id}). Procediendo a reactivación...")
-        client.activo = True
-        
+    if not client.active:
+        logger.info(f"Detectado cliente suspendido {client.name} ({client.id}). Procediendo a reactivación...")
+        client.active = True
+
         # Activar su plan suspendido
         suspended_plan = (
             db.query(ClientPlan)
@@ -85,10 +85,10 @@ def create_payment(
             suspended_plan.estado = "activo"
             
         # Reactivar en MikroTik
-        if client.tipo == "static" and client.static_ip:
+        if client.connection_type == "static" and client.static_ip:
             try:
-                unsuspend_ip_in_firewall(client.router, client.static_ip.ip)
-                toggle_client_queue(client.router, client.static_ip.ip, disabled=False)
+                unsuspend_ip_in_firewall(client.gateway, client.static_ip.ip)
+                toggle_client_queue(client.gateway, client.static_ip.ip, disabled=False)
             except Exception as e:
                 db.rollback()
                 logger.error(f"Fallo al reactivar en MikroTik para IP Estática: {str(e)}")
@@ -96,16 +96,16 @@ def create_payment(
                     status_code=status.HTTP_502_BAD_GATEWAY,
                     detail=f"Pago registrado pero falló la reactivación en MikroTik: {str(e)}"
                 )
-        elif client.tipo == "pppoe" and client.pppoe_secret:
+        elif client.connection_type == "pppoe" and client.pppoe_secret:
             try:
-                password_dec = decrypt_secret(client.pppoe_secret.contraseña_ppp)
-                profile_name = client.pppoe_secret.perfil.nombre if client.pppoe_secret.perfil else "default"
-                sync_pppoe_secret_in_router(
-                    router=client.router,
-                    username=client.pppoe_secret.usuario_ppp,
+                password_dec = decrypt_secret(client.pppoe_secret.ppp_password)
+                profile_name = client.pppoe_secret.profile.name if client.pppoe_secret.profile else "default"
+                sync_pppoe_secret_in_gateway(
+                    gateway=client.gateway,
+                    username=client.pppoe_secret.ppp_username,
                     password=password_dec,
                     profile_name=profile_name,
-                    client_name=client.nombre,
+                    client_name=client.name,
                     disabled=False
                 )
             except Exception as e:
@@ -119,17 +119,17 @@ def create_payment(
         # Cerrar el SuspensionLog activo
         log = (
             db.query(SuspensionLog)
-            .filter(SuspensionLog.cliente_id == client.id, SuspensionLog.fecha_reactivacion == None)
-            .order_by(SuspensionLog.fecha_suspension.desc())
+            .filter(SuspensionLog.client_id == client.id, SuspensionLog.reactivated_at == None)
+            .order_by(SuspensionLog.suspended_at.desc())
             .first()
         )
         if log:
-            log.fecha_reactivacion = datetime.now()
-            log.usuario_id = current_user.id
+            log.reactivated_at = datetime.now()
+            log.user_id = current_user.id
             
         # Disparar SMS de notificación (no bloqueante)
         try:
-            send_suspension_notification(client.nombre, client.telefono, is_suspension=False)
+            send_suspension_notification(client.name, client.phone, is_suspension=False)
         except Exception as notification_error:
             logger.warning(f"Error al enviar notificación de reactivación por pago: {notification_error}")
             
@@ -141,7 +141,7 @@ def create_payment(
 @router.get("/today")
 def get_daily_cash(
     db: DBSession,
-    _: AdminOrTecnico
+    _: AdminOrTechnician
 ):
     """
     Retorna el resumen financiero de la caja del día actual (pagos recibidos hoy).
@@ -152,36 +152,36 @@ def get_daily_cash(
     # Consultar transacciones del día
     payments = (
         db.query(ClientPayment)
-        .filter(ClientPayment.fecha_pago >= today_start, ClientPayment.fecha_pago <= today_end)
+        .filter(ClientPayment.payment_date >= today_start, ClientPayment.payment_date <= today_end)
         .all()
     )
-    
+
     # Desglose de totales por método
-    total_cobrado = 0.0
+    total_collected = 0.0
     totals_by_method = {
-        "efectivo": 0.0,
-        "transferencia": 0.0,
-        "tarjeta": 0.0,
-        "deposito": 0.0
+        "cash": 0.0,
+        "transfer": 0.0,
+        "card": 0.0,
+        "deposit": 0.0
     }
-    
+
     serialized_payments = []
     for p in payments:
-        monto = float(p.monto)
-        total_cobrado += monto
-        metodo = p.metodo.lower()
-        if metodo in totals_by_method:
-            totals_by_method[metodo] += monto
+        amount = float(p.amount)
+        total_collected += amount
+        method = p.method.lower()
+        if method in totals_by_method:
+            totals_by_method[method] += amount
         else:
-            totals_by_method[metodo] = totals_by_method.get(metodo, 0.0) + monto
-            
+            totals_by_method[method] = totals_by_method.get(method, 0.0) + amount
+
         # Serializar manualmente para incluir computed fields
         serialized_payments.append(PaymentResponse.model_validate(p))
-        
+
     return {
-        "total_cobrado": total_cobrado,
-        "desglose": totals_by_method,
-        "transacciones": serialized_payments
+        "total_collected": total_collected,
+        "breakdown": totals_by_method,
+        "transactions": serialized_payments
     }
 
 
@@ -189,7 +189,7 @@ def get_daily_cash(
 def get_payment_receipt(
     payment_id: uuid.UUID,
     db: DBSession,
-    _: AdminOrTecnico
+    _: AdminOrTechnician
 ):
     """
     Genera y sirve para descarga el recibo en formato PDF del pago proporcionado.

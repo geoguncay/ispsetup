@@ -24,49 +24,49 @@ class RefreshRequest(BaseModel):
 
 
 # ── User ──────────────────────────────────────────────────────────────────────
-UserRole = Literal["admin", "tecnico", "viewer"]
+UserRole = Literal["admin", "technician", "viewer"]
 
 
 class UserCreate(BaseModel):
-    nombre: str = Field(min_length=2, max_length=120)
+    name: str = Field(min_length=2, max_length=120)
     email: EmailStr
     password: str = Field(min_length=8, max_length=128)
-    rol: UserRole = "viewer"
-    activo: bool = True
+    role: UserRole = "viewer"
+    active: bool = True
     inactivity_timeout: int = 0
-    tipo_operador: str | None = None
-    permisos_router: str | None = None
-    horario_acceso: str | None = None
-    permisos: str | None = None
+    operator_type: str | None = None
+    gateway_permissions: str | None = None
+    access_schedule: str | None = None
+    permissions: str | None = None
 
 
 class UserUpdate(BaseModel):
-    nombre: str | None = Field(default=None, min_length=2, max_length=120)
+    name: str | None = Field(default=None, min_length=2, max_length=120)
     email: EmailStr | None = None
     password: str | None = Field(default=None, min_length=8, max_length=128)
-    rol: UserRole | None = None
-    activo: bool | None = None
+    role: UserRole | None = None
+    active: bool | None = None
     inactivity_timeout: int | None = None
-    tipo_operador: str | None = None
-    permisos_router: str | None = None
-    horario_acceso: str | None = None
-    permisos: str | None = None
+    operator_type: str | None = None
+    gateway_permissions: str | None = None
+    access_schedule: str | None = None
+    permissions: str | None = None
 
 
 class UserRead(BaseModel):
     model_config = {"from_attributes": True}
 
     id: uuid.UUID
-    nombre: str
+    name: str
     email: EmailStr
-    rol: UserRole
-    activo: bool
+    role: UserRole
+    active: bool
     inactivity_timeout: int
     avatar_url: str | None = None
-    tipo_operador: str | None
-    permisos_router: str | None
-    horario_acceso: str | None
-    permisos: str | None
+    operator_type: str | None
+    gateway_permissions: str | None
+    access_schedule: str | None
+    permissions: str | None
     created_at: datetime
     updated_at: datetime
 
@@ -74,6 +74,6 @@ class UserRead(BaseModel):
 # ── Dashboard stats ───────────────────────────────────────────────────────────
 class ClientStats(BaseModel):
     total: int
-    conectados: int
-    desconectados: int
-    suspendidos: int
+    connected: int
+    disconnected: int
+    suspended: int

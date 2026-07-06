@@ -22,10 +22,10 @@ class ClientInventoryItem(Base):
     inventory_item_id: Mapped[uuid.UUID] = mapped_column(
         Uuid(native_uuid=False), ForeignKey("inventory_items.id", ondelete="RESTRICT"), nullable=False
     )
-    cantidad: Mapped[int] = mapped_column(Integer, default=1, nullable=False)
-    numero_serie: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    quantity: Mapped[int] = mapped_column(Integer, default=1, nullable=False)
+    serial_number: Mapped[str | None] = mapped_column(String(100), nullable=True)
     mac: Mapped[str | None] = mapped_column(String(17), nullable=True)
-    notas: Mapped[str | None] = mapped_column(Text, nullable=True)
+    notes: Mapped[str | None] = mapped_column(Text, nullable=True)
     assigned_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), nullable=False
     )

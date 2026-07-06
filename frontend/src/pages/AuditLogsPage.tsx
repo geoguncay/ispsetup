@@ -5,13 +5,13 @@ import api from '@/services/api'
 
 interface AuditLog {
   id: string
-  usuario_id: string | null
-  usuario_nombre: string | null
-  accion: string
-  entidad_tipo: string | null
-  entidad_id: string | null
-  entidad_nombre: string | null
-  detalle: Record<string, unknown> | null
+  user_id: string | null
+  user_name: string | null
+  action: string
+  entity_type: string | null
+  entity_id: string | null
+  entity_name: string | null
+  detail: Record<string, unknown> | null
   ip_address: string | null
   created_at: string
 }
@@ -39,10 +39,10 @@ const ACTION_META: Record<string, { label: string; color: string; icon: React.Co
   CREATE_PAYMENT:  { label: 'Pago registrado',      color: 'text-emerald-400 bg-emerald-500/10 border-emerald-500/20', icon: Zap },
 }
 
-const ACCION_OPTIONS = Object.entries(ACTION_META).map(([value, { label }]) => ({ value, label }))
+const ACTION_OPTIONS = Object.entries(ACTION_META).map(([value, { label }]) => ({ value, label }))
 
-function ActionBadge({ accion }: { accion: string }) {
-  const meta = ACTION_META[accion] ?? { label: accion, color: 'text-slate-400 bg-slate-500/10 border-slate-500/20', icon: ClipboardList }
+function ActionBadge({ action }: { action: string }) {
+  const meta = ACTION_META[action] ?? { label: action, color: 'text-slate-400 bg-slate-500/10 border-slate-500/20', icon: ClipboardList }
   const Icon = meta.icon
   return (
     <span className={`inline-flex items-center gap-1.5 text-[10px] font-bold uppercase px-2 py-0.5 rounded-full border ${meta.color}`}>
@@ -52,33 +52,33 @@ function ActionBadge({ accion }: { accion: string }) {
   )
 }
 
-function DetailCell({ detalle }: { detalle: Record<string, unknown> | null }) {
-  if (!detalle) return <span className="text-muted-foreground">—</span>
+function DetailCell({ detail }: { detail: Record<string, unknown> | null }) {
+  if (!detail) return <span className="text-muted-foreground">—</span>
   const parts: string[] = []
-  if ('motivo' in detalle) parts.push(`Motivo: ${detalle.motivo}`)
-  if ('plan_nombre' in detalle) parts.push(`Plan: ${detalle.plan_nombre}`)
-  if ('imported_count' in detalle) parts.push(`${detalle.imported_count} importados`)
-  if ('list_name' in detalle) parts.push(`Lista: ${detalle.list_name}`)
-  if ('disabled' in detalle) parts.push(detalle.disabled ? 'Deshabilitada' : 'Habilitada')
-  if ('ip' in detalle) parts.push(`IP: ${detalle.ip}`)
+  if ('reason' in detail) parts.push(`Motivo: ${detail.reason}`)
+  if ('plan_name' in detail) parts.push(`Plan: ${detail.plan_name}`)
+  if ('imported_count' in detail) parts.push(`${detail.imported_count} importados`)
+  if ('list_name' in detail) parts.push(`Lista: ${detail.list_name}`)
+  if ('disabled' in detail) parts.push(detail.disabled ? 'Deshabilitada' : 'Habilitada')
+  if ('ip' in detail) parts.push(`IP: ${detail.ip}`)
   return <span className="text-xs text-muted-foreground">{parts.join(' · ') || '—'}</span>
 }
 
 export function AuditLogsPage() {
   const [page, setPage] = useState(1)
   const limit = 50
-  const [filterAccion, setFilterAccion] = useState('')
-  const [filterEntidad, setFilterEntidad] = useState('')
+  const [filterAction, setFilterAction] = useState('')
+  const [filterEntityType, setFilterEntityType] = useState('')
 
   const { data, isLoading, isFetching, refetch } = useQuery<AuditLogListResponse>({
-    queryKey: ['audit-logs', page, filterAccion, filterEntidad],
+    queryKey: ['audit-logs', page, filterAction, filterEntityType],
     queryFn: async () => {
       const params: Record<string, string | number> = {
         skip: (page - 1) * limit,
         limit,
       }
-      if (filterAccion) params.accion = filterAccion
-      if (filterEntidad) params.entidad_tipo = filterEntidad
+      if (filterAction) params.action = filterAction
+      if (filterEntityType) params.entity_type = filterEntityType
       const { data } = await api.get('/audit-logs', { params })
       return data
     },
@@ -117,18 +117,18 @@ export function AuditLogsPage() {
           Filtros
         </div>
         <select
-          value={filterAccion}
-          onChange={(e) => { setFilterAccion(e.target.value); setPage(1) }}
+          value={filterAction}
+          onChange={(e) => { setFilterAction(e.target.value); setPage(1) }}
           className="input-field w-52"
         >
           <option value="">Todas las acciones</option>
-          {ACCION_OPTIONS.map(({ value, label }) => (
+          {ACTION_OPTIONS.map(({ value, label }) => (
             <option key={value} value={value}>{label}</option>
           ))}
         </select>
         <select
-          value={filterEntidad}
-          onChange={(e) => { setFilterEntidad(e.target.value); setPage(1) }}
+          value={filterEntityType}
+          onChange={(e) => { setFilterEntityType(e.target.value); setPage(1) }}
           className="input-field w-40"
         >
           <option value="">Todas las entidades</option>
@@ -136,9 +136,9 @@ export function AuditLogsPage() {
           <option value="Client">Cliente</option>
           <option value="User">Usuario</option>
         </select>
-        {(filterAccion || filterEntidad) && (
+        {(filterAction || filterEntityType) && (
           <button
-            onClick={() => { setFilterAccion(''); setFilterEntidad(''); setPage(1) }}
+            onClick={() => { setFilterAction(''); setFilterEntityType(''); setPage(1) }}
             className="text-xs text-muted-foreground hover:text-foreground transition-colors"
           >
             Limpiar filtros
@@ -190,14 +190,14 @@ export function AuditLogsPage() {
                     </span>
                   </td>
                   <td>
-                    <ActionBadge accion={log.accion} />
+                    <ActionBadge action={log.action} />
                   </td>
                   <td>
-                    {log.entidad_nombre ? (
+                    {log.entity_name ? (
                       <div>
-                        <span className="text-xs font-medium text-foreground">{log.entidad_nombre}</span>
-                        {log.entidad_tipo && (
-                          <span className="block text-[10px] text-muted-foreground">{log.entidad_tipo}</span>
+                        <span className="text-xs font-medium text-foreground">{log.entity_name}</span>
+                        {log.entity_type && (
+                          <span className="block text-[10px] text-muted-foreground">{log.entity_type}</span>
                         )}
                       </div>
                     ) : (
@@ -205,11 +205,11 @@ export function AuditLogsPage() {
                     )}
                   </td>
                   <td>
-                    <DetailCell detalle={log.detalle} />
+                    <DetailCell detail={log.detail} />
                   </td>
                   <td>
                     <span className="text-xs text-foreground font-medium">
-                      {log.usuario_nombre ?? <span className="text-muted-foreground italic">Sistema</span>}
+                      {log.user_name ?? <span className="text-muted-foreground italic">Sistema</span>}
                     </span>
                   </td>
                   <td className="hidden md:table-cell">

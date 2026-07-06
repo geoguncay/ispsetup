@@ -11,7 +11,7 @@ from sqlalchemy import func, and_, text
 from sqlalchemy.orm import Session
 
 from app.core.database import SessionLocal
-from app.core.deps import get_db, AdminOrTecnico, DBSession
+from app.core.deps import get_db, AdminOrTechnician, DBSession
 from app.core.security import decode_token
 from app.core.redis import redis_client
 from app.models.client import Client
@@ -54,12 +54,12 @@ async def websocket_traffic_endpoint(
             return
 
         user_id = uuid.UUID(user_id_str)
-        user = db.query(User).filter(User.id == user_id, User.activo == True).first()
+        user = db.query(User).filter(User.id == user_id, User.active == True).first()
         if not user:
             await websocket.close(code=status.WS_1008_POLICY_VIOLATION)
             return
-        
-        if user.rol not in ("admin", "tecnico"):
+
+        if user.role not in ("admin", "technician"):
             await websocket.close(code=status.WS_1008_POLICY_VIOLATION)
             return
     except Exception as auth_err:
@@ -68,7 +68,7 @@ async def websocket_traffic_endpoint(
         return
 
     # Suscribir al canal Pub/Sub del router en Redis
-    channel_name = f"router_traffic:{gateway_id}"
+    channel_name = f"gateway_traffic:{gateway_id}"
     pubsub = redis_client.pubsub()
     await pubsub.subscribe(channel_name)
 
@@ -96,7 +96,7 @@ async def websocket_traffic_endpoint(
 def get_client_traffic_history(
     client_id: uuid.UUID,
     db: DBSession,
-    _: AdminOrTecnico,
+    _: AdminOrTechnician,
     range: str = Query("1h", pattern="^(1h|24h|7d|30d)$"),
 ):
     """
@@ -161,7 +161,7 @@ def get_client_traffic_history(
             func.max(TrafficSample.tx_bytes).label("tx_bytes"),
         )
         .filter(
-            TrafficSample.cliente_id == client_id,
+            TrafficSample.client_id == client_id,
             TrafficSample.timestamp >= start_time
         )
         .group_by(text("interval_time"))
@@ -195,17 +195,17 @@ def get_client_traffic_history(
         ))
 
     return ClientTrafficHistory(
-        cliente_id=client_id,
+        client_id=client_id,
         range=range,
         samples=samples
     )
 
 
-@router.get("/router/{gateway_id}", response_model=list[TrafficDataPoint])
-def get_router_traffic_history(
+@router.get("/gateway/{gateway_id}", response_model=list[TrafficDataPoint])
+def get_gateway_traffic_history(
     gateway_id: uuid.UUID,
     db: DBSession,
-    _: AdminOrTecnico,
+    _: AdminOrTechnician,
     range: str = Query("1h", pattern="^(1h|24h|7d|30d)$"),
 ):
     """
@@ -231,7 +231,7 @@ def get_router_traffic_history(
         )
         .filter(
             TrafficSample.gateway_id == gateway_id,
-            TrafficSample.cliente_id.isnot(None),
+            TrafficSample.client_id.isnot(None),
             TrafficSample.timestamp >= start_time
         )
         .group_by(TrafficSample.timestamp)

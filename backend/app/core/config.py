@@ -40,7 +40,7 @@ class Settings(BaseSettings):
     # ── Usuario admin inicial (seed) ──────────────────────────
     ADMIN_SEED_EMAIL: str = "admin@email.com"
     ADMIN_SEED_PASSWORD: str = "t3PXeS4tn@"
-    ADMIN_SEED_NOMBRE: str = "Geo"
+    ADMIN_SEED_NAME: str = "Geo"
     # Clave secreta para el endpoint POST /auth/setup (requerida en producción)
     ADMIN_SEED_KEY: str | None = None
 

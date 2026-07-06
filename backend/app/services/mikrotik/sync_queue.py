@@ -105,7 +105,7 @@ def _dispatch(gateway: Gateway, item: MikroTikSyncQueue, db: Session) -> None:
     """Ejecuta la operación de sync según el tipo almacenado en el item."""
     from app.services.mikrotik.address_list import sync_ip_in_address_list
     from app.services.mikrotik.queue import sync_client_queue
-    from app.services.mikrotik.pppoe import sync_pppoe_secret_in_router, sync_pppoe_profile_in_router
+    from app.services.mikrotik.pppoe import sync_pppoe_secret_in_gateway, sync_pppoe_profile_in_gateway
 
     p = item.payload
     op = item.operation
@@ -120,7 +120,7 @@ def _dispatch(gateway: Gateway, item: MikroTikSyncQueue, db: Session) -> None:
 
     elif op == "add_queue":
         sync_client_queue(
-            router=gateway,
+            gateway=gateway,
             client_name=p["client_name"],
             ip=p["ip"],
             speed_up=p["speed_up"],
@@ -130,7 +130,7 @@ def _dispatch(gateway: Gateway, item: MikroTikSyncQueue, db: Session) -> None:
             limit_at_down=p.get("limit_at_down"),
             burst_threshold_up=p.get("burst_threshold_up"),
             burst_threshold_down=p.get("burst_threshold_down"),
-            prioridad=p.get("prioridad"),
+            priority=p.get("priority"),
             parent=p.get("parent"),
         )
 
@@ -138,7 +138,7 @@ def _dispatch(gateway: Gateway, item: MikroTikSyncQueue, db: Session) -> None:
         from app.models.plan import Plan
         plan = db.get(Plan, p["plan_id"])
         if plan:
-            sync_pppoe_profile_in_router(gateway, plan)
+            sync_pppoe_profile_in_gateway(gateway, plan)
 
     elif op == "add_pppoe_secret":
         from app.models.pppoe_secret import PPPoESecret
@@ -148,16 +148,16 @@ def _dispatch(gateway: Gateway, item: MikroTikSyncQueue, db: Session) -> None:
             # Asegurar perfil antes del secreto (idempotente)
             from app.models.plan import Plan
             from app.models.pppoe_profile import PPPoEProfile
-            profile = db.get(PPPoEProfile, secret.perfil_id) if secret.perfil_id else None
+            profile = db.get(PPPoEProfile, secret.profile_id) if secret.profile_id else None
             if profile:
                 try:
-                    sync_pppoe_profile_in_router(gateway, db.query(Plan).filter_by(nombre=profile.nombre).first())
+                    sync_pppoe_profile_in_gateway(gateway, db.query(Plan).filter_by(name=profile.name).first())
                 except Exception:
                     pass  # Si falla el perfil, intentamos el secreto igualmente
-            sync_pppoe_secret_in_router(
+            sync_pppoe_secret_in_gateway(
                 gateway=gateway,
-                username=secret.usuario_ppp,
-                password=decrypt_secret(secret.contraseña_ppp),
+                username=secret.ppp_username,
+                password=decrypt_secret(secret.ppp_password),
                 profile_name=p["profile_name"],
                 client_name=p["client_name"],
                 disabled=p.get("disabled", False),

@@ -7,23 +7,23 @@ from pydantic import BaseModel, Field
 
 
 class SiteCreate(BaseModel):
-    nombre: str = Field(min_length=2, max_length=120)
-    latitud: float | None = None
-    longitud: float | None = None
+    name: str = Field(min_length=2, max_length=120)
+    latitude: float | None = None
+    longitude: float | None = None
 
 
 class SiteUpdate(BaseModel):
-    nombre: str = Field(min_length=2, max_length=120)
-    latitud: float | None = None
-    longitud: float | None = None
+    name: str = Field(min_length=2, max_length=120)
+    latitude: float | None = None
+    longitude: float | None = None
 
 
 class SiteRead(BaseModel):
     model_config = {"from_attributes": True}
 
     id: uuid.UUID
-    nombre: str
-    latitud: float | None = None
-    longitud: float | None = None
+    name: str
+    latitude: float | None = None
+    longitude: float | None = None
     created_at: datetime
     updated_at: datetime

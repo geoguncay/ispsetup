@@ -40,7 +40,7 @@ async def lifespan(app: FastAPI):
 app = FastAPI(
     title=settings.APP_NAME,
     version="1.0.0",
-    description="Plataforma de gestión centralizada para WISP — MikroTik, PPPoE, facturación SRI",
+    description="Plataforma de gestión centralizada para ISP — MikroTik, PPPoE, facturación SRI",
     docs_url="/api/docs",
     redoc_url="/api/redoc",
     openapi_url="/api/openapi.json",

@@ -16,15 +16,15 @@ import { getLogoUrl } from '@/components/AppLayout'
 
 // ── Role avatar config ────────────────────────────────────────────────────────
 const roleConfig = {
-  admin:   { bg: 'bg-brand-700',   Icon: Shield, label: 'Administrador' },
-  tecnico: { bg: 'bg-emerald-600', Icon: Wrench, label: 'Técnico'       },
-  viewer:  { bg: 'bg-slate-600',   Icon: Eye,    label: 'Visor'         },
+  admin:      { bg: 'bg-brand-700',   Icon: Shield, label: 'Administrador' },
+  technician: { bg: 'bg-emerald-600', Icon: Wrench, label: 'Técnico'       },
+  viewer:     { bg: 'bg-slate-600',   Icon: Eye,    label: 'Visor'         },
 } as const
 
 // ── Zod Schemas ──────────────────────────────────────────────────────────────
 const profileSchema = z
   .object({
-    nombre: z.string().min(2, 'Mínimo 2 caracteres').max(120),
+    name: z.string().min(2, 'Mínimo 2 caracteres').max(120),
     email: z.string().email('Correo electrónico inválido'),
     password: z.string().optional().or(z.literal('')),
     confirmPassword: z.string().optional().or(z.literal('')),
@@ -71,7 +71,7 @@ export function ProfilePage() {
       const timeout = user.inactivity_timeout ?? 0
       if (timeout > 0) lastTimeoutRef.current = timeout
       resetProfile({
-        nombre: user.nombre,
+        name: user.name,
         email: user.email,
         password: '',
         confirmPassword: '',
@@ -92,8 +92,8 @@ export function ProfilePage() {
 
   const profileMutation = useMutation({
     mutationFn: async (data: ProfileFormData) => {
-      const payload: { nombre: string; email: string; password?: string; inactivity_timeout: number } = {
-        nombre: data.nombre,
+      const payload: { name: string; email: string; password?: string; inactivity_timeout: number } = {
+        name: data.name,
         email: data.email,
         inactivity_timeout: data.inactivity_timeout,
       }
@@ -106,7 +106,7 @@ export function ProfilePage() {
       setStatusMessage({ type: 'success', text: 'Perfil actualizado exitosamente' })
       await fetchMe()
       resetProfile({
-        nombre: variables.nombre,
+        name: variables.name,
         email: variables.email,
         password: '',
         confirmPassword: '',
@@ -144,7 +144,7 @@ export function ProfilePage() {
     }
   }
 
-  const role = (user?.rol ?? 'viewer') as keyof typeof roleConfig
+  const role = (user?.role ?? 'viewer') as keyof typeof roleConfig
   const { bg, Icon } = roleConfig[role]
 
   return (
@@ -193,7 +193,7 @@ export function ProfilePage() {
                 <div className={`w-full h-full ${bg} flex flex-col items-center justify-center gap-1`}>
                   <Icon className="w-8 h-8 text-white/80" strokeWidth={1.5} />
                   <span className="text-lg font-bold text-white uppercase leading-none">
-                    {user?.nombre?.[0] ?? '?'}
+                    {user?.name?.[0] ?? '?'}
                   </span>
                 </div>
               )}
@@ -225,7 +225,7 @@ export function ProfilePage() {
 
           {/* Info */}
           <div className="space-y-1">
-            <p className="text-sm font-medium text-foreground">{user?.nombre}</p>
+            <p className="text-sm font-medium text-foreground">{user?.name}</p>
             <p className="text-xs text-muted-foreground capitalize">{roleConfig[role].label}</p>
             <p className="text-xs text-muted-foreground mt-2">
               Formatos admitidos: PNG, JPG, WEBP. Máx. 5 MB.
@@ -258,14 +258,14 @@ export function ProfilePage() {
             <div>
               <label className="block text-sm font-medium text-foreground mb-1.5">Nombre Completo *</label>
               <input
-                id="profile-nombre"
+                id="profile-name"
                 type="text"
-                {...registerProfile('nombre')}
+                {...registerProfile('name')}
                 className="input-field"
                 placeholder="Geo"
               />
-              {profileErrors.nombre && (
-                <p className="text-xs text-destructive mt-1">{profileErrors.nombre.message}</p>
+              {profileErrors.name && (
+                <p className="text-xs text-destructive mt-1">{profileErrors.name.message}</p>
               )}
             </div>
 

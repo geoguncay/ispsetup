@@ -18,21 +18,21 @@ class User(Base):
     id: Mapped[uuid.UUID] = mapped_column(
         Uuid(native_uuid=False), primary_key=True, default=uuid.uuid4
     )
-    nombre: Mapped[str] = mapped_column(String(120), nullable=False)
+    name: Mapped[str] = mapped_column(String(120), nullable=False)
     email: Mapped[str] = mapped_column(String(255), unique=True, index=True, nullable=False)
     hashed_password: Mapped[str] = mapped_column(String(255), nullable=False)
-    rol: Mapped[str] = mapped_column(
-        Enum("admin", "tecnico", "viewer", name="user_role"),
+    role: Mapped[str] = mapped_column(
+        Enum("admin", "technician", "viewer", name="user_role"),
         nullable=False,
         default="viewer",
     )
-    activo: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
+    active: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
     inactivity_timeout: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     avatar_url: Mapped[str | None] = mapped_column(String(500), nullable=True)
-    tipo_operador: Mapped[str | None] = mapped_column(String(50), nullable=True)
-    permisos_router: Mapped[str | None] = mapped_column(String(255), nullable=True)
-    horario_acceso: Mapped[str | None] = mapped_column(String(100), nullable=True)
-    permisos: Mapped[str | None] = mapped_column(String(500), nullable=True)
+    operator_type: Mapped[str | None] = mapped_column(String(50), nullable=True)
+    gateway_permissions: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    access_schedule: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    permissions: Mapped[str | None] = mapped_column(String(500), nullable=True)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), nullable=False
     )
@@ -44,4 +44,4 @@ class User(Base):
     )
 
     def __repr__(self) -> str:
-        return f"<User id={self.id} email={self.email} rol={self.rol}>"
+        return f"<User id={self.id} email={self.email} role={self.role}>"

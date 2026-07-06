@@ -13,22 +13,22 @@ import { formatUptime } from '@/lib/utils'
 
 interface Gateway {
   id: string
-  nombre: string
+  name: string
   ip: string
-  puerto_api: number
-  usuario_api: string
-  activo: boolean
-  modelo_hw: string | null
-  notas: string | null
+  api_port: number
+  api_username: string
+  active: boolean
+  hw_model: string | null
+  notes: string | null
   status: 'online' | 'offline' | 'degraded' | 'unknown' | null
   uptime: string | null
   ros_version: string | null
-  monitoreo_trafico: boolean
-  control_velocidad: boolean
-  sincronizar_logs: boolean
-  notificaciones_alertas: boolean
+  traffic_monitoring: boolean
+  speed_control: boolean
+  sync_logs: boolean
+  alert_notifications: boolean
   site_id?: string | null
-  site_nombre?: string | null
+  site_name?: string | null
 }
 
 async function fetchGateways(): Promise<Gateway[]> {
@@ -43,7 +43,7 @@ async function deleteGateway(id: string): Promise<void> {
 export function GatewaysPage() {
   const { user } = useAuthStore()
   const queryClient = useQueryClient()
-  const isAdmin = user?.rol === 'admin'
+  const isAdmin = user?.role === 'admin'
   const navigate = useNavigate()
 
   const [dialogOpen, setDialogOpen] = useState(false)
@@ -209,7 +209,7 @@ export function GatewaysPage() {
                 <option value="">Todos los Sitios</option>
                 {sites.map((site: any) => (
                   <option key={site.id} value={site.id}>
-                    {site.nombre}
+                    {site.name}
                   </option>
                 ))}
               </select>
@@ -250,17 +250,17 @@ export function GatewaysPage() {
                             <Server className="w-4 h-4 text-brand-400" />
                           </div>
                           <div>
-                            <p className="font-medium text-foreground text-sm">{gateway.nombre}</p>
-                            {gateway.modelo_hw && (
-                              <p className="text-xs text-muted-foreground">{gateway.modelo_hw}</p>
+                            <p className="font-medium text-foreground text-sm">{gateway.name}</p>
+                            {gateway.hw_model && (
+                              <p className="text-xs text-muted-foreground">{gateway.hw_model}</p>
                             )}
                           </div>
                         </div>
                       </td>
                       <td>
-                        {gateway.site_nombre ? (
+                        {gateway.site_name ? (
                           <span className="inline-flex items-center text-xs font-semibold px-2 py-0.5 rounded bg-brand-500/10 text-brand-400 border border-brand-500/20">
-                            {gateway.site_nombre}
+                            {gateway.site_name}
                           </span>
                         ) : (
                           <span className="text-xs text-muted-foreground italic">Sin Sitio</span>
@@ -268,7 +268,7 @@ export function GatewaysPage() {
                       </td>
                       <td className="hidden md:table-cell">
                         <code className="text-xs bg-secondary/50 px-2 py-1 rounded text-muted-foreground font-mono">
-                          {gateway.ip}:{gateway.puerto_api}
+                          {gateway.ip}:{gateway.api_port}
                         </code>
                       </td>
                       <td className="hidden lg:table-cell">
@@ -354,7 +354,7 @@ export function GatewaysPage() {
 
             <form onSubmit={handleImportSubmit} className="p-5 space-y-4">
               <p className="text-xs text-muted-foreground leading-relaxed">
-                Selecciona una lista de direcciones del gateway <strong>{importingGateway.nombre}</strong>. Se importarán todas sus IPs y se registrarán como nuevos clientes en el sistema y en la lista <strong>clientes</strong> de MikroTik.
+                Selecciona una lista de direcciones del gateway <strong>{importingGateway.name}</strong>. Se importarán todas sus IPs y se registrarán como nuevos clientes en el sistema y en la lista <strong>clientes</strong> de MikroTik.
               </p>
 
               <div>
@@ -384,7 +384,7 @@ export function GatewaysPage() {
                           {listName}
                         </option>
                       ))}
-                    <option value="custom">-- Escribir nombre personalizado --</option>
+                    <option value="custom">-- Escribir name personalizado --</option>
                   </select>
                 )}
               </div>

@@ -4,10 +4,10 @@ Endpoints API para Invoice (Facturas)
 import uuid
 import logging
 from datetime import datetime
-from fastapi import APIRouter, HTTPException, status, Depends
+from fastapi import APIRouter, HTTPException, status as http_status, Depends
 from sqlalchemy.orm import Session
 
-from app.core.deps import AdminOrTecnico, AdminOnly, DBSession
+from app.core.deps import AdminOrTechnician, AdminOnly, DBSession
 from app.models.invoice import Invoice
 from app.models.client import Client
 from app.models.plan import Plan
@@ -19,20 +19,20 @@ logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/invoices", tags=["invoices"])
 
 
-@router.post("", response_model=InvoiceResponse, status_code=status.HTTP_201_CREATED)
+@router.post("", response_model=InvoiceResponse, status_code=http_status.HTTP_201_CREATED)
 def create_invoice(
     payload: InvoiceCreate,
     db: DBSession,
-    _: AdminOrTecnico
+    _: AdminOrTechnician
 ) -> Invoice:
     """
     Crea una factura de forma manual para un cliente.
     """
     # Verificar si el cliente existe
-    client = db.get(Client, payload.cliente_id)
+    client = db.get(Client, payload.client_id)
     if not client:
         raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
+            status_code=http_status.HTTP_404_NOT_FOUND,
             detail="Cliente no encontrado"
         )
 
@@ -41,18 +41,18 @@ def create_invoice(
         plan = db.get(Plan, payload.plan_id)
         if not plan:
             raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
+                status_code=http_status.HTTP_400_BAD_REQUEST,
                 detail="El plan especificado no existe."
             )
 
     new_invoice = Invoice(
-        cliente_id=payload.cliente_id,
+        client_id=payload.client_id,
         plan_id=payload.plan_id,
-        periodo=payload.periodo,
-        monto=payload.monto,
-        fecha_emision=datetime.now(),
-        fecha_vencimiento=payload.fecha_vencimiento,
-        estado="pendiente"
+        period=payload.period,
+        amount=payload.amount,
+        issue_date=datetime.now(),
+        due_date=payload.due_date,
+        status="pending"
     )
     db.add(new_invoice)
     db.commit()
@@ -64,50 +64,50 @@ def create_invoice(
 @router.get("", response_model=list[InvoiceResponse])
 def get_invoices(
     db: DBSession,
-    _: AdminOrTecnico,
-    cliente_id: uuid.UUID | None = None,
-    estado: str | None = None,
+    _: AdminOrTechnician,
+    client_id: uuid.UUID | None = None,
+    status: str | None = None,
     overdue: bool | None = None
 ) -> list[Invoice]:
     """
     Obtiene el listado de facturas. Soporta filtros de cliente, estado y vencidas.
     """
     query = db.query(Invoice)
-    
-    if cliente_id:
-        query = query.filter(Invoice.cliente_id == cliente_id)
-        
-    if estado:
-        if estado not in ("pendiente", "pagado", "vencido"):
+
+    if client_id:
+        query = query.filter(Invoice.client_id == client_id)
+
+    if status:
+        if status not in ("pending", "paid", "overdue"):
             raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Estado de factura inválido. Use: 'pendiente', 'pagado', 'vencido'"
+                status_code=http_status.HTTP_400_BAD_REQUEST,
+                detail="Estado de factura inválido. Use: 'pending', 'paid', 'overdue'"
             )
-        query = query.filter(Invoice.estado == estado)
-        
+        query = query.filter(Invoice.status == status)
+
     if overdue is not None:
         now = datetime.now()
         if overdue:
             # Facturas que pasaron su fecha de vencimiento y no están pagadas
             query = query.filter(
-                Invoice.estado.in_(["pendiente", "vencido"]),
-                Invoice.fecha_vencimiento < now
+                Invoice.status.in_(["pending", "overdue"]),
+                Invoice.due_date < now
             )
         else:
             # Facturas no vencidas o pagadas
             query = query.filter(
-                (Invoice.estado == "pagado") | (Invoice.fecha_vencimiento >= now)
+                (Invoice.status == "paid") | (Invoice.due_date >= now)
             )
-            
+
     # Ordenar por fecha de emisión más reciente primero
-    return query.order_by(Invoice.fecha_emision.desc()).all()
+    return query.order_by(Invoice.issue_date.desc()).all()
 
 
 @router.get("/{invoice_id}", response_model=InvoiceResponse)
 def get_invoice(
     invoice_id: uuid.UUID,
     db: DBSession,
-    _: AdminOrTecnico
+    _: AdminOrTechnician
 ) -> Invoice:
     """
     Obtiene el detalle de una factura específica por su ID.
@@ -115,7 +115,7 @@ def get_invoice(
     invoice = db.get(Invoice, invoice_id)
     if not invoice:
         raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
+            status_code=http_status.HTTP_404_NOT_FOUND,
             detail="Factura no encontrada"
         )
     return invoice
@@ -133,7 +133,7 @@ def trigger_monthly_billing(
     result = generate_monthly_invoices(force=True)
     if result.get("status") == "error":
         raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            status_code=http_status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=result.get("detail", "Error al generar facturas")
         )
     return result

@@ -16,7 +16,7 @@ const BASE_URL = import.meta.env.VITE_API_URL
   : '/api'
 
 interface CompanyPublic {
-  nombre: string
+  name: string
   logo_url: string | null
   use_logo_on_login: boolean
   login_bg_url: string | null
@@ -63,8 +63,8 @@ export function LoginPage() {
 
   const showLogo = company?.use_logo_on_login && company?.logo_url
   const showBg = company?.use_login_bg && company?.login_bg_url
-  const companyName = company?.nombre && company.nombre !== 'Mi ISP' && company.nombre !== 'Mi WISP'
-    ? company.nombre
+  const companyName = company?.name && company.name !== 'Mi ISP' && company.name !== 'Mi WISP'
+    ? company.name
     : 'ISP Platform'
 
   return (

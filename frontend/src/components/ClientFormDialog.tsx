@@ -28,51 +28,51 @@ const customMarkerIcon = L.icon({
   popupAnchor: [0, -30],
 })
 
-interface FormRouter {
+interface FormGateway {
   id: string
-  nombre: string
+  name: string
   ip?: string
-  latitud?: number | null
-  longitud?: number | null
-  site_nombre?: string | null
+  latitude?: number | null
+  longitude?: number | null
+  site_name?: string | null
 }
 
 interface FormPlan {
   id: string
-  nombre: string
-  precio: number
-  velocidad_down_mbps?: number
-  velocidad_up_mbps?: number
-  descripcion?: string
-  impuestos?: number
+  name: string
+  price: number
+  speed_down_mbps?: number
+  speed_up_mbps?: number
+  description?: string
+  taxes?: number
 }
 
 interface FormCustomService {
   id: string
-  nombre: string
-  precio: number
-  descripcion?: string
-  recurrente: boolean
-  activo: boolean
+  name: string
+  price: number
+  description?: string
+  recurring: boolean
+  active: boolean
 }
 
 interface InventoryItemOption {
   id: string
-  nombre: string
-  codigo: string
-  modelo: string | null
-  categoria: string | null
-  cantidad: number
+  name: string
+  code: string
+  model: string | null
+  category: string | null
+  quantity: number
 }
 
 interface SelectedInventoryItem {
   inventory_item_id: string
-  item_nombre: string
-  item_codigo: string
-  cantidad: number
-  numero_serie: string
+  item_name: string
+  item_code: string
+  quantity: number
+  serial_number: string
   mac: string
-  notas: string
+  notes: string
 }
 
 const splitClientName = (fullName: string) => {
@@ -80,22 +80,22 @@ const splitClientName = (fullName: string) => {
   if (trimmed.includes(',')) {
     const parts = trimmed.split(',')
     return {
-      apellidos: parts[0].trim(),
-      nombres: parts.slice(1).join(',').trim()
+      last_name: parts[0].trim(),
+      first_name: parts.slice(1).join(',').trim()
     }
   }
   const words = trimmed.split(/\s+/)
   if (words.length <= 1) {
-    return { apellidos: '', nombres: trimmed }
+    return { last_name: '', first_name: trimmed }
   } else if (words.length === 2) {
-    return { apellidos: words[1], nombres: words[0] }
+    return { last_name: words[1], first_name: words[0] }
   } else if (words.length === 3) {
-    return { apellidos: words.slice(1).join(' '), nombres: words[0] }
+    return { last_name: words.slice(1).join(' '), first_name: words[0] }
   } else {
     const middle = Math.ceil(words.length / 2)
     return {
-      nombres: words.slice(0, middle).join(' '),
-      apellidos: words.slice(middle).join(' ')
+      first_name: words.slice(0, middle).join(' '),
+      last_name: words.slice(middle).join(' ')
     }
   }
 }
@@ -105,44 +105,44 @@ const DEFAULT_CENTER: [number, number] = [-0.180653, -78.467834]
 
 // Catálogos de respaldo, usados mientras carga /settings/catalogs o si aún no se ha configurado nada en Ajustes
 const DEFAULT_PAYMENT_METHODS = [
-  { value: 'efectivo', label: 'Efectivo' },
-  { value: 'transferencia', label: 'Transferencia' },
-  { value: 'tarjeta', label: 'Tarjeta' },
-  { value: 'deposito', label: 'Depósito' },
+  { value: 'cash', label: 'Efectivo' },
+  { value: 'transfer', label: 'Transferencia' },
+  { value: 'card', label: 'Tarjeta' },
+  { value: 'deposit', label: 'Depósito' },
 ]
-const DEFAULT_FECHAS_CORTE = [1, 5, 10, 15, 28]
+const DEFAULT_CUTOFF_DATES = [1, 5, 10, 15, 28]
 
 const clientSchema = z.object({
   id: z.string().optional(),
-  apellidos: z.string().min(2, 'Mínimo 2 caracteres').max(60),
-  nombres: z.string().min(2, 'Mínimo 2 caracteres').max(60),
-  nombre: z.string().optional(),
-  tipo_documento: z.enum(['cedula', 'ruc']),
+  last_name: z.string().min(2, 'Mínimo 2 caracteres').max(60),
+  first_name: z.string().min(2, 'Mínimo 2 caracteres').max(60),
+  name: z.string().optional(),
+  document_type: z.enum(['cedula', 'ruc']),
   cedula: z.string(),
-  telefono: z.string().max(40).optional().or(z.literal('')),
-  direccion: z.string().min(5, 'Mínimo 5 caracteres').max(255),
-  latitud: z.coerce.number().optional().nullable(),
-  longitud: z.coerce.number().optional().nullable(),
+  phone: z.string().max(40).optional().or(z.literal('')),
+  address: z.string().min(5, 'Mínimo 5 caracteres').max(255),
+  latitude: z.coerce.number().optional().nullable(),
+  longitude: z.coerce.number().optional().nullable(),
   gateway_id: z.string().min(1, 'Debe seleccionar un router'),
-  tipo: z.enum(['static', 'pppoe']),
+  connection_type: z.enum(['static', 'pppoe']),
   plan_id: z.string().optional().nullable(),
   custom_service_ids: z.array(z.string()).optional(),
-  activo: z.boolean().optional(),
+  active: z.boolean().optional(),
   ip: z.string().optional().nullable(),
   mac: z.string().optional().nullable(),
-  notas_ip: z.string().optional().nullable(),
-  usuario_ppp: z.string().optional().nullable(),
-  contraseña_ppp: z.string().optional().nullable(),
-  perfil_id: z.string().optional().nullable(),
+  notes_ip: z.string().optional().nullable(),
+  ppp_username: z.string().optional().nullable(),
+  ppp_password: z.string().optional().nullable(),
+  profile_id: z.string().optional().nullable(),
   email: z.string().min(1, 'El correo electrónico es obligatorio').email('Ingrese un correo válido'),
   created_at: z.string().optional().nullable(),
-  inicio_facturacion: z.string().optional().nullable(),
-  dia_inicio_periodo: z.coerce.number().min(1).max(31).optional().nullable(),
-  crear_factura_anticipo_dias: z.coerce.number().min(0).optional().nullable(),
-  tipo_facturacion: z.string().optional().nullable(),
-  auto_aplicar_pago: z.boolean().optional(),
-  usar_credito_auto: z.boolean().optional(),
-  prorrateo_separado: z.boolean().optional(),
+  billing_start: z.string().optional().nullable(),
+  billing_period_start_day: z.coerce.number().min(1).max(31).optional().nullable(),
+  invoice_advance_days: z.coerce.number().min(0).optional().nullable(),
+  billing_type: z.string().optional().nullable(),
+  auto_apply_payment: z.boolean().optional(),
+  use_auto_credit: z.boolean().optional(),
+  separate_proration: z.boolean().optional(),
   // Campos ficticios para Paso 2 (Facturación y Notificaciones)
   dia_pago: z.string().optional().nullable(),
   metodo_pago: z.string().optional().nullable(),
@@ -151,7 +151,7 @@ const clientSchema = z.object({
   notif_whatsapp: z.boolean().optional(),
 }).superRefine((data, ctx) => {
   // 1. Validar identificación (cédula o ruc)
-  const tipo = data.tipo_documento
+  const connection_type = data.document_type
   const doc = data.cedula
 
   if (!doc) {
@@ -166,7 +166,7 @@ const clientSchema = z.object({
       message: 'Solo números',
       path: ['cedula'],
     })
-  } else if (tipo === 'cedula') {
+  } else if (connection_type === 'cedula') {
     if (doc.length !== 10) {
       ctx.addIssue({
         code: z.ZodIssueCode.custom,
@@ -180,7 +180,7 @@ const clientSchema = z.object({
         path: ['cedula'],
       })
     }
-  } else if (tipo === 'ruc') {
+  } else if (connection_type === 'ruc') {
     if (doc.length !== 13) {
       ctx.addIssue({
         code: z.ZodIssueCode.custom,
@@ -196,26 +196,26 @@ const clientSchema = z.object({
     }
   }
 
-  // 2. Validar IP obligatoria para tipo estática, o credenciales para PPPoE
-  if (data.tipo === 'static' && (!data.ip || data.ip.trim() === '')) {
+  // 2. Validar IP obligatoria para connection_type estática, o credenciales para PPPoE
+  if (data.connection_type === 'static' && (!data.ip || data.ip.trim() === '')) {
     ctx.addIssue({
       code: z.ZodIssueCode.custom,
       message: 'La dirección IP es obligatoria',
       path: ['ip'],
     })
-  } else if (data.tipo === 'pppoe') {
-    if (!data.usuario_ppp || data.usuario_ppp.trim() === '') {
+  } else if (data.connection_type === 'pppoe') {
+    if (!data.ppp_username || data.ppp_username.trim() === '') {
       ctx.addIssue({
         code: z.ZodIssueCode.custom,
         message: 'El usuario PPPoE es obligatorio',
-        path: ['usuario_ppp'],
+        path: ['ppp_username'],
       })
     }
-    if (!data.contraseña_ppp || data.contraseña_ppp.trim() === '') {
+    if (!data.ppp_password || data.ppp_password.trim() === '') {
       ctx.addIssue({
         code: z.ZodIssueCode.custom,
         message: 'La contraseña PPPoE es obligatoria',
-        path: ['contraseña_ppp'],
+        path: ['ppp_password'],
       })
     }
     if (!data.plan_id || data.plan_id.trim() === '') {
@@ -232,36 +232,38 @@ type ClientFormData = z.infer<typeof clientSchema>
 
 interface FormClient {
   id: string
-  nombre: string
+  name: string
+  last_name?: string | null
+  first_name?: string | null
   cedula: string
-  telefono: string
-  direccion: string
+  phone: string
+  address: string
   email?: string | null
-  activo: boolean
-  tipo: 'static' | 'pppoe'
+  active: boolean
+  connection_type: 'static' | 'pppoe'
   gateway_id: string
-  latitud?: number | null
-  longitud?: number | null
+  latitude?: number | null
+  longitude?: number | null
   created_at?: string | null
-  inicio_facturacion?: string | null
-  dia_inicio_periodo?: number | null
-  crear_factura_anticipo_dias?: number | null
-  tipo_facturacion?: string | null
-  auto_aplicar_pago?: boolean | null
-  usar_credito_auto?: boolean | null
-  prorrateo_separado?: boolean | null
-  plan_activo?: { id: string; nombre: string; precio: number } | null
+  billing_start?: string | null
+  billing_period_start_day?: number | null
+  invoice_advance_days?: number | null
+  billing_type?: string | null
+  auto_apply_payment?: boolean | null
+  use_auto_credit?: boolean | null
+  separate_proration?: boolean | null
+  plan_activo?: { id: string; name: string; price: number } | null
   static_ip?: {
     ip: string
     mac?: string | null
-    notas?: string | null
+    notes?: string | null
   } | null
   pppoe_secret?: {
-    usuario_ppp: string
-    contraseña_ppp: string
-    perfil_id: string
+    ppp_username: string
+    ppp_password: string
+    profile_id: string
   } | null
-  custom_services?: { id: string; nombre: string; precio: number; recurrente: boolean }[] | null
+  custom_services?: { id: string; name: string; price: number; recurring: boolean }[] | null
 }
 
 interface ClientFormDialogProps {
@@ -281,10 +283,10 @@ export function ClientFormDialog({ open, onClose, client, onSuccess }: ClientFor
   const initialInventoryItemsRef = useRef<string>('[]')
   const [showAddEquipment, setShowAddEquipment] = useState(false)
   const [newEquipmentItemId, setNewEquipmentItemId] = useState('')
-  const [newEquipmentCantidad, setNewEquipmentCantidad] = useState(1)
-  const [newEquipmentSerie, setNewEquipmentSerie] = useState('')
+  const [newEquipmentQuantity, setNewEquipmentQuantity] = useState(1)
+  const [newEquipmentSerial, setNewEquipmentSerial] = useState('')
   const [newEquipmentMac, setNewEquipmentMac] = useState('')
-  const [newEquipmentNotas, setNewEquipmentNotas] = useState('')
+  const [newEquipmentNotes, setNewEquipmentNotes] = useState('')
 
   // Estado para el buscador de servicios adicionales
   const [serviceSearch, setServiceSearch] = useState('')
@@ -298,7 +300,7 @@ export function ClientFormDialog({ open, onClose, client, onSuccess }: ClientFor
     staleTime: 5 * 60 * 1000,
   })
   const methods = catalogSettings?.payment_methods?.length ? catalogSettings.payment_methods : DEFAULT_PAYMENT_METHODS
-  const fechasCorte = catalogSettings?.fechas_corte?.length ? catalogSettings.fechas_corte : DEFAULT_FECHAS_CORTE
+  const cutoffDates = catalogSettings?.cutoff_dates?.length ? catalogSettings.cutoff_dates : DEFAULT_CUTOFF_DATES
 
   const {
     register,
@@ -312,20 +314,20 @@ export function ClientFormDialog({ open, onClose, client, onSuccess }: ClientFor
   })
 
   // Ver valores de lat/lng en tiempo real
-  const latVal = watch('latitud')
-  const lngVal = watch('longitud')
-  const watchDocType = watch('tipo_documento')
+  const latVal = watch('latitude')
+  const lngVal = watch('longitude')
+  const watchDocType = watch('document_type')
   const watchCedula = watch('cedula')
 
   useEffect(() => {
     if (watchCedula) {
-      setValue('tipo_documento', watchCedula.length === 13 ? 'ruc' : 'cedula')
+      setValue('document_type', watchCedula.length === 13 ? 'ruc' : 'cedula')
     }
   }, [watchCedula, setValue])
 
-  // Obtener Routers
-  const { data: routers = [] } = useQuery<FormRouter[]>({
-    queryKey: ['routers-form'],
+  // Obtener Gateways
+  const { data: gateways = [] } = useQuery<FormGateway[]>({
+    queryKey: ['gateways-form'],
     queryFn: async () => {
       const { data } = await api.get('/gateways')
       return data
@@ -358,7 +360,7 @@ export function ClientFormDialog({ open, onClose, client, onSuccess }: ClientFor
     queryKey: ['custom-services-form'],
     queryFn: async () => {
       const { data } = await api.get('/custom-services')
-      return data.filter((cs: FormCustomService) => cs.activo)
+      return data.filter((cs: FormCustomService) => cs.active)
     },
     enabled: open,
   })
@@ -371,7 +373,7 @@ export function ClientFormDialog({ open, onClose, client, onSuccess }: ClientFor
     staleTime: 5 * 60 * 1000,
   })
 
-  const selectedRouterId = watch('gateway_id')
+  const selectedGatewayId = watch('gateway_id')
   const selectedPlanId = watch('plan_id')
   const selectedCustomServiceIds = watch('custom_service_ids') || []
 
@@ -381,19 +383,19 @@ export function ClientFormDialog({ open, onClose, client, onSuccess }: ClientFor
   const hasChanges = isDirty || inventoryItemsChanged
 
   const activePlanPrice = selectedPlanId
-    ? plans.find((p) => p.id === selectedPlanId)?.precio || 0
+    ? plans.find((p) => p.id === selectedPlanId)?.price || 0
     : client?.plan_activo
-      ? client.plan_activo.precio
+      ? client.plan_activo.price
       : 0
 
   const recurringCustomServicesPrice = selectedCustomServiceIds.reduce((sum, csId) => {
     const cs = customServices.find((s) => s.id === csId)
-    return sum + (cs && cs.recurrente ? Number(cs.precio) : 0)
+    return sum + (cs && cs.recurring ? Number(cs.price) : 0)
   }, 0)
 
   const oneTimeCustomServicesPrice = selectedCustomServiceIds.reduce((sum, csId) => {
     const cs = customServices.find((s) => s.id === csId)
-    return sum + (cs && !cs.recurrente ? Number(cs.precio) : 0)
+    return sum + (cs && !cs.recurring ? Number(cs.price) : 0)
   }, 0)
 
   const nextInvoiceTotal = Number(activePlanPrice) + recurringCustomServicesPrice + oneTimeCustomServicesPrice
@@ -401,23 +403,23 @@ export function ClientFormDialog({ open, onClose, client, onSuccess }: ClientFor
 
   const watchDiaPago = watch('dia_pago')
   const watchCreatedAt = watch('created_at')
-  const watchInicioFacturacion = watch('inicio_facturacion')
-  const watchDiaInicioPeriodo = watch('dia_inicio_periodo')
-  const watchTipoFacturacion = watch('tipo_facturacion')
-  const watchCrearFacturaAnticipoDias = watch('crear_factura_anticipo_dias')
-  const watchProrrateoSeparado = watch('prorrateo_separado')
+  const watchBillingStart = watch('billing_start')
+  const watchBillingPeriodStartDay = watch('billing_period_start_day')
+  const watchBillingType = watch('billing_type')
+  const watchInvoiceAdvanceDays = watch('invoice_advance_days')
+  const watchSeparateProration = watch('separate_proration')
 
   const getSimulation = () => {
-    const inicioStr = watchInicioFacturacion || new Date().toISOString().split('T')[0]
-    const diaInicio = Number(watchDiaInicioPeriodo) || 1
-    const tipoFacturacion = watchTipoFacturacion || 'forward'
-    const anticipoDias = Number(watchCrearFacturaAnticipoDias) || 0
-    const prorrateoSeparado = !!watchProrrateoSeparado
+    const startStr = watchBillingStart || new Date().toISOString().split('T')[0]
+    const startDay = Number(watchBillingPeriodStartDay) || 1
+    const billingType = watchBillingType || 'forward'
+    const advanceDays = Number(watchInvoiceAdvanceDays) || 0
+    const separateProration = !!watchSeparateProration
 
     const planPrice = Number(activePlanPrice) || 0
     const planName = selectedPlanId
-      ? plans.find((p) => p.id === selectedPlanId)?.nombre || 'Plan Contratado'
-      : client?.plan_activo?.nombre || 'Plan Contratado'
+      ? plans.find((p) => p.id === selectedPlanId)?.name || 'Plan Contratado'
+      : client?.plan_activo?.name || 'Plan Contratado'
 
     const formatDate = (date: Date) => {
       const day = String(date.getDate()).padStart(2, '0')
@@ -432,45 +434,45 @@ export function ClientFormDialog({ open, onClose, client, onSuccess }: ClientFor
       return d
     }
 
-    // Replica la regla de vencimiento configurada en Ajustes → Facturación (backend: billing.py _resolve_fecha_vencimiento)
-    const resolveVencimiento = (fechaCreacion: Date) => {
-      const modo = dueDateSettings?.billing_vencimiento_modo || 'plazo_fijo'
-      if (modo === 'fecha_corte') {
-        const lastDayOfMonth = new Date(fechaCreacion.getFullYear(), fechaCreacion.getMonth() + 1, 0).getDate()
-        const dia = Math.min(diaInicio, lastDayOfMonth)
-        let vencimiento = new Date(fechaCreacion.getFullYear(), fechaCreacion.getMonth(), dia)
-        if (vencimiento.getTime() < new Date(fechaCreacion.getFullYear(), fechaCreacion.getMonth(), fechaCreacion.getDate()).getTime()) {
-          const nextMonth = fechaCreacion.getMonth() + 1
-          const nextYear = fechaCreacion.getFullYear() + (nextMonth > 11 ? 1 : 0)
+    // Replica la regla de vencimiento configurada en Ajustes → Facturación (backend: billing.py _resolve_due_date)
+    const resolveDueDate = (creationDate: Date) => {
+      const mode = dueDateSettings?.billing_due_mode || 'fixed_term'
+      if (mode === 'cutoff_date') {
+        const lastDayOfMonth = new Date(creationDate.getFullYear(), creationDate.getMonth() + 1, 0).getDate()
+        const day = Math.min(startDay, lastDayOfMonth)
+        let dueDate = new Date(creationDate.getFullYear(), creationDate.getMonth(), day)
+        if (dueDate.getTime() < new Date(creationDate.getFullYear(), creationDate.getMonth(), creationDate.getDate()).getTime()) {
+          const nextMonth = creationDate.getMonth() + 1
+          const nextYear = creationDate.getFullYear() + (nextMonth > 11 ? 1 : 0)
           const nextMNormalized = nextMonth > 11 ? 0 : nextMonth
           const lastDayNext = new Date(nextYear, nextMNormalized + 1, 0).getDate()
-          vencimiento = new Date(nextYear, nextMNormalized, Math.min(diaInicio, lastDayNext))
+          dueDate = new Date(nextYear, nextMNormalized, Math.min(startDay, lastDayNext))
         }
-        return vencimiento
+        return dueDate
       }
-      const dias = dueDateSettings?.billing_default_dias_gracia ?? 10
-      return addDays(fechaCreacion, dias)
+      const graceDays = dueDateSettings?.billing_default_grace_days ?? 10
+      return addDays(creationDate, graceDays)
     }
 
-    const parts = inicioStr.split('-')
+    const parts = startStr.split('-')
     const startY = Number(parts[0])
     const startM = Number(parts[1]) - 1
     const startD = Number(parts[2])
 
     const D_start = new Date(startY, startM, startD)
 
-    let periodStart = new Date(startY, startM, Math.min(diaInicio, new Date(startY, startM + 1, 0).getDate()))
+    let periodStart = new Date(startY, startM, Math.min(startDay, new Date(startY, startM + 1, 0).getDate()))
     if (D_start < periodStart) {
       const prevM = startM - 1
       const prevY = prevM < 0 ? startY - 1 : startY
       const prevMNormalized = prevM < 0 ? 11 : prevM
-      periodStart = new Date(prevY, prevMNormalized, Math.min(diaInicio, new Date(prevY, prevMNormalized + 1, 0).getDate()))
+      periodStart = new Date(prevY, prevMNormalized, Math.min(startDay, new Date(prevY, prevMNormalized + 1, 0).getDate()))
     }
 
     const nextM = periodStart.getMonth() + 1
     const nextY = periodStart.getFullYear() + (nextM > 11 ? 1 : 0)
     const nextMNormalized = nextM > 11 ? 0 : nextM
-    const periodNextStart = new Date(nextY, nextMNormalized, Math.min(diaInicio, new Date(nextY, nextMNormalized + 1, 0).getDate()))
+    const periodNextStart = new Date(nextY, nextMNormalized, Math.min(startDay, new Date(nextY, nextMNormalized + 1, 0).getDate()))
 
     const periodEnd = new Date(periodNextStart.getTime() - 24 * 60 * 60 * 1000)
 
@@ -502,17 +504,17 @@ export function ClientFormDialog({ open, onClose, client, onSuccess }: ClientFor
     const isProrated = D_start.getTime() > periodStart.getTime() && ratio < 1.0
 
     if (isProrated) {
-      if (prorrateoSeparado) {
+      if (separateProration) {
         const firstMonto = proratedPlanPrice + proratedRecurringServicesPrice + oneTimeCustomServicesPrice
 
         let creationDate: Date
-        if (tipoFacturacion === 'forward') {
+        if (billingType === 'forward') {
           creationDate = D_start
         } else {
           creationDate = periodNextStart
         }
-        const finalCreationDate = addDays(creationDate, -anticipoDias)
-        const dueDate = resolveVencimiento(finalCreationDate)
+        const finalCreationDate = addDays(creationDate, -advanceDays)
+        const dueDate = resolveDueDate(finalCreationDate)
 
         firstInvoice = {
           periodoDesde: formatDate(D_start),
@@ -526,21 +528,21 @@ export function ClientFormDialog({ open, onClose, client, onSuccess }: ClientFor
         const nextMonto = planPrice + recurringCustomServicesPrice
 
         let nextCreationDate: Date
-        if (tipoFacturacion === 'forward') {
+        if (billingType === 'forward') {
           nextCreationDate = periodNextStart
         } else {
           const nextNextM = periodNextStart.getMonth() + 1
           const nextNextY = periodNextStart.getFullYear() + (nextNextM > 11 ? 1 : 0)
           const nextNextMNormalized = nextNextM > 11 ? 0 : nextNextM
-          nextCreationDate = new Date(nextNextY, nextNextMNormalized, Math.min(diaInicio, new Date(nextNextY, nextNextMNormalized + 1, 0).getDate()))
+          nextCreationDate = new Date(nextNextY, nextNextMNormalized, Math.min(startDay, new Date(nextNextY, nextNextMNormalized + 1, 0).getDate()))
         }
-        const finalNextCreationDate = addDays(nextCreationDate, -anticipoDias)
-        const nextDueDate = resolveVencimiento(finalNextCreationDate)
+        const finalNextCreationDate = addDays(nextCreationDate, -advanceDays)
+        const nextDueDate = resolveDueDate(finalNextCreationDate)
 
         const nextNextM = periodNextStart.getMonth() + 1
         const nextNextY = periodNextStart.getFullYear() + (nextNextM > 11 ? 1 : 0)
         const nextNextMNormalized = nextNextM > 11 ? 0 : nextNextM
-        const periodNextNextStart = new Date(nextNextY, nextNextMNormalized, Math.min(diaInicio, new Date(nextNextY, nextNextMNormalized + 1, 0).getDate()))
+        const periodNextNextStart = new Date(nextNextY, nextNextMNormalized, Math.min(startDay, new Date(nextNextY, nextNextMNormalized + 1, 0).getDate()))
         const nextPeriodEnd = new Date(periodNextNextStart.getTime() - 24 * 60 * 60 * 1000)
 
         nextInvoice = {
@@ -555,19 +557,19 @@ export function ClientFormDialog({ open, onClose, client, onSuccess }: ClientFor
         const nextNextM = periodNextStart.getMonth() + 1
         const nextNextY = periodNextStart.getFullYear() + (nextNextM > 11 ? 1 : 0)
         const nextNextMNormalized = nextNextM > 11 ? 0 : nextNextM
-        const periodNextNextStart = new Date(nextNextY, nextNextMNormalized, Math.min(diaInicio, new Date(nextNextY, nextNextMNormalized + 1, 0).getDate()))
+        const periodNextNextStart = new Date(nextNextY, nextNextMNormalized, Math.min(startDay, new Date(nextNextY, nextNextMNormalized + 1, 0).getDate()))
         const nextPeriodEnd = new Date(periodNextNextStart.getTime() - 24 * 60 * 60 * 1000)
 
         const firstMonto = proratedPlanPrice + proratedRecurringServicesPrice + planPrice + recurringCustomServicesPrice + oneTimeCustomServicesPrice
 
         let creationDate: Date
-        if (tipoFacturacion === 'forward') {
+        if (billingType === 'forward') {
           creationDate = D_start
         } else {
           creationDate = periodNextNextStart
         }
-        const finalCreationDate = addDays(creationDate, -anticipoDias)
-        const dueDate = resolveVencimiento(finalCreationDate)
+        const finalCreationDate = addDays(creationDate, -advanceDays)
+        const dueDate = resolveDueDate(finalCreationDate)
 
         firstInvoice = {
           periodoDesde: formatDate(D_start),
@@ -581,21 +583,21 @@ export function ClientFormDialog({ open, onClose, client, onSuccess }: ClientFor
         const nextMonto = planPrice + recurringCustomServicesPrice
 
         let nextCreationDate: Date
-        if (tipoFacturacion === 'forward') {
+        if (billingType === 'forward') {
           nextCreationDate = periodNextNextStart
         } else {
           const n3M = periodNextNextStart.getMonth() + 1
           const n3Y = periodNextNextStart.getFullYear() + (n3M > 11 ? 1 : 0)
           const n3MNormalized = n3M > 11 ? 0 : n3M
-          nextCreationDate = new Date(n3Y, n3MNormalized, Math.min(diaInicio, new Date(n3Y, n3MNormalized + 1, 0).getDate()))
+          nextCreationDate = new Date(n3Y, n3MNormalized, Math.min(startDay, new Date(n3Y, n3MNormalized + 1, 0).getDate()))
         }
-        const finalNextCreationDate = addDays(nextCreationDate, -anticipoDias)
-        const nextDueDate = resolveVencimiento(finalNextCreationDate)
+        const finalNextCreationDate = addDays(nextCreationDate, -advanceDays)
+        const nextDueDate = resolveDueDate(finalNextCreationDate)
 
         const n3M = periodNextNextStart.getMonth() + 1
         const n3Y = periodNextNextStart.getFullYear() + (n3M > 11 ? 1 : 0)
         const n3MNormalized = n3M > 11 ? 0 : n3M
-        const periodN3Start = new Date(n3Y, n3MNormalized, Math.min(diaInicio, new Date(n3Y, n3MNormalized + 1, 0).getDate()))
+        const periodN3Start = new Date(n3Y, n3MNormalized, Math.min(startDay, new Date(n3Y, n3MNormalized + 1, 0).getDate()))
         const nextNextPeriodEnd = new Date(periodN3Start.getTime() - 24 * 60 * 60 * 1000)
 
         nextInvoice = {
@@ -611,13 +613,13 @@ export function ClientFormDialog({ open, onClose, client, onSuccess }: ClientFor
       const firstMonto = planPrice + recurringCustomServicesPrice + oneTimeCustomServicesPrice
 
       let creationDate: Date
-      if (tipoFacturacion === 'forward') {
+      if (billingType === 'forward') {
         creationDate = D_start
       } else {
         creationDate = periodNextStart
       }
-      const finalCreationDate = addDays(creationDate, -anticipoDias)
-      const dueDate = resolveVencimiento(finalCreationDate)
+      const finalCreationDate = addDays(creationDate, -advanceDays)
+      const dueDate = resolveDueDate(finalCreationDate)
 
       firstInvoice = {
         periodoDesde: formatDate(D_start),
@@ -630,21 +632,21 @@ export function ClientFormDialog({ open, onClose, client, onSuccess }: ClientFor
 
       const nextMonto = planPrice + recurringCustomServicesPrice
       let nextCreationDate: Date
-      if (tipoFacturacion === 'forward') {
+      if (billingType === 'forward') {
         nextCreationDate = periodNextStart
       } else {
         const nextNextM = periodNextStart.getMonth() + 1
         const nextNextY = periodNextStart.getFullYear() + (nextNextM > 11 ? 1 : 0)
         const nextNextMNormalized = nextNextM > 11 ? 0 : nextNextM
-        nextCreationDate = new Date(nextNextY, nextNextMNormalized, Math.min(diaInicio, new Date(nextNextY, nextNextMNormalized + 1, 0).getDate()))
+        nextCreationDate = new Date(nextNextY, nextNextMNormalized, Math.min(startDay, new Date(nextNextY, nextNextMNormalized + 1, 0).getDate()))
       }
-      const finalNextCreationDate = addDays(nextCreationDate, -anticipoDias)
-      const nextDueDate = resolveVencimiento(finalNextCreationDate)
+      const finalNextCreationDate = addDays(nextCreationDate, -advanceDays)
+      const nextDueDate = resolveDueDate(finalNextCreationDate)
 
       const nextNextM = periodNextStart.getMonth() + 1
       const nextNextY = periodNextStart.getFullYear() + (nextNextM > 11 ? 1 : 0)
       const nextNextMNormalized = nextNextM > 11 ? 0 : nextNextM
-      const periodNextNextStart = new Date(nextNextY, nextNextMNormalized, Math.min(diaInicio, new Date(nextNextY, nextNextMNormalized + 1, 0).getDate()))
+      const periodNextNextStart = new Date(nextNextY, nextNextMNormalized, Math.min(startDay, new Date(nextNextY, nextNextMNormalized + 1, 0).getDate()))
       const nextPeriodEnd = new Date(periodNextNextStart.getTime() - 24 * 60 * 60 * 1000)
 
       nextInvoice = {
@@ -668,8 +670,8 @@ export function ClientFormDialog({ open, onClose, client, onSuccess }: ClientFor
     if (navigator.geolocation) {
       navigator.geolocation.getCurrentPosition(
         (position) => {
-          setValue('latitud', Number(position.coords.latitude.toFixed(6)))
-          setValue('longitud', Number(position.coords.longitude.toFixed(6)))
+          setValue('latitude', Number(position.coords.latitude.toFixed(6)))
+          setValue('longitude', Number(position.coords.longitude.toFixed(6)))
         },
         (error) => {
           console.warn("Geolocation error:", error)
@@ -692,40 +694,40 @@ export function ClientFormDialog({ open, onClose, client, onSuccess }: ClientFor
       if (client) {
         reset({
           id: client.id,
-          apellidos: client.apellidos ?? '',
-          nombres: client.nombres ?? '',
-          nombre: client.nombre,
-          tipo_documento: client.cedula?.length === 13 ? 'ruc' : 'cedula',
+          last_name: client.last_name ?? '',
+          first_name: client.first_name ?? '',
+          name: client.name,
+          document_type: client.cedula?.length === 13 ? 'ruc' : 'cedula',
           cedula: client.cedula,
-          telefono: client.telefono,
-          direccion: client.direccion,
-          latitud: client.latitud,
-          longitud: client.longitud,
+          phone: client.phone,
+          address: client.address,
+          latitude: client.latitude,
+          longitude: client.longitude,
           gateway_id: client.gateway_id,
-          tipo: client.tipo,
+          connection_type: client.connection_type,
           plan_id: client.plan_activo?.id ?? '',
-          activo: client.activo,
+          active: client.active,
           ip: client.static_ip?.ip ?? '',
           mac: client.static_ip?.mac ?? '',
-          notas_ip: client.static_ip?.notas ?? '',
-          usuario_ppp: client.pppoe_secret?.usuario_ppp ?? '',
-          contraseña_ppp: client.pppoe_secret?.contraseña_ppp ?? '',
-          perfil_id: client.pppoe_secret?.perfil_id ?? '',
+          notes_ip: client.static_ip?.notes ?? '',
+          ppp_username: client.pppoe_secret?.ppp_username ?? '',
+          ppp_password: client.pppoe_secret?.ppp_password ?? '',
+          profile_id: client.pppoe_secret?.profile_id ?? '',
           email: client.email ?? '',
           created_at: client.created_at ? client.created_at.split('T')[0] : todayStr,
-          inicio_facturacion: client.inicio_facturacion
-            ? client.inicio_facturacion.split('T')[0]
+          billing_start: client.billing_start
+            ? client.billing_start.split('T')[0]
             : (client.created_at ? client.created_at.split('T')[0] : todayStr),
-          dia_inicio_periodo: client.dia_inicio_periodo ?? 1,
-          crear_factura_anticipo_dias: client.crear_factura_anticipo_dias ?? 0,
-          tipo_facturacion: client.tipo_facturacion ?? 'forward',
-          auto_aplicar_pago: client.auto_aplicar_pago ?? true,
-          usar_credito_auto: client.usar_credito_auto ?? true,
-          prorrateo_separado: client.prorrateo_separado ?? true,
+          billing_period_start_day: client.billing_period_start_day ?? 1,
+          invoice_advance_days: client.invoice_advance_days ?? 0,
+          billing_type: client.billing_type ?? 'forward',
+          auto_apply_payment: client.auto_apply_payment ?? true,
+          use_auto_credit: client.use_auto_credit ?? true,
+          separate_proration: client.separate_proration ?? true,
           dia_pago: (() => {
-            if (!client.dia_inicio_periodo || !client.created_at) return 'registro'
+            if (!client.billing_period_start_day || !client.created_at) return 'registro'
             const createdDay = new Date(client.created_at.split('T')[0] + 'T12:00:00').getDate()
-            return client.dia_inicio_periodo === createdDay ? 'registro' : String(client.dia_inicio_periodo)
+            return client.billing_period_start_day === createdDay ? 'registro' : String(client.billing_period_start_day)
           })(),
           metodo_pago: 'transferencia',
           notif_email: true,
@@ -736,12 +738,12 @@ export function ClientFormDialog({ open, onClose, client, onSuccess }: ClientFor
         {
           const initialItems = (client as any).inventory_items?.map((a: any) => ({
             inventory_item_id: a.inventory_item_id,
-            item_nombre: a.item_nombre ?? '',
-            item_codigo: a.item_codigo ?? '',
-            cantidad: a.cantidad ?? 1,
-            numero_serie: a.numero_serie ?? '',
+            item_name: a.item_name ?? '',
+            item_code: a.item_code ?? '',
+            quantity: a.quantity ?? 1,
+            serial_number: a.serial_number ?? '',
             mac: a.mac ?? '',
-            notas: a.notas ?? '',
+            notes: a.notes ?? '',
           })) ?? []
           setSelectedInventoryItems(initialItems)
           initialInventoryItemsRef.current = JSON.stringify(initialItems)
@@ -749,34 +751,34 @@ export function ClientFormDialog({ open, onClose, client, onSuccess }: ClientFor
       } else {
         reset({
           id: undefined,
-          apellidos: '',
-          nombres: '',
-          nombre: '',
-          tipo_documento: 'cedula',
+          last_name: '',
+          first_name: '',
+          name: '',
+          document_type: 'cedula',
           cedula: '',
-          telefono: '',
-          direccion: '',
-          latitud: null,
-          longitud: null,
+          phone: '',
+          address: '',
+          latitude: null,
+          longitude: null,
           gateway_id: '',
-          tipo: 'static',
+          connection_type: 'static',
           plan_id: '',
-          activo: true,
+          active: true,
           ip: '',
           mac: '',
-          notas_ip: '',
-          usuario_ppp: '',
-          contraseña_ppp: '',
-          perfil_id: '',
+          notes_ip: '',
+          ppp_username: '',
+          ppp_password: '',
+          profile_id: '',
           email: '',
           created_at: todayStr,
-          inicio_facturacion: todayStr,
-          dia_inicio_periodo: 1,
-          crear_factura_anticipo_dias: 0,
-          tipo_facturacion: 'forward',
-          auto_aplicar_pago: true,
-          usar_credito_auto: true,
-          prorrateo_separado: true,
+          billing_start: todayStr,
+          billing_period_start_day: 1,
+          invoice_advance_days: 0,
+          billing_type: 'forward',
+          auto_apply_payment: true,
+          use_auto_credit: true,
+          separate_proration: true,
           dia_pago: 'registro',
           metodo_pago: 'transferencia',
           notif_email: true,
@@ -794,20 +796,20 @@ export function ClientFormDialog({ open, onClose, client, onSuccess }: ClientFor
   const saveMutation = useMutation({
     mutationFn: async (data: ClientFormData) => {
       const payload = { ...data } as any
-      payload.nombre = `${payload.apellidos || ''} ${payload.nombres || ''}`.trim()
-      delete payload.apellidos
-      delete payload.nombres
+      payload.name = `${payload.last_name || ''} ${payload.first_name || ''}`.trim()
+      delete payload.last_name
+      delete payload.first_name
       if (!payload.custom_service_ids) {
         payload.custom_service_ids = []
       }
       payload.inventory_items = selectedInventoryItems.map(item => ({
         inventory_item_id: item.inventory_item_id,
-        cantidad: item.cantidad,
-        numero_serie: item.numero_serie || null,
+        quantity: item.quantity,
+        serial_number: item.serial_number || null,
         mac: item.mac || null,
-        notas: item.notas || null,
+        notes: item.notes || null,
       }))
-      delete payload.tipo_documento
+      delete payload.document_type
       delete payload.dia_pago
       delete payload.metodo_pago
       delete payload.notif_email
@@ -815,12 +817,12 @@ export function ClientFormDialog({ open, onClose, client, onSuccess }: ClientFor
       delete payload.notif_whatsapp
 
       if (!payload.plan_id) delete payload.plan_id
-      if (payload.latitud === 0 || isNaN(Number(payload.latitud))) payload.latitud = null
-      if (payload.longitud === 0 || isNaN(Number(payload.longitud))) payload.longitud = null
+      if (payload.latitude === 0 || isNaN(Number(payload.latitude))) payload.latitude = null
+      if (payload.longitude === 0 || isNaN(Number(payload.longitude))) payload.longitude = null
 
-      const telefonoStr = payload.telefono as string | null | undefined
-      if (!telefonoStr || telefonoStr.trim() === '') {
-        payload.telefono = null
+      const phoneStr = payload.phone as string | null | undefined
+      if (!phoneStr || phoneStr.trim() === '') {
+        payload.phone = null
       }
 
       const emailStr = payload.email as string | null | undefined
@@ -835,24 +837,24 @@ export function ClientFormDialog({ open, onClose, client, onSuccess }: ClientFor
         payload.created_at = `${createdAtStr}T12:00:00`
       }
 
-      const inicioFacturacionStr = payload.inicio_facturacion as string | null | undefined
-      if (!inicioFacturacionStr || inicioFacturacionStr.trim() === '') {
-        payload.inicio_facturacion = null
+      const billingStartStr = payload.billing_start as string | null | undefined
+      if (!billingStartStr || billingStartStr.trim() === '') {
+        payload.billing_start = null
       } else {
-        payload.inicio_facturacion = `${inicioFacturacionStr}T12:00:00`
+        payload.billing_start = `${billingStartStr}T12:00:00`
       }
 
-      if (payload.tipo === 'pppoe') {
+      if (payload.connection_type === 'pppoe') {
         payload.ip = null
         payload.mac = null
-        payload.notas_ip = null
+        payload.notes_ip = null
       } else {
         payload.mac = null
-        const notasIpStr = payload.notas_ip as string | null | undefined
-        if (!notasIpStr || notasIpStr.trim() === '') payload.notas_ip = null
-        payload.usuario_ppp = null
-        payload.contraseña_ppp = null
-        payload.perfil_id = null
+        const notesIpStr = payload.notes_ip as string | null | undefined
+        if (!notesIpStr || notesIpStr.trim() === '') payload.notes_ip = null
+        payload.ppp_username = null
+        payload.ppp_password = null
+        payload.profile_id = null
       }
 
       if (isEdit) {
@@ -879,8 +881,8 @@ export function ClientFormDialog({ open, onClose, client, onSuccess }: ClientFor
   function MapEventsHandler() {
     useMapEvents({
       click(e) {
-        setValue('latitud', Number(e.latlng.lat.toFixed(6)))
-        setValue('longitud', Number(e.latlng.lng.toFixed(6)))
+        setValue('latitude', Number(e.latlng.lat.toFixed(6)))
+        setValue('longitude', Number(e.latlng.lng.toFixed(6)))
       },
     })
     return null
@@ -900,7 +902,7 @@ export function ClientFormDialog({ open, onClose, client, onSuccess }: ClientFor
   const onFormError = (errors: Record<string, unknown>) => {
     const errorKeys = Object.keys(errors)
 
-    const step1Fields = ['apellidos', 'nombres', 'tipo_documento', 'cedula', 'telefono', 'direccion', 'email', 'created_at', 'latitud', 'longitud']
+    const step1Fields = ['last_name', 'first_name', 'document_type', 'cedula', 'phone', 'address', 'email', 'created_at', 'latitude', 'longitude']
     if (errorKeys.some((key) => step1Fields.includes(key))) {
       setStep(1)
       return
@@ -918,7 +920,7 @@ export function ClientFormDialog({ open, onClose, client, onSuccess }: ClientFor
       return
     }
 
-    const step4Fields = ['gateway_id', 'tipo', 'ip', 'mac', 'notas_ip', 'usuario_ppp', 'contraseña_ppp', 'perfil_id']
+    const step4Fields = ['gateway_id', 'connection_type', 'ip', 'mac', 'notes_ip', 'ppp_username', 'ppp_password', 'profile_id']
     if (errorKeys.some((key) => step4Fields.includes(key))) {
       setStep(4)
       return
@@ -942,7 +944,7 @@ export function ClientFormDialog({ open, onClose, client, onSuccess }: ClientFor
         {/* Header */}
         <div className="flex items-center justify-between p-5 border-b border-border shrink-0">
           <h2 className="text-lg font-semibold text-foreground">
-            {isEdit ? `Editar: ${client.nombre}` : 'Registrar Nuevo Cliente'}
+            {isEdit ? `Editar: ${client.name}` : 'Registrar Nuevo Cliente'}
           </h2>
           <button
             onClick={onClose}
@@ -1043,25 +1045,25 @@ export function ClientFormDialog({ open, onClose, client, onSuccess }: ClientFor
                     <input
                       type="text"
                       placeholder="Perez Garcia"
-                      {...register('apellidos')}
+                      {...register('last_name')}
                       className="input-field"
                     />
-                    {errors.apellidos && <p className="text-xs text-destructive mt-1">{errors.apellidos.message}</p>}
+                    {errors.last_name && <p className="text-xs text-destructive mt-1">{errors.last_name.message}</p>}
                   </div>
                   <div>
                     <label className="block text-sm font-medium text-foreground mb-1.5">Nombres *</label>
                     <input
                       type="text"
                       placeholder="Juan Andres"
-                      {...register('nombres')}
+                      {...register('first_name')}
                       className="input-field"
                     />
-                    {errors.nombres && <p className="text-xs text-destructive mt-1">{errors.nombres.message}</p>}
+                    {errors.first_name && <p className="text-xs text-destructive mt-1">{errors.first_name.message}</p>}
                   </div>
                 </div>
 
                 {/* Cédula/RUC y Teléfono */}
-                <input type="hidden" {...register('tipo_documento')} />
+                <input type="hidden" {...register('document_type')} />
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   <div>
                     <label className="block text-sm font-medium text-foreground mb-1.5">
@@ -1085,10 +1087,10 @@ export function ClientFormDialog({ open, onClose, client, onSuccess }: ClientFor
                     <input
                       type="text"
                       placeholder="0999999999"
-                      {...register('telefono')}
+                      {...register('phone')}
                       className="input-field font-mono"
                     />
-                    {errors.telefono && <p className="text-xs text-destructive mt-1">{errors.telefono.message}</p>}
+                    {errors.phone && <p className="text-xs text-destructive mt-1">{errors.phone.message}</p>}
                   </div>
                 </div>
 
@@ -1135,10 +1137,10 @@ export function ClientFormDialog({ open, onClose, client, onSuccess }: ClientFor
                   <input
                     type="text"
                     placeholder="Calle 12 y Av. Amazonas"
-                    {...register('direccion')}
+                    {...register('address')}
                     className="input-field"
                   />
-                  {errors.direccion && <p className="text-xs text-destructive mt-1">{errors.direccion.message}</p>}
+                  {errors.address && <p className="text-xs text-destructive mt-1">{errors.address.message}</p>}
                 </div>
 
                 {/* Coordenadas GPS (Inputs manuales) */}
@@ -1149,7 +1151,7 @@ export function ClientFormDialog({ open, onClose, client, onSuccess }: ClientFor
                       type="number"
                       step="0.000001"
                       placeholder="-0.180653"
-                      {...register('latitud')}
+                      {...register('latitude')}
                       className="input-field font-mono"
                     />
                   </div>
@@ -1159,7 +1161,7 @@ export function ClientFormDialog({ open, onClose, client, onSuccess }: ClientFor
                       type="number"
                       step="0.000001"
                       placeholder="-78.467834"
-                      {...register('longitud')}
+                      {...register('longitude')}
                       className="input-field font-mono"
                     />
                   </div>
@@ -1179,21 +1181,21 @@ export function ClientFormDialog({ open, onClose, client, onSuccess }: ClientFor
                     <select
                       onChange={(e) => {
                         const rId = e.target.value
-                        const routerObj = routers.find((r) => r.id === rId)
-                        if (routerObj && routerObj.latitud && routerObj.longitud) {
-                          setValue('latitud', Number(routerObj.latitud))
-                          setValue('longitud', Number(routerObj.longitud))
+                        const gatewayObj = gateways.find((r) => r.id === rId)
+                        if (gatewayObj && gatewayObj.latitude && gatewayObj.longitude) {
+                          setValue('latitude', Number(gatewayObj.latitude))
+                          setValue('longitude', Number(gatewayObj.longitude))
                         }
                       }}
                       className="bg-secondary/40 border border-border/60 text-[11px] text-foreground rounded px-2 py-1 font-sans cursor-pointer focus:outline-none focus:border-brand-500 max-w-[180px]"
                       defaultValue=""
                     >
                       <option value="" disabled>📍 Ir a Nodo / Router...</option>
-                      {routers
-                        .filter((r) => r.latitud && r.longitud)
+                      {gateways
+                        .filter((r) => r.latitude && r.longitude)
                         .map((r) => (
                           <option key={r.id} value={r.id}>
-                            {r.nombre} {r.site_nombre ? `(${r.site_nombre})` : ''}
+                            {r.name} {r.site_name ? `(${r.site_name})` : ''}
                           </option>
                         ))}
                     </select>
@@ -1249,7 +1251,7 @@ export function ClientFormDialog({ open, onClose, client, onSuccess }: ClientFor
                       <select {...register('plan_id')} className="input-field cursor-pointer font-sans">
                         <option value="">Seleccione un plan inicial</option>
                         {plans.map((p) => (
-                          <option key={p.id} value={p.id}>{p.nombre} (${Number(p.precio).toFixed(2)})</option>
+                          <option key={p.id} value={p.id}>{p.name} (${Number(p.price).toFixed(2)})</option>
                         ))}
                       </select>
                       {errors.plan_id && <p className="text-xs text-destructive mt-1">{errors.plan_id.message}</p>}
@@ -1264,15 +1266,15 @@ export function ClientFormDialog({ open, onClose, client, onSuccess }: ClientFor
                               Detalle del Plan
                             </div>
                             <div className="text-xs font-bold text-foreground">
-                              {selectedPlanObj.nombre}
+                              {selectedPlanObj.name}
                             </div>
                             <div className="text-xs font-mono font-bold text-brand-400">
-                              ${Number(selectedPlanObj.precio).toFixed(2)}/mes
+                              ${Number(selectedPlanObj.price).toFixed(2)}/mes
                             </div>
-                            {(selectedPlanObj.velocidad_down_mbps !== undefined || selectedPlanObj.velocidad_up_mbps !== undefined) && (
+                            {(selectedPlanObj.speed_down_mbps !== undefined || selectedPlanObj.speed_up_mbps !== undefined) && (
                               <div className="text-[10px] text-muted-foreground flex gap-3 font-medium">
-                                <span>📥 Down: {selectedPlanObj.velocidad_down_mbps || 0} Mbps</span>
-                                <span>📤 Up: {selectedPlanObj.velocidad_up_mbps || 0} Mbps</span>
+                                <span>📥 Down: {selectedPlanObj.speed_down_mbps || 0} Mbps</span>
+                                <span>📤 Up: {selectedPlanObj.speed_up_mbps || 0} Mbps</span>
                               </div>
                             )}
                           </div>
@@ -1292,7 +1294,7 @@ export function ClientFormDialog({ open, onClose, client, onSuccess }: ClientFor
                       <select {...register('plan_id')} className="input-field cursor-pointer font-sans">
                         {!client?.plan_activo && <option value="">Sin plan (asignar después)</option>}
                         {plans.map((p) => (
-                          <option key={p.id} value={p.id}>{p.nombre} (${Number(p.precio).toFixed(2)})</option>
+                          <option key={p.id} value={p.id}>{p.name} (${Number(p.price).toFixed(2)})</option>
                         ))}
                       </select>
 
@@ -1308,12 +1310,12 @@ export function ClientFormDialog({ open, onClose, client, onSuccess }: ClientFor
                         return (
                           <div className="bg-brand-500/5 border border-brand-500/20 rounded-xl p-3.5 space-y-1.5 animate-fade-in">
                             <div className="text-[10px] font-bold text-brand-300 uppercase tracking-wider">Detalle del Plan</div>
-                            <div className="text-xs font-bold text-foreground">{selectedPlanObj.nombre}</div>
-                            <div className="text-xs font-mono font-bold text-brand-400">${Number(selectedPlanObj.precio).toFixed(2)}/mes</div>
-                            {(selectedPlanObj.velocidad_down_mbps !== undefined || selectedPlanObj.velocidad_up_mbps !== undefined) && (
+                            <div className="text-xs font-bold text-foreground">{selectedPlanObj.name}</div>
+                            <div className="text-xs font-mono font-bold text-brand-400">${Number(selectedPlanObj.price).toFixed(2)}/mes</div>
+                            {(selectedPlanObj.speed_down_mbps !== undefined || selectedPlanObj.speed_up_mbps !== undefined) && (
                               <div className="text-[10px] text-muted-foreground flex gap-3 font-medium">
-                                <span>📥 Down: {selectedPlanObj.velocidad_down_mbps || 0} Mbps</span>
-                                <span>📤 Up: {selectedPlanObj.velocidad_up_mbps || 0} Mbps</span>
+                                <span>📥 Down: {selectedPlanObj.speed_down_mbps || 0} Mbps</span>
+                                <span>📤 Up: {selectedPlanObj.speed_up_mbps || 0} Mbps</span>
                               </div>
                             )}
                           </div>
@@ -1334,16 +1336,16 @@ export function ClientFormDialog({ open, onClose, client, onSuccess }: ClientFor
                         setValue('dia_pago', val, { shouldDirty: true })
                         if (val === 'registro') {
                           if (watchCreatedAt) {
-                            setValue('dia_inicio_periodo', new Date(watchCreatedAt + 'T12:00:00').getDate(), { shouldDirty: true })
+                            setValue('billing_period_start_day', new Date(watchCreatedAt + 'T12:00:00').getDate(), { shouldDirty: true })
                           }
                         } else {
-                          setValue('dia_inicio_periodo', Number(val), { shouldDirty: true })
+                          setValue('billing_period_start_day', Number(val), { shouldDirty: true })
                         }
                       }}
                       className="input-field cursor-pointer font-sans text-sm"
                     >
                       <option value="registro">Fecha de registro del cliente</option>
-                      {fechasCorte.map((dia) => (
+                      {cutoffDates.map((dia) => (
                         <option key={dia} value={String(dia)}>Día {dia} de cada mes</option>
                       ))}
                     </select>
@@ -1396,7 +1398,7 @@ export function ClientFormDialog({ open, onClose, client, onSuccess }: ClientFor
                         {showServiceDropdown && (() => {
                           const available = customServices.filter((cs) =>
                             !selectedCustomServiceIds.includes(cs.id) &&
-                            cs.nombre.toLowerCase().includes(serviceSearch.toLowerCase())
+                            cs.name.toLowerCase().includes(serviceSearch.toLowerCase())
                           )
                           return (
                             <div className="absolute z-20 top-full left-0 right-0 mt-1 bg-secondary border border-border rounded-lg shadow-xl max-h-48 overflow-y-auto">
@@ -1420,16 +1422,16 @@ export function ClientFormDialog({ open, onClose, client, onSuccess }: ClientFor
                                   >
                                     <span className="font-semibold text-foreground flex items-center gap-1.5 flex-wrap">
                                       <Plus className="w-3 h-3 text-brand-400 shrink-0" />
-                                      {cs.nombre}
-                                      <span className={`text-[8px] font-bold uppercase px-1.5 py-0.2 rounded border ${cs.recurrente
+                                      {cs.name}
+                                      <span className={`text-[8px] font-bold uppercase px-1.5 py-0.2 rounded border ${cs.recurring
                                         ? 'bg-blue-500/10 border-blue-500/20 text-blue-400'
                                         : 'bg-purple-500/10 border-purple-500/20 text-purple-400'
                                         }`}>
-                                        {cs.recurrente ? 'Mensual' : 'Pago Único'}
+                                        {cs.recurring ? 'Mensual' : 'Pago Único'}
                                       </span>
                                     </span>
                                     <span className="text-[10px] font-mono font-bold text-brand-400 bg-brand-500/10 px-1.5 py-0.5 rounded shrink-0">
-                                      +${Number(cs.precio).toFixed(2)}
+                                      +${Number(cs.price).toFixed(2)}
                                     </span>
                                   </button>
                                 ))
@@ -1456,20 +1458,20 @@ export function ClientFormDialog({ open, onClose, client, onSuccess }: ClientFor
                               >
                                 <div className="space-y-0.5">
                                   <span className="text-xs font-semibold text-foreground flex items-center gap-1.5 flex-wrap">
-                                    {cs.nombre}
+                                    {cs.name}
                                     <span className="text-[10px] font-mono font-bold text-brand-400 bg-brand-500/10 px-1.5 py-0.5 rounded">
-                                      +${Number(cs.precio).toFixed(2)}
+                                      +${Number(cs.price).toFixed(2)}
                                     </span>
-                                    <span className={`text-[8px] font-bold uppercase px-1.5 py-0.2 rounded border ${cs.recurrente
+                                    <span className={`text-[8px] font-bold uppercase px-1.5 py-0.2 rounded border ${cs.recurring
                                       ? 'bg-blue-500/10 border-blue-500/20 text-blue-400'
                                       : 'bg-purple-500/10 border-purple-500/20 text-purple-400'
                                       }`}>
-                                      {cs.recurrente ? 'Mensual' : 'Pago Único'}
+                                      {cs.recurring ? 'Mensual' : 'Pago Único'}
                                     </span>
                                   </span>
-                                  {cs.descripcion && (
+                                  {cs.description && (
                                     <span className="text-[11px] text-muted-foreground leading-normal block">
-                                      {cs.descripcion}
+                                      {cs.description}
                                     </span>
                                   )}
                                 </div>
@@ -1509,25 +1511,25 @@ export function ClientFormDialog({ open, onClose, client, onSuccess }: ClientFor
                   <div className="grid grid-cols-2 gap-3">
                     <div>
                       <label className="block text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-1.5">Inicio Facturación</label>
-                      <input type="date" {...register('inicio_facturacion')} className="input-field font-sans text-xs cursor-pointer" />
+                      <input type="date" {...register('billing_start')} className="input-field font-sans text-xs cursor-pointer" />
                     </div>
                     <div>
                       <label className="block text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-1.5">Día Inicio Período</label>
-                      <input type="number" min="1" max="31" {...register('dia_inicio_periodo')} className="input-field font-mono text-xs font-bold" />
+                      <input type="number" min="1" max="31" {...register('billing_period_start_day')} className="input-field font-mono text-xs font-bold" />
                     </div>
                   </div>
 
                   <div className="grid grid-cols-2 gap-3">
                     <div>
                       <label className="block text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-1.5">Tipo de Facturación</label>
-                      <select {...register('tipo_facturacion')} className="input-field font-sans text-xs cursor-pointer">
+                      <select {...register('billing_type')} className="input-field font-sans text-xs cursor-pointer">
                         <option value="forward">Prepago</option>
                         <option value="backward">Postpago</option>
                       </select>
                     </div>
                     <div>
                       <label className="block text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-1.5">Anticipación (Días)</label>
-                      <input type="number" min="0" {...register('crear_factura_anticipo_dias')} className="input-field font-mono text-xs font-bold" />
+                      <input type="number" min="0" {...register('invoice_advance_days')} className="input-field font-mono text-xs font-bold" />
                     </div>
                   </div>
                   <div>
@@ -1547,7 +1549,7 @@ export function ClientFormDialog({ open, onClose, client, onSuccess }: ClientFor
                         <span className="text-[10px] text-muted-foreground">Consumir saldo a favor en facturas recurrentes</span>
                       </div>
                       <label className="relative inline-flex items-center cursor-pointer select-none">
-                        <input type="checkbox" {...register('usar_credito_auto')} className="sr-only peer" />
+                        <input type="checkbox" {...register('use_auto_credit')} className="sr-only peer" />
                         <div className="w-9 h-5 bg-secondary peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-muted-foreground after:border-border after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-brand-500 peer-checked:after:bg-white peer-checked:after:border-brand-500"></div>
                       </label>
                     </div>
@@ -1559,7 +1561,7 @@ export function ClientFormDialog({ open, onClose, client, onSuccess }: ClientFor
                         <span className="text-[10px] text-muted-foreground">Facturar el período parcial de forma independiente</span>
                       </div>
                       <label className="relative inline-flex items-center cursor-pointer select-none">
-                        <input type="checkbox" {...register('prorrateo_separado')} className="sr-only peer" />
+                        <input type="checkbox" {...register('separate_proration')} className="sr-only peer" />
                         <div className="w-9 h-5 bg-secondary peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-muted-foreground after:border-border after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-brand-500 peer-checked:after:bg-white peer-checked:after:border-brand-500"></div>
                       </label>
                     </div>
@@ -1576,9 +1578,9 @@ export function ClientFormDialog({ open, onClose, client, onSuccess }: ClientFor
                           Facturación Proyectada
                         </div>
                         <p className="text-[10px] text-muted-foreground -mt-2">
-                          {dueDateSettings?.billing_vencimiento_modo === 'fecha_corte'
+                          {dueDateSettings?.billing_due_mode === 'cutoff_date'
                             ? 'Vencimiento = fecha de corte del cliente (Ajustes → Facturación).'
-                            : `Vencimiento = emisión + ${dueDateSettings?.billing_default_dias_gracia ?? 10} días (Ajustes → Facturación).`}
+                            : `Vencimiento = emisión + ${dueDateSettings?.billing_default_grace_days ?? 10} días (Ajustes → Facturación).`}
                         </p>
 
                         {/* Primera factura después del cambio */}
@@ -1678,24 +1680,24 @@ export function ClientFormDialog({ open, onClose, client, onSuccess }: ClientFor
                     <label className="block text-sm font-medium text-foreground mb-1.5">Gateway *</label>
                     <select {...register('gateway_id')} className="input-field cursor-pointer font-sans">
                       <option value="">Seleccione gateway</option>
-                      {routers.map((r) => (
-                        <option key={r.id} value={r.id}>{r.nombre} ({r.ip})</option>
+                      {gateways.map((r) => (
+                        <option key={r.id} value={r.id}>{r.name} ({r.ip})</option>
                       ))}
                     </select>
                     {errors.gateway_id && <p className="text-xs text-destructive mt-1">{errors.gateway_id.message}</p>}
                   </div>
                   <div>
                     <label className="block text-sm font-medium text-foreground mb-1.5">Tipo de Conexión *</label>
-                    <select {...register('tipo')} className="input-field cursor-pointer font-sans">
+                    <select {...register('connection_type')} className="input-field cursor-pointer font-sans">
                       <option value="static">IP Estática</option>
                       <option value="pppoe">PPPoE</option>
                     </select>
-                    {errors.tipo && <p className="text-xs text-destructive mt-1">{errors.tipo.message}</p>}
+                    {errors.connection_type && <p className="text-xs text-destructive mt-1">{errors.connection_type.message}</p>}
                   </div>
                 </div>
 
                 {/* Campos condicionales para IP Estática */}
-                {watch('tipo') === 'static' && (
+                {watch('connection_type') === 'static' && (
                   <div className="space-y-4 border-l-2 border-brand-500 pl-4 py-1.5 mt-2 bg-brand-500/5 rounded-r-lg pr-3">
                     <div>
                       <label className="block text-sm font-medium text-foreground mb-1.5">Dirección IP *</label>
@@ -1712,7 +1714,7 @@ export function ClientFormDialog({ open, onClose, client, onSuccess }: ClientFor
                       <input
                         type="text"
                         placeholder="Ej: Puerto switch #3, VLAN 10, etc."
-                        {...register('notas_ip')}
+                        {...register('notes_ip')}
                         className="input-field"
                       />
                     </div>
@@ -1720,7 +1722,7 @@ export function ClientFormDialog({ open, onClose, client, onSuccess }: ClientFor
                 )}
 
                 {/* Campos condicionales para PPPoE */}
-                {watch('tipo') === 'pppoe' && (
+                {watch('connection_type') === 'pppoe' && (
                   <div className="space-y-4 border-l-2 border-brand-500 pl-4 py-1.5 mt-2 bg-brand-500/5 rounded-r-lg pr-3">
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                       <div>
@@ -1728,20 +1730,20 @@ export function ClientFormDialog({ open, onClose, client, onSuccess }: ClientFor
                         <input
                           type="text"
                           placeholder="juan.perez"
-                          {...register('usuario_ppp')}
+                          {...register('ppp_username')}
                           className="input-field font-mono"
                         />
-                        {errors.usuario_ppp && <p className="text-xs text-destructive mt-1">{errors.usuario_ppp.message}</p>}
+                        {errors.ppp_username && <p className="text-xs text-destructive mt-1">{errors.ppp_username.message}</p>}
                       </div>
                       <div>
                         <label className="block text-sm font-medium text-foreground mb-1.5">Contraseña PPPoE *</label>
                         <input
                           type="text"
                           placeholder="p4ssw0rd"
-                          {...register('contraseña_ppp')}
+                          {...register('ppp_password')}
                           className="input-field font-mono"
                         />
-                        {errors.contraseña_ppp && <p className="text-xs text-destructive mt-1">{errors.contraseña_ppp.message}</p>}
+                        {errors.ppp_password && <p className="text-xs text-destructive mt-1">{errors.ppp_password.message}</p>}
                       </div>
                     </div>
                   </div>
@@ -1759,10 +1761,10 @@ export function ClientFormDialog({ open, onClose, client, onSuccess }: ClientFor
                     onClick={() => {
                       setShowAddEquipment(true)
                       setNewEquipmentItemId('')
-                      setNewEquipmentCantidad(1)
-                      setNewEquipmentSerie('')
+                      setNewEquipmentQuantity(1)
+                      setNewEquipmentSerial('')
                       setNewEquipmentMac('')
-                      setNewEquipmentNotas('')
+                      setNewEquipmentNotes('')
                     }}
                     className="btn-secondary text-xs px-2.5 py-1.5 flex items-center gap-1 cursor-pointer"
                   >
@@ -1785,14 +1787,14 @@ export function ClientFormDialog({ open, onClose, client, onSuccess }: ClientFor
                       >
                         <div className="text-xs space-y-0.5">
                           <p className="font-semibold text-foreground">
-                            {item.item_nombre}
-                            <span className="text-muted-foreground font-normal font-mono ml-1.5">#{item.item_codigo}</span>
+                            {item.item_name}
+                            <span className="text-muted-foreground font-normal font-mono ml-1.5">#{item.item_code}</span>
                           </p>
                           <p className="text-muted-foreground font-sans">
-                            Cant: <span className="text-foreground font-medium">{item.cantidad}</span>
-                            {item.numero_serie && <> · Serie: <span className="font-mono text-foreground">{item.numero_serie}</span></>}
+                            Cant: <span className="text-foreground font-medium">{item.quantity}</span>
+                            {item.serial_number && <> · Serie: <span className="font-mono text-foreground">{item.serial_number}</span></>}
                             {item.mac && <> · MAC: <span className="font-mono text-foreground">{item.mac}</span></>}
-                            {item.notas && <> · {item.notas}</>}
+                            {item.notes && <> · {item.notes}</>}
                           </p>
                         </div>
                         <button
@@ -1818,7 +1820,7 @@ export function ClientFormDialog({ open, onClose, client, onSuccess }: ClientFor
                       <option value="">-- Seleccionar artículo del inventario --</option>
                       {inventoryItems.map(item => (
                         <option key={item.id} value={item.id}>
-                          {item.nombre} ({item.codigo}){item.modelo ? ` — ${item.modelo}` : ''} · Stock: {item.cantidad}
+                          {item.name} ({item.code}){item.model ? ` — ${item.model}` : ''} · Stock: {item.quantity}
                         </option>
                       ))}
                     </select>
@@ -1828,8 +1830,8 @@ export function ClientFormDialog({ open, onClose, client, onSuccess }: ClientFor
                         <input
                           type="number"
                           min={1}
-                          value={newEquipmentCantidad}
-                          onChange={(e) => setNewEquipmentCantidad(Number(e.target.value))}
+                          value={newEquipmentQuantity}
+                          onChange={(e) => setNewEquipmentQuantity(Number(e.target.value))}
                           className="input-field text-xs mt-1"
                         />
                       </div>
@@ -1837,8 +1839,8 @@ export function ClientFormDialog({ open, onClose, client, onSuccess }: ClientFor
                         <label className="text-[10px] text-muted-foreground font-semibold uppercase">N° Serie</label>
                         <input
                           type="text"
-                          value={newEquipmentSerie}
-                          onChange={(e) => setNewEquipmentSerie(e.target.value)}
+                          value={newEquipmentSerial}
+                          onChange={(e) => setNewEquipmentSerial(e.target.value)}
                           placeholder="SN123456"
                           className="input-field text-xs font-mono mt-1"
                         />
@@ -1858,8 +1860,8 @@ export function ClientFormDialog({ open, onClose, client, onSuccess }: ClientFor
                       <label className="text-[10px] text-muted-foreground font-semibold uppercase">Notas</label>
                       <input
                         type="text"
-                        value={newEquipmentNotas}
-                        onChange={(e) => setNewEquipmentNotas(e.target.value)}
+                        value={newEquipmentNotes}
+                        onChange={(e) => setNewEquipmentNotes(e.target.value)}
                         placeholder="Ubicación, estado, etc."
                         className="input-field text-xs mt-1"
                       />
@@ -1880,12 +1882,12 @@ export function ClientFormDialog({ open, onClose, client, onSuccess }: ClientFor
                           if (!found) return
                           setSelectedInventoryItems(prev => [...prev, {
                             inventory_item_id: found.id,
-                            item_nombre: found.nombre,
-                            item_codigo: found.codigo,
-                            cantidad: newEquipmentCantidad,
-                            numero_serie: newEquipmentSerie,
+                            item_name: found.name,
+                            item_code: found.code,
+                            quantity: newEquipmentQuantity,
+                            serial_number: newEquipmentSerial,
                             mac: newEquipmentMac,
-                            notas: newEquipmentNotas,
+                            notes: newEquipmentNotes,
                           }])
                           setShowAddEquipment(false)
                         }}

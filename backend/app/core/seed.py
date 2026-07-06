@@ -28,11 +28,11 @@ def seed_admin(db: Session) -> None:
         return
 
     admin = User(
-        nombre=settings.ADMIN_SEED_NOMBRE,
+        name=settings.ADMIN_SEED_NAME,
         email=settings.ADMIN_SEED_EMAIL,
         hashed_password=hash_password(settings.ADMIN_SEED_PASSWORD),
-        rol="admin",
-        activo=True,
+        role="admin",
+        active=True,
     )
     db.add(admin)
     db.commit()
@@ -41,27 +41,27 @@ def seed_admin(db: Session) -> None:
 
 def seed_plans(db: Session) -> None:
     default_plans = [
-        {"nombre": "Plan Básico 20 Mbps", "velocidad_down_mbps": 20, "velocidad_up_mbps": 10, "velocidad_down_kbps": 20000, "velocidad_up_kbps": 10000, "precio": 15.00, "descripcion": "Plan de internet básico de 20 Mbps", "impuestos": 15.0, "prioridad": 8, "address_list": "clientes"},
-        {"nombre": "Plan Familiar 50 Mbps", "velocidad_down_mbps": 50, "velocidad_up_mbps": 25, "velocidad_down_kbps": 50000, "velocidad_up_kbps": 25000, "precio": 25.00, "descripcion": "Plan familiar ideal de 50 Mbps", "impuestos": 15.0, "prioridad": 6, "address_list": "clientes"},
-        {"nombre": "Plan Corporativo 100 Mbps", "velocidad_down_mbps": 100, "velocidad_up_mbps": 50, "velocidad_down_kbps": 100000, "velocidad_up_kbps": 50000, "precio": 45.00, "descripcion": "Plan corporativo de alta velocidad", "impuestos": 15.0, "prioridad": 3, "address_list": "clientes"},
+        {"name": "Plan Básico 20 Mbps", "speed_down_mbps": 20, "speed_up_mbps": 10, "speed_down_kbps": 20000, "speed_up_kbps": 10000, "price": 15.00, "description": "Plan de internet básico de 20 Mbps", "taxes": 15.0, "priority": 8, "address_list": "clientes"},
+        {"name": "Plan Familiar 50 Mbps", "speed_down_mbps": 50, "speed_up_mbps": 25, "speed_down_kbps": 50000, "speed_up_kbps": 25000, "price": 25.00, "description": "Plan familiar ideal de 50 Mbps", "taxes": 15.0, "priority": 6, "address_list": "clientes"},
+        {"name": "Plan Corporativo 100 Mbps", "speed_down_mbps": 100, "speed_up_mbps": 50, "speed_down_kbps": 100000, "speed_up_kbps": 50000, "price": 45.00, "description": "Plan corporativo de alta velocidad", "taxes": 15.0, "priority": 3, "address_list": "clientes"},
     ]
     for dp in default_plans:
-        exists = db.query(Plan).filter(Plan.nombre == dp["nombre"]).first()
+        exists = db.query(Plan).filter(Plan.name == dp["name"]).first()
         if not exists:
             plan = Plan(
-                nombre=dp["nombre"],
-                velocidad_down_mbps=dp["velocidad_down_mbps"],
-                velocidad_up_mbps=dp["velocidad_up_mbps"],
-                velocidad_down_kbps=dp["velocidad_down_kbps"],
-                velocidad_up_kbps=dp["velocidad_up_kbps"],
-                precio=dp["precio"],
-                descripcion=dp["descripcion"],
-                impuestos=dp["impuestos"],
-                prioridad=dp["prioridad"],
+                name=dp["name"],
+                speed_down_mbps=dp["speed_down_mbps"],
+                speed_up_mbps=dp["speed_up_mbps"],
+                speed_down_kbps=dp["speed_down_kbps"],
+                speed_up_kbps=dp["speed_up_kbps"],
+                price=dp["price"],
+                description=dp["description"],
+                taxes=dp["taxes"],
+                priority=dp["priority"],
                 address_list=dp["address_list"],
             )
             db.add(plan)
-            logger.info(f"✅ Plan de ancho de banda creado: {dp['nombre']}")
+            logger.info(f"✅ Plan de ancho de banda creado: {dp['name']}")
     db.commit()
 
 

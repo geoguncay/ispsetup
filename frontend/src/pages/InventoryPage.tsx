@@ -10,22 +10,22 @@ import { InventoryImportDialog } from '@/components/InventoryImportDialog'
 
 interface Supplier {
   id: string
-  nombre: string
+  name: string
 }
 
 interface InventoryItem {
   id: string
-  nombre: string
-  codigo: string
-  cantidad: number
-  minimo_alerta: number
-  precio_compra: number
-  precio_venta: number
-  descripcion: string | null
-  categoria: string | null
-  modelo: string | null
-  proveedor_id: string | null
-  proveedor: Supplier | null
+  name: string
+  code: string
+  quantity: number
+  min_alert: number
+  purchase_price: number
+  sale_price: number
+  description: string | null
+  category: string | null
+  model: string | null
+  supplier_id: string | null
+  supplier: Supplier | null
 }
 
 export function InventoryPage() {
@@ -36,7 +36,7 @@ export function InventoryPage() {
   const [editingItem, setEditingItem] = useState<InventoryItem | null>(null)
 
   // Sorting State
-  const [sortField, setSortField] = useState<'codigo' | 'nombre' | 'modelo' | 'categoria' | 'cantidad' | 'precio_compra' | 'precio_venta' | null>(null)
+  const [sortField, setSortField] = useState<'code' | 'name' | 'model' | 'category' | 'quantity' | 'purchase_price' | 'sale_price' | null>(null)
   const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('asc')
 
   // Query inventory
@@ -91,7 +91,7 @@ export function InventoryPage() {
     const aVal = a[sortField] ?? ''
     const bVal = b[sortField] ?? ''
 
-    if (sortField === 'cantidad' || sortField === 'precio_compra' || sortField === 'precio_venta') {
+    if (sortField === 'quantity' || sortField === 'purchase_price' || sortField === 'sale_price') {
       return sortOrder === 'asc' ? Number(aVal) - Number(bVal) : Number(bVal) - Number(aVal)
     }
 
@@ -140,7 +140,7 @@ export function InventoryPage() {
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
           <input
             type="text"
-            placeholder="Buscar por nombre o SKU..."
+            placeholder="Buscar por name o SKU..."
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             className="input-field pl-9"
@@ -170,27 +170,27 @@ export function InventoryPage() {
           <table className="data-table">
             <thead>
               <tr>
-                <th onClick={() => handleSort('codigo')} className="cursor-pointer select-none hover:text-foreground transition-colors">
-                  Código/SKU {renderSortIcon('codigo')}
+                <th onClick={() => handleSort('code')} className="cursor-pointer select-none hover:text-foreground transition-colors">
+                  Código/SKU {renderSortIcon('code')}
                 </th>
-                <th onClick={() => handleSort('nombre')} className="cursor-pointer select-none hover:text-foreground transition-colors">
-                  Producto {renderSortIcon('nombre')}
+                <th onClick={() => handleSort('name')} className="cursor-pointer select-none hover:text-foreground transition-colors">
+                  Producto {renderSortIcon('name')}
                 </th>
-                <th onClick={() => handleSort('modelo')} className="cursor-pointer select-none hover:text-foreground transition-colors">
-                  Modelo {renderSortIcon('modelo')}
+                <th onClick={() => handleSort('model')} className="cursor-pointer select-none hover:text-foreground transition-colors">
+                  Modelo {renderSortIcon('model')}
                 </th>
-                <th onClick={() => handleSort('categoria')} className="cursor-pointer select-none hover:text-foreground transition-colors">
-                  Categoría {renderSortIcon('categoria')}
+                <th onClick={() => handleSort('category')} className="cursor-pointer select-none hover:text-foreground transition-colors">
+                  Categoría {renderSortIcon('category')}
                 </th>
-                <th onClick={() => handleSort('cantidad')} className="cursor-pointer select-none hover:text-foreground transition-colors">
-                  Cant. Stock {renderSortIcon('cantidad')}
+                <th onClick={() => handleSort('quantity')} className="cursor-pointer select-none hover:text-foreground transition-colors">
+                  Cant. Stock {renderSortIcon('quantity')}
                 </th>
                 <th>Alerta Mín.</th>
-                <th onClick={() => handleSort('precio_compra')} className="cursor-pointer select-none hover:text-foreground transition-colors">
-                  P. Compra {renderSortIcon('precio_compra')}
+                <th onClick={() => handleSort('purchase_price')} className="cursor-pointer select-none hover:text-foreground transition-colors">
+                  P. Compra {renderSortIcon('purchase_price')}
                 </th>
-                <th onClick={() => handleSort('precio_venta')} className="cursor-pointer select-none hover:text-foreground transition-colors">
-                  P. Venta {renderSortIcon('precio_venta')}
+                <th onClick={() => handleSort('sale_price')} className="cursor-pointer select-none hover:text-foreground transition-colors">
+                  P. Venta {renderSortIcon('sale_price')}
                 </th>
                 <th>Proveedor</th>
                 <th className="w-24 text-right">Acciones</th>
@@ -198,29 +198,29 @@ export function InventoryPage() {
             </thead>
             <tbody>
               {sortedItems.map((item) => {
-                const isLowStock = item.cantidad <= item.minimo_alerta
+                const isLowStock = item.quantity <= item.min_alert
                 return (
                   <tr key={item.id} className="hover:bg-secondary/40 transition-colors">
-                    <td className="font-mono text-xs font-semibold text-brand-400">{item.codigo}</td>
+                    <td className="font-mono text-xs font-semibold text-brand-400">{item.code}</td>
                     <td>
                       <div>
-                        <p className="font-semibold text-foreground">{item.nombre}</p>
-                        {item.descripcion && (
-                          <p className="text-[10px] text-muted-foreground truncate max-w-xs">{item.descripcion}</p>
+                        <p className="font-semibold text-foreground">{item.name}</p>
+                        {item.description && (
+                          <p className="text-[10px] text-muted-foreground truncate max-w-xs">{item.description}</p>
                         )}
                       </div>
                     </td>
                     <td>
-                      {item.modelo ? (
-                        <span className="text-xs text-foreground font-medium">{item.modelo}</span>
+                      {item.model ? (
+                        <span className="text-xs text-foreground font-medium">{item.model}</span>
                       ) : (
                         <span className="text-xs text-muted-foreground/40 italic">Ninguno</span>
                       )}
                     </td>
                     <td>
-                      {item.categoria ? (
+                      {item.category ? (
                         <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-semibold bg-brand-500/10 text-brand-400 border border-brand-500/20">
-                          {item.categoria}
+                          {item.category}
                         </span>
                       ) : (
                         <span className="text-xs text-muted-foreground/40 italic">Ninguna</span>
@@ -231,18 +231,18 @@ export function InventoryPage() {
                         ? 'bg-red-500/10 text-red-400 border border-red-500/20'
                         : 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20'
                         }`}>
-                        {item.cantidad}
+                        {item.quantity}
                         {isLowStock && <AlertTriangle className="w-3 h-3" />}
                       </span>
                     </td>
-                    <td className="font-mono text-xs text-muted-foreground">{item.minimo_alerta}</td>
-                    <td className="font-mono text-xs text-foreground font-semibold">${item.precio_compra.toFixed(2)}</td>
-                    <td className="font-mono text-xs text-brand-300 font-bold">${item.precio_venta.toFixed(2)}</td>
+                    <td className="font-mono text-xs text-muted-foreground">{item.min_alert}</td>
+                    <td className="font-mono text-xs text-foreground font-semibold">${item.purchase_price.toFixed(2)}</td>
+                    <td className="font-mono text-xs text-brand-300 font-bold">${item.sale_price.toFixed(2)}</td>
                     <td>
-                      {item.proveedor ? (
+                      {item.supplier ? (
                         <span className="inline-flex items-center gap-1 text-xs text-muted-foreground">
                           <Truck className="w-3.5 h-3.5 text-brand-400/70" />
-                          {item.proveedor.nombre}
+                          {item.supplier.name}
                         </span>
                       ) : (
                         <span className="text-xs text-muted-foreground/40 italic">Ninguno</span>

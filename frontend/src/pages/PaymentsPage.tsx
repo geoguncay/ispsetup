@@ -1,5 +1,5 @@
 /**
- * PaymentsPage — Control de caja del día y transacciones financieras del WISP.
+ * PaymentsPage — Control de caja del día y transacciones financieras del ISP.
  */
 import { useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
@@ -17,7 +17,7 @@ export function PaymentsPage() {
   const dateFormat = useDateFormat()
 
   // Consultar caja diaria de la API
-  const { data: cashData = { total_cobrado: 0, desglose: {}, transacciones: [] }, isLoading, refetch } = useQuery({
+  const { data: cashData = { total_collected: 0, breakdown: {}, transactions: [] }, isLoading, refetch } = useQuery({
     queryKey: ['today-cash'],
     queryFn: async () => {
       const { data } = await api.get('/payments/today')
@@ -26,16 +26,16 @@ export function PaymentsPage() {
   })
 
   // Descargar Recibo PDF
-  const handleDownloadReceipt = async (pagoId: string) => {
-    setReceiptLoadingMap(prev => ({ ...prev, [pagoId]: true }))
+  const handleDownloadReceipt = async (paymentId: string) => {
+    setReceiptLoadingMap(prev => ({ ...prev, [paymentId]: true }))
     try {
-      const response = await api.get(`/payments/${pagoId}/receipt`, { responseType: 'blob' })
+      const response = await api.get(`/payments/${paymentId}/receipt`, { responseType: 'blob' })
       const blob = new Blob([response.data], { type: 'application/pdf' })
       const url = window.URL.createObjectURL(blob)
 
       const link = document.createElement('a')
       link.href = url
-      link.setAttribute('download', `recibo_${pagoId.substring(0, 8).toUpperCase()}.pdf`)
+      link.setAttribute('download', `recibo_${paymentId.substring(0, 8).toUpperCase()}.pdf`)
       document.body.appendChild(link)
       link.click()
       link.remove()
@@ -44,16 +44,16 @@ export function PaymentsPage() {
       console.error(err)
       alert('Error al descargar el comprobante en PDF')
     } finally {
-      setReceiptLoadingMap(prev => ({ ...prev, [pagoId]: false }))
+      setReceiptLoadingMap(prev => ({ ...prev, [paymentId]: false }))
     }
   }
 
-  const { total_cobrado, desglose, transacciones } = cashData
+  const { total_collected, breakdown, transactions } = cashData
 
-  const efectivoTotal = desglose.efectivo ?? 0
-  const transferenciaTotal = desglose.transferencia ?? 0
-  const tarjetaTotal = desglose.tarjeta ?? 0
-  const depositoTotal = desglose.deposito ?? 0
+  const cashTotal = breakdown.cash ?? 0
+  const transferTotal = breakdown.transfer ?? 0
+  const cardTotal = breakdown.card ?? 0
+  const depositTotal = breakdown.deposit ?? 0
 
   return (
     <div className="space-y-6">
@@ -83,7 +83,7 @@ export function PaymentsPage() {
           <div className="flex justify-between items-start">
             <div className="space-y-1">
               <span className="text-xs font-semibold text-primary block">Total Recaudado</span>
-              <p className="text-2xl font-black text-foreground font-mono">${Number(total_cobrado).toFixed(2)}</p>
+              <p className="text-2xl font-black text-foreground font-mono">${Number(total_collected).toFixed(2)}</p>
             </div>
             <div className="p-2 bg-primary/20 rounded-lg text-primary">
               <DollarSign className="w-5 h-5" />
@@ -99,7 +99,7 @@ export function PaymentsPage() {
           <div className="flex justify-between items-start">
             <div className="space-y-1">
               <span className="text-xs font-semibold text-muted-foreground block">Recaudado en Efectivo</span>
-              <p className="text-2xl font-black text-emerald-400 font-mono">${Number(efectivoTotal).toFixed(2)}</p>
+              <p className="text-2xl font-black text-emerald-400 font-mono">${Number(cashTotal).toFixed(2)}</p>
             </div>
             <div className="p-2 bg-emerald-500/10 rounded-lg text-emerald-400">
               <Wallet className="w-5 h-5" />
@@ -112,7 +112,7 @@ export function PaymentsPage() {
           <div className="flex justify-between items-start">
             <div className="space-y-1">
               <span className="text-xs font-semibold text-muted-foreground block">Transferencia Bancaria</span>
-              <p className="text-2xl font-black text-brand-300 font-mono">${Number(transferenciaTotal).toFixed(2)}</p>
+              <p className="text-2xl font-black text-brand-300 font-mono">${Number(transferTotal).toFixed(2)}</p>
             </div>
             <div className="p-2 bg-brand-500/10 rounded-lg text-brand-400">
               <Landmark className="w-5 h-5" />
@@ -125,7 +125,7 @@ export function PaymentsPage() {
           <div className="flex justify-between items-start">
             <div className="space-y-1">
               <span className="text-xs font-semibold text-muted-foreground block">Tarjeta Crédito / Débito</span>
-              <p className="text-2xl font-black text-purple-400 font-mono">${Number(tarjetaTotal).toFixed(2)}</p>
+              <p className="text-2xl font-black text-purple-400 font-mono">${Number(cardTotal).toFixed(2)}</p>
             </div>
             <div className="p-2 bg-purple-500/10 rounded-lg text-purple-400">
               <CreditCard className="w-5 h-5" />
@@ -138,7 +138,7 @@ export function PaymentsPage() {
           <div className="flex justify-between items-start">
             <div className="space-y-1">
               <span className="text-xs font-semibold text-muted-foreground block">Depósitos en Cuenta</span>
-              <p className="text-2xl font-black text-cyan-400 font-mono">${Number(depositoTotal).toFixed(2)}</p>
+              <p className="text-2xl font-black text-cyan-400 font-mono">${Number(depositTotal).toFixed(2)}</p>
             </div>
             <div className="p-2 bg-cyan-500/10 rounded-lg text-cyan-400">
               <ArrowUpRight className="w-5 h-5" />
@@ -158,7 +158,7 @@ export function PaymentsPage() {
             <RefreshCw className="w-8 h-8 animate-spin text-primary" />
             <span className="text-sm font-medium">Consultando transacciones del día...</span>
           </div>
-        ) : transacciones.length === 0 ? (
+        ) : transactions.length === 0 ? (
           <div className="text-center py-16 glass-card text-muted-foreground text-sm flex flex-col items-center gap-2">
             <DollarSign className="w-12 h-12 text-muted-foreground/30" />
             No se han registrado cobros el día de hoy todavía.
@@ -180,18 +180,18 @@ export function PaymentsPage() {
                   </tr>
                 </thead>
                 <tbody>
-                  {transacciones.map((tx: any) => (
+                  {transactions.map((tx: any) => (
                     <tr key={tx.id} className="hover:bg-secondary/20 transition-all text-sm">
                       <td className="font-mono text-xs text-muted-foreground">
-                        {new Date(tx.fecha_pago).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                        {new Date(tx.payment_date).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                       </td>
                       <td>
                         <Link
-                          to={`/clients/${tx.cliente_id}`}
+                          to={`/clients/${tx.client_id}`}
                           className="font-bold text-foreground hover:text-primary transition-colors flex items-center gap-1.5"
                         >
                           <User className="w-3.5 h-3.5 text-muted-foreground flex-shrink-0" />
-                          <span>{tx.cliente_nombre ?? 'Cliente N/A'}</span>
+                          <span>{tx.client_name ?? 'Cliente N/A'}</span>
                         </Link>
                       </td>
                       <td>
@@ -200,12 +200,12 @@ export function PaymentsPage() {
                           <span>{tx.invoice_id ? 'Factura Mensual' : 'Abono'}</span>
                         </span>
                       </td>
-                      <td className="capitalize font-medium text-foreground text-xs">{tx.metodo.replace("_", " ")}</td>
+                      <td className="capitalize font-medium text-foreground text-xs">{tx.method.replace("_", " ")}</td>
                       <td className="text-xs font-medium text-foreground">
-                        <span className="text-muted-foreground">{tx.usuario_nombre ?? 'Sistema'}</span>
+                        <span className="text-muted-foreground">{tx.user_name ?? 'Sistema'}</span>
                       </td>
-                      <td className="text-xs text-muted-foreground truncate max-w-xs">{tx.notas ?? '-'}</td>
-                      <td className="font-black text-brand-300 font-mono text-base">${Number(tx.monto).toFixed(2)}</td>
+                      <td className="text-xs text-muted-foreground truncate max-w-xs">{tx.notes ?? '-'}</td>
+                      <td className="font-black text-brand-300 font-mono text-base">${Number(tx.amount).toFixed(2)}</td>
                       <td className="text-right">
                         <button
                           disabled={receiptLoadingMap[tx.id]}

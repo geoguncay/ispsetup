@@ -25,8 +25,8 @@ interface ImportResult {
   total: number
   imported_count: number
   failed_count: number
-  successes: { fila: number; codigo: string; nombre: string }[]
-  failures: { fila: number; codigo: string; nombre: string; errores: string[] }[]
+  successes: { row: number; code: string; name: string }[]
+  failures: { row: number; code: string; name: string; errors: string[] }[]
 }
 
 // CSV template columns matching the inventory model
@@ -414,10 +414,10 @@ export function InventoryImportDialog({ isOpen, onClose, onSuccess }: InventoryI
                     {importResult.failures.map((f, idx) => (
                       <div key={idx} className="p-3 bg-red-500/5 border border-red-500/15 rounded-lg">
                         <p className="text-xs font-semibold text-foreground mb-1">
-                          Fila {f.fila}: <span className="text-brand-400 font-mono">{f.codigo}</span> — {f.nombre}
+                          Fila {f.row}: <span className="text-brand-400 font-mono">{f.code}</span> — {f.name}
                         </p>
                         <ul className="list-disc list-inside space-y-0.5">
-                          {f.errores.map((err, eIdx) => (
+                          {f.errors.map((err, eIdx) => (
                             <li key={eIdx} className="text-xs text-red-400">{err}</li>
                           ))}
                         </ul>
@@ -438,8 +438,8 @@ export function InventoryImportDialog({ isOpen, onClose, onSuccess }: InventoryI
                     {importResult.successes.map((s, idx) => (
                       <div key={idx} className="flex items-center gap-2 px-3 py-1.5 bg-emerald-500/5 rounded-lg text-xs">
                         <CheckCircle2 className="w-3 h-3 text-emerald-400 shrink-0" />
-                        <span className="font-mono text-brand-400">{s.codigo}</span>
-                        <span className="text-foreground">{s.nombre}</span>
+                        <span className="font-mono text-brand-400">{s.code}</span>
+                        <span className="text-foreground">{s.name}</span>
                       </div>
                     ))}
                   </div>

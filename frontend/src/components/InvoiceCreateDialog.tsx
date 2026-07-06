@@ -17,8 +17,8 @@ interface InvoiceCreateDialogProps {
 
 interface FormPlan {
   id: string
-  nombre: string
-  precio: number
+  name: string
+  price: number
 }
 
 export function InvoiceCreateDialog({
@@ -38,9 +38,9 @@ export function InvoiceCreateDialog({
   const [clientId, setClientId] = useState('')
   const [clientSearch, setClientSearch] = useState('')
   const [selectedPlanId, setSelectedPlanId] = useState('')
-  const [monto, setMonto] = useState('')
-  const [periodo, setPeriodo] = useState('')
-  const [fechaVencimiento, setFechaVencimiento] = useState('')
+  const [amount, setAmount] = useState('')
+  const [period, setPeriod] = useState('')
+  const [dueDate, setDueDate] = useState('')
   const [errorMsg, setErrorMsg] = useState<string | null>(null)
   const [showDropdown, setShowDropdown] = useState(false)
 
@@ -56,19 +56,19 @@ export function InvoiceCreateDialog({
       setGenerating(false)
       setActiveTab('manual')
       setSelectedPlanId('')
-      setMonto('')
-      
+      setAmount('')
+
       const today = new Date()
       const mm = String(today.getMonth() + 1).padStart(2, '0')
       const yyyy = today.getFullYear()
-      setPeriodo(`${mm}/${yyyy}`)
+      setPeriod(`${mm}/${yyyy}`)
 
       const expDate = new Date()
       expDate.setDate(today.getDate() + 10)
       const expY = expDate.getFullYear()
       const expM = String(expDate.getMonth() + 1).padStart(2, '0')
       const expD = String(expDate.getDate()).padStart(2, '0')
-      setFechaVencimiento(`${expY}-${expM}-${expD}`)
+      setDueDate(`${expY}-${expM}-${expD}`)
 
       if (preselectedClientId) {
         setClientId(preselectedClientId)
@@ -109,10 +109,10 @@ export function InvoiceCreateDialog({
     if (planId) {
       const plan = plans.find(p => p.id === planId)
       if (plan) {
-        setMonto(plan.precio.toString())
+        setAmount(plan.price.toString())
       }
     } else {
-      setMonto('')
+      setAmount('')
     }
   }
 
@@ -123,11 +123,11 @@ export function InvoiceCreateDialog({
       }
 
       const payload = {
-        cliente_id: clientId,
+        client_id: clientId,
         plan_id: selectedPlanId || null,
-        periodo: periodo.trim(),
-        monto: parseFloat(monto),
-        fecha_vencimiento: `${fechaVencimiento}T23:59:59`,
+        period: period.trim(),
+        amount: parseFloat(amount),
+        due_date: `${dueDate}T23:59:59`,
       }
 
       const { data } = await api.post('/invoices', payload)
@@ -180,14 +180,14 @@ export function InvoiceCreateDialog({
       return
     }
 
-    const parsedMonto = parseFloat(monto)
-    if (isNaN(parsedMonto) || parsedMonto <= 0) {
+    const parsedAmount = parseFloat(amount)
+    if (isNaN(parsedAmount) || parsedAmount <= 0) {
       setErrorMsg('El monto debe ser un número mayor a 0.')
       return
     }
 
     const periodPattern = /^(0[1-9]|1[0-2])\/\d{4}$/
-    if (!periodPattern.test(periodo)) {
+    if (!periodPattern.test(period)) {
       setErrorMsg('El periodo debe tener el formato MM/AAAA (ej. 06/2026).')
       return
     }
@@ -304,12 +304,12 @@ export function InvoiceCreateDialog({
                             type="button"
                             onClick={() => {
                               setClientId(c.id)
-                              setClientSearch(c.nombre)
+                              setClientSearch(c.name)
                               setShowDropdown(false)
                             }}
                             className="w-full text-left px-4 py-2.5 hover:bg-secondary-hover border-b border-border/30 last:border-b-0 flex flex-col text-xs"
                           >
-                            <span className="font-semibold text-foreground">{c.nombre}</span>
+                            <span className="font-semibold text-foreground">{c.name}</span>
                             <span className="text-[10px] text-muted-foreground font-mono">{c.cedula}</span>
                           </button>
                         ))
@@ -333,7 +333,7 @@ export function InvoiceCreateDialog({
                 <option value="">-- Sin Plan (Monto Personalizado) --</option>
                 {plans.map((p) => (
                   <option key={p.id} value={p.id}>
-                    {p.nombre} (${Number(p.precio).toFixed(2)})
+                    {p.name} (${Number(p.price).toFixed(2)})
                   </option>
                 ))}
               </select>
@@ -350,8 +350,8 @@ export function InvoiceCreateDialog({
                   type="number"
                   step="0.01"
                   required
-                  value={monto}
-                  onChange={(e) => setMonto(e.target.value)}
+                  value={amount}
+                  onChange={(e) => setAmount(e.target.value)}
                   placeholder="0.00"
                   className="input-field pl-7 font-mono font-bold text-brand-300"
                 />
@@ -367,8 +367,8 @@ export function InvoiceCreateDialog({
                 <input
                   type="text"
                   required
-                  value={periodo}
-                  onChange={(e) => setPeriodo(e.target.value)}
+                  value={period}
+                  onChange={(e) => setPeriod(e.target.value)}
                   placeholder="06/2026"
                   className="input-field font-mono"
                 />
@@ -380,8 +380,8 @@ export function InvoiceCreateDialog({
                 <input
                   type="date"
                   required
-                  value={fechaVencimiento}
-                  onChange={(e) => setFechaVencimiento(e.target.value)}
+                  value={dueDate}
+                  onChange={(e) => setDueDate(e.target.value)}
                   className="input-field font-mono cursor-pointer"
                 />
               </div>
@@ -436,7 +436,7 @@ export function InvoiceCreateDialog({
                   <span>Facturación Masiva en Lote</span>
                 </h4>
                 <p className="text-xs text-muted-foreground leading-relaxed font-medium">
-                  Genera de manera automática las facturas para todos los clientes activos del WISP que tengan un plan contratado vigente.
+                  Genera de manera automática las facturas para todos los clientes activos del ISP que tengan un plan contratado vigente.
                 </p>
                 <p className="text-[11px] text-brand-400/80 leading-normal italic bg-brand-500/10 p-2 rounded-lg">
                   * El sistema omitirá de manera inteligente la facturación para aquellos clientes que ya tengan una factura emitida para el mes actual.

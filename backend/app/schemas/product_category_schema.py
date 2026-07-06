@@ -6,15 +6,15 @@ from pydantic import BaseModel, Field
 
 
 class ProductCategoryCreate(BaseModel):
-    nombre: str = Field(min_length=1, max_length=50)
+    name: str = Field(min_length=1, max_length=50)
 
 
 class ProductCategoryUpdate(BaseModel):
-    nombre: str = Field(min_length=1, max_length=50)
+    name: str = Field(min_length=1, max_length=50)
 
 
 class ProductCategoryResponse(BaseModel):
     model_config = {"from_attributes": True}
 
     id: uuid.UUID
-    nombre: str
+    name: str

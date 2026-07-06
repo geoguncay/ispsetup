@@ -1,5 +1,5 @@
 /**
- * GatewayProfilePage — Ficha del router, listado de clientes asociados, ubicación geográfica y configuración de MikroTik.
+ * GatewayProfilePage — Ficha del gateway, listado de clientes asociados, ubicación geográfica y configuración de MikroTik.
  */
 import React, { useState, useEffect } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
@@ -21,14 +21,14 @@ import { formatUptime } from '@/lib/utils'
 import { formatSpeed } from '@/components/TrafficChart'
 
 // Icono personalizado violeta para el Router
-const routerSvg = `data:image/svg+xml;utf8,${encodeURIComponent(`
+const gatewaySvg = `data:image/svg+xml;utf8,${encodeURIComponent(`
   <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="%238b5cf6" width="38" height="38">
     <path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5c-1.38 0-2.5-1.12-2.5-2.5s1.12-2.5 2.5-2.5 2.5 1.12 2.5 2.5-1.12 2.5-2.5 2.5z"/>
   </svg>
 `)}`
 
-const routerIcon = L.icon({
-  iconUrl: routerSvg,
+const gatewayIcon = L.icon({
+  iconUrl: gatewaySvg,
   iconSize: [38, 38],
   iconAnchor: [19, 38],
   popupAnchor: [0, -32],
@@ -117,14 +117,14 @@ function formatBandwidth(mbps: number): string {
 
 interface Client {
   id: string
-  nombre: string
+  name: string
   cedula: string
-  telefono: string
-  tipo: 'static' | 'pppoe'
-  activo: boolean
-  latitud: number | null
-  longitud: number | null
-  plan_activo?: { nombre: string; velocidad_down_mbps?: number; velocidad_up_mbps?: number } | null
+  phone: string
+  connection_type: 'static' | 'pppoe'
+  active: boolean
+  latitude: number | null
+  longitude: number | null
+  plan_activo?: { name: string; speed_down_mbps?: number; speed_up_mbps?: number } | null
   static_ip?: { ip: string } | null
 }
 
@@ -228,7 +228,7 @@ export function GatewayProfilePage() {
   const navigate = useNavigate()
   const queryClient = useQueryClient()
   const { user } = useAuthStore()
-  const isAdmin = user?.rol === 'admin'
+  const isAdmin = user?.role === 'admin'
 
   const [activeTab, setActiveTab] = useState<'stats' | 'clients' | 'queues' | 'pppoe' | 'logs' | 'historial'>('stats')
   const [selectedQueue, setSelectedQueue] = useState<any | null>(null)
@@ -297,8 +297,8 @@ export function GatewayProfilePage() {
 
 
   // Consultar información del Router — se refresca automáticamente cada 15 s
-  const { data: router, isLoading: isLoadingRouter, isError: isErrorRouter, refetch: refetchRouter } = useQuery({
-    queryKey: ['router', id],
+  const { data: gateway, isLoading: isLoadingGateway, isError: isErrorGateway, refetch: refetchGateway } = useQuery({
+    queryKey: ['gateway', id],
     queryFn: async () => {
       const { data } = await api.get(`/gateways/${id}`)
       return data
@@ -308,9 +308,9 @@ export function GatewayProfilePage() {
 
 
 
-  // Consultar todos los clientes del router (para estadísticas y mapa de cobertura)
+  // Consultar todos los clientes del gateway (para estadísticas y mapa de cobertura)
   const { data: allClients = [], isLoading: isLoadingAllClients } = useQuery<Client[]>({
-    queryKey: ['router-clients-all', id],
+    queryKey: ['gateway-clients-all', id],
     queryFn: async () => {
       const { data } = await api.get(`/clients`, {
         params: { gateway_id: id, limit: 1000 }
@@ -324,7 +324,7 @@ export function GatewayProfilePage() {
   const clientsLimit = 10
 
   const { data: paginatedClientsData = { items: [], total: 0 }, isLoading: isLoadingPaginated } = useQuery({
-    queryKey: ['router-clients-paginated', id, clientsPage, searchTerm],
+    queryKey: ['gateway-clients-paginated', id, clientsPage, searchTerm],
     queryFn: async () => {
       const params: any = {
         gateway_id: id,
@@ -339,7 +339,7 @@ export function GatewayProfilePage() {
     }
   })
 
-  // Query to get address list names from this router
+  // Query to get address list names from this gateway
   const { data: addressLists = [], isLoading: isLoadingLists } = useQuery<string[]>({
     queryKey: ['address-lists', id],
     queryFn: async () => {
@@ -351,7 +351,7 @@ export function GatewayProfilePage() {
 
   // Consultar colas asociadas
   const { data: queues = [], isLoading: isLoadingQueues, refetch: refetchQueues } = useQuery({
-    queryKey: ['router-queues', id],
+    queryKey: ['gateway-queues', id],
     queryFn: async () => {
       const { data } = await api.get(`/gateways/${id}/queues`)
       return data
@@ -408,9 +408,9 @@ export function GatewayProfilePage() {
     try {
       const { data } = await api.post(`/gateways/${id}/test-connection`)
       setTestResult(data)
-      refetchRouter()
+      refetchGateway()
     } catch (err: any) {
-      const errMsg = err?.response?.data?.detail || 'Error de red al conectar al router'
+      const errMsg = err?.response?.data?.detail || 'Error de red al conectar al gateway'
       setTestResult({ success: false, message: errMsg })
     } finally {
       setIsTesting(false)
@@ -432,11 +432,11 @@ export function GatewayProfilePage() {
       })
       setSelectedListName('clientes')
       setCustomListName('')
-      queryClient.invalidateQueries({ queryKey: ['router-clients-paginated', id] })
-      queryClient.invalidateQueries({ queryKey: ['router-clients-all', id] })
+      queryClient.invalidateQueries({ queryKey: ['gateway-clients-paginated', id] })
+      queryClient.invalidateQueries({ queryKey: ['gateway-clients-all', id] })
     },
     onError: (err: any) => {
-      const msg = err?.response?.data?.detail || 'Error al importar clientes desde el router.'
+      const msg = err?.response?.data?.detail || 'Error al importar clientes desde el gateway.'
       setImportResult({
         success: false,
         message: msg
@@ -451,7 +451,7 @@ export function GatewayProfilePage() {
     importMutation.mutate(listName)
   }
 
-  // Mutación para eliminar router
+  // Mutación para eliminar gateway
   const deleteMutation = useMutation({
     mutationFn: async () => {
       await api.delete(`/gateways/${id}`)
@@ -461,14 +461,14 @@ export function GatewayProfilePage() {
       navigate('/gateways')
     },
     onError: (err: any) => {
-      const msg = err?.response?.data?.detail || 'Error al eliminar el router'
+      const msg = err?.response?.data?.detail || 'Error al eliminar el gateway'
       alert(msg)
     }
   })
 
   // Consultar sesiones PPPoE activas
   const { data: pppoeSessions = [], isLoading: isLoadingSessions, refetch: refetchSessions } = useQuery<any[]>({
-    queryKey: ['router-pppoe-sessions', id],
+    queryKey: ['gateway-pppoe-sessions', id],
     queryFn: async () => {
       const { data } = await api.get(`/gateways/${id}/pppoe-sessions`)
       return data
@@ -497,7 +497,7 @@ export function GatewayProfilePage() {
       await api.post(`/gateways/${id}/sync-pppoe-profiles`)
     },
     onSuccess: () => {
-      refetchRouter()
+      refetchGateway()
       alert('Perfiles PPPoE sincronizados correctamente.')
     },
     onError: (err: any) => {
@@ -533,8 +533,8 @@ export function GatewayProfilePage() {
   // Historial ISP: audit logs filtrados por este gateway
   const { data: auditData, isFetching: fetchingAudit, refetch: refetchAudit } = useQuery<{
     items: Array<{
-      id: string; accion: string; usuario_nombre: string | null
-      entidad_nombre: string | null; detalle: Record<string, unknown> | null
+      id: string; action: string; user_name: string | null
+      entity_name: string | null; detail: Record<string, unknown> | null
       ip_address: string | null; created_at: string
     }>
     total: number
@@ -542,7 +542,7 @@ export function GatewayProfilePage() {
     queryKey: ['gateway-audit', id],
     queryFn: async () => {
       const { data } = await api.get('/audit-logs', {
-        params: { entidad_id: id, limit: 100 }
+        params: { entity_id: id, limit: 100 }
       })
       return data
     },
@@ -566,32 +566,32 @@ export function GatewayProfilePage() {
 
   // Función para sincronizar de manera completa todos los datos
   const handleSyncAll = () => {
-    refetchRouter()
+    refetchGateway()
     refetchQueues()
     refetchSessions()
-    queryClient.invalidateQueries({ queryKey: ['router', id] })
-    queryClient.invalidateQueries({ queryKey: ['router-queues', id] })
-    queryClient.invalidateQueries({ queryKey: ['router-pppoe-sessions', id] })
+    queryClient.invalidateQueries({ queryKey: ['gateway', id] })
+    queryClient.invalidateQueries({ queryKey: ['gateway-queues', id] })
+    queryClient.invalidateQueries({ queryKey: ['gateway-pppoe-sessions', id] })
   }
 
-  if (isLoadingRouter) {
+  if (isLoadingGateway) {
     return (
       <div className="flex items-center justify-center h-64">
         <div className="flex items-center gap-3 text-muted-foreground">
           <RefreshCw className="w-5 h-5 animate-spin" />
-          <span>Cargando perfil del router...</span>
+          <span>Cargando perfil del gateway...</span>
         </div>
       </div>
     )
   }
 
-  if (isErrorRouter || !router) {
+  if (isErrorGateway || !gateway) {
     return (
       <div className="glass-card p-12 text-center max-w-lg mx-auto mt-12">
         <AlertCircle className="w-12 h-12 text-destructive mx-auto mb-4" />
-        <h3 className="text-lg font-semibold text-foreground mb-2">Error al cargar el router</h3>
+        <h3 className="text-lg font-semibold text-foreground mb-2">Error al cargar el gateway</h3>
         <p className="text-muted-foreground text-sm mb-6">
-          El router solicitado no existe o ha sido desactivado permanentemente.
+          El gateway solicitado no existe o ha sido desactivado permanentemente.
         </p>
         <button onClick={() => navigate('/gateways')} className="btn-secondary mx-auto">
           <ArrowLeft className="w-4 h-4" />
@@ -602,7 +602,7 @@ export function GatewayProfilePage() {
   }
 
   // Calcular estadísticas usando la lista completa de clientes (allClients)
-  const activeClients = allClients.filter((c: Client) => c.activo).length
+  const activeClients = allClients.filter((c: Client) => c.active).length
   const inactiveClients = allClients.length - activeClients
   const totalClients = allClients.length
   const activePercentage = totalClients > 0 ? (activeClients / totalClients) * 100 : 0
@@ -612,9 +612,9 @@ export function GatewayProfilePage() {
     if (q.disabled) return false
     const name = q.name?.toLowerCase() || ''
 
-    // Filtrar dinámicamente la cola padre del router
-    const routerParent = router?.cola_padre?.toLowerCase() || ''
-    if (routerParent && name === routerParent) return false
+    // Filtrar dinámicamente la cola padre del gateway
+    const gatewayParent = gateway?.parent_queue?.toLowerCase() || ''
+    if (gatewayParent && name === gatewayParent) return false
 
     // Filtros legados
     if (name === 'isp_padre' || name === 'padre' || name === 'total') return false
@@ -622,18 +622,18 @@ export function GatewayProfilePage() {
     return true
   })
 
-  // Encontrar la cola padre del router en las colas traídas de MikroTik
-  const routerParentName = router?.cola_padre?.toLowerCase() || ''
+  // Encontrar la cola padre del gateway en las colas traídas de MikroTik
+  const gatewayParentName = gateway?.parent_queue?.toLowerCase() || ''
   const parentQueue = queues.find((q: any) => {
     const qName = q.name?.toLowerCase() || ''
-    if (routerParentName && qName === routerParentName) return true
-    if (!routerParentName && (qName === 'isp_padre' || qName === 'padre' || qName === 'total')) return true
+    if (gatewayParentName && qName === gatewayParentName) return true
+    if (!gatewayParentName && (qName === 'isp_padre' || qName === 'padre' || qName === 'total')) return true
     return false
   })
 
-  // Extraer límites de velocidad del router (Prioridad: MikroTik parent queue max_limit > base de datos fallback)
-  let configuredDownMbps = router?.ancho_banda_down || 0
-  let configuredUpMbps = router?.ancho_banda_up || 0
+  // Extraer límites de velocidad del gateway (Prioridad: MikroTik parent queue max_limit > base de datos fallback)
+  let configuredDownMbps = gateway?.bandwidth_down || 0
+  let configuredUpMbps = gateway?.bandwidth_up || 0
 
   if (parentQueue && parentQueue.max_limit) {
     const [upMbps, downMbps] = parseMaxLimit(parentQueue.max_limit)
@@ -671,11 +671,11 @@ export function GatewayProfilePage() {
           </button>
           <div>
             <div className="flex items-center gap-2">
-              <h1 className="text-xl font-bold text-foreground">{router.nombre}</h1>
-              <GatewayStatusBadge status={router.status ?? 'unknown'} />
+              <h1 className="text-xl font-bold text-foreground">{gateway.name}</h1>
+              <GatewayStatusBadge status={gateway.status ?? 'unknown'} />
             </div>
             <p className="text-xs text-muted-foreground mt-0.5 font-mono">
-              ID: {router.id} {router.modelo_hw ? `· HW: ${router.modelo_hw}` : ''}
+              ID: {gateway.id} {gateway.hw_model ? `· HW: ${gateway.hw_model}` : ''}
             </p>
           </div>
         </div>
@@ -714,19 +714,19 @@ export function GatewayProfilePage() {
               <div>
                 <span className="block text-xs text-muted-foreground">Dirección IP / Host</span>
                 <code className="text-sm font-mono text-foreground font-semibold">
-                  {router.ip}:{router.puerto_api}
+                  {gateway.ip}:{gateway.api_port}
                 </code>
               </div>
 
               <div>
                 <span className="block text-xs text-muted-foreground">Usuario API</span>
-                <span className="text-sm text-foreground font-medium">{router.usuario_api}</span>
+                <span className="text-sm text-foreground font-medium">{gateway.api_username}</span>
               </div>
 
-              {router.uptime && (
+              {gateway.uptime && (
                 <div>
                   <span className="block text-xs text-muted-foreground">Tiempo Activo (Uptime)</span>
-                  <span className="text-sm text-foreground font-medium">{formatUptime(router.uptime)}</span>
+                  <span className="text-sm text-foreground font-medium">{formatUptime(gateway.uptime)}</span>
                 </div>
               )}
             </div>
@@ -738,13 +738,13 @@ export function GatewayProfilePage() {
               <MapPin className="w-4.5 h-4.5" />
               <span>Coordenadas GPS</span>
             </div>
-            {router.latitud && router.longitud ? (
+            {gateway.latitude && gateway.longitude ? (
               <div className="space-y-3 text-xs">
 
                 {/* Mapa adaptado dentro de la tarjeta de coordenadas */}
                 <div className="rounded-lg overflow-hidden h-[240px] border border-border/40 relative shadow-sm z-10">
                   <MapContainer
-                    center={[router.latitud, router.longitud]}
+                    center={[gateway.latitude, gateway.longitude]}
                     zoom={13}
                     scrollWheelZoom={true}
                     style={{ height: '100%', width: '100%' }}
@@ -755,14 +755,14 @@ export function GatewayProfilePage() {
                     />
 
                     {/* Marcador del Router */}
-                    <Marker position={[router.latitud, router.longitud]} icon={routerIcon}>
+                    <Marker position={[gateway.latitude, gateway.longitude]} icon={gatewayIcon}>
                       <Popup>
                         <div className="p-1 text-foreground font-sans">
                           <h4 className="font-bold text-sm text-brand-400 flex items-center gap-1.5 m-0">
                             <Server className="w-3.5 h-3.5" />
-                            {router.nombre}
+                            {gateway.name}
                           </h4>
-                          <p className="text-xs text-muted-foreground mt-1 mb-0 font-mono">{router.ip}</p>
+                          <p className="text-xs text-muted-foreground mt-1 mb-0 font-mono">{gateway.ip}</p>
                           <p className="text-[10px] text-muted-foreground m-0">Clientes: {allClients.length}</p>
                         </div>
                       </Popup>
@@ -770,9 +770,9 @@ export function GatewayProfilePage() {
 
                     {/* Marcadores de los clientes */}
                     {allClients
-                      .filter((c: Client) => c.latitud && c.longitud)
+                      .filter((c: Client) => c.latitude && c.longitude)
                       .map((client: Client) => {
-                        const color = client.activo ? '%2310b981' : '%23f59e0b'
+                        const color = client.active ? '%2310b981' : '%23f59e0b'
                         const clientSvg = `data:image/svg+xml;utf8,${encodeURIComponent(`
                           <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="${color}" width="30" height="30">
                             <path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5c-1.38 0-2.5-1.12-2.5-2.5s1.12-2.5 2.5-2.5 2.5 1.12 2.5 2.5-1.12 2.5-2.5 2.5z"/>
@@ -788,19 +788,19 @@ export function GatewayProfilePage() {
                         return (
                           <Marker
                             key={client.id}
-                            position={[client.latitud!, client.longitud!]}
+                            position={[client.latitude!, client.longitude!]}
                             icon={clientIcon}
                           >
                             <Popup>
                               <div className="p-1 space-y-1.5 text-foreground font-sans min-w-[140px]">
-                                <h4 className="font-bold text-xs text-foreground m-0">{client.nombre}</h4>
+                                <h4 className="font-bold text-xs text-foreground m-0">{client.name}</h4>
                                 <p className="text-[10px] text-muted-foreground m-0 font-mono">IP: {client.static_ip?.ip ?? 'PPPoE'}</p>
                                 <div className="flex items-center justify-between border-t border-border/40 pt-1 mt-1">
-                                  <span className={`text-[9px] uppercase font-bold px-1.5 py-0.2 rounded-full ${client.activo
+                                  <span className={`text-[9px] uppercase font-bold px-1.5 py-0.2 rounded-full ${client.active
                                     ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/25'
                                     : 'bg-amber-500/10 text-amber-400 border border-amber-500/25'
                                     }`}>
-                                    {client.activo ? 'activo' : 'suspendido'}
+                                    {client.active ? 'activo' : 'suspendido'}
                                   </span>
                                   <button
                                     type="button"
@@ -821,11 +821,11 @@ export function GatewayProfilePage() {
                 <div className="space-y-2">
                   <div className="flex justify-between">
                     <span className="text-muted-foreground">Latitud:</span>
-                    <span className="font-mono text-foreground font-semibold">{router.latitud}</span>
+                    <span className="font-mono text-foreground font-semibold">{gateway.latitude}</span>
                   </div>
                   <div className="flex justify-between">
                     <span className="text-muted-foreground">Longitud:</span>
-                    <span className="font-mono text-foreground font-semibold">{router.longitud}</span>
+                    <span className="font-mono text-foreground font-semibold">{gateway.longitude}</span>
                   </div>
                 </div>
               </div>
@@ -930,7 +930,7 @@ export function GatewayProfilePage() {
                             de {configuredDownMbps} Mbps totales ({((totalDownMbps / configuredDownMbps) * 100).toFixed(0)}%)
                           </span>
                         ) : (
-                          <span className="text-[10px] text-muted-foreground block font-normal mt-0.5">Límite router: Ilimitado</span>
+                          <span className="text-[10px] text-muted-foreground block font-normal mt-0.5">Límite gateway: Ilimitado</span>
                         )}
                       </span>
                     )}
@@ -950,14 +950,14 @@ export function GatewayProfilePage() {
                             de {configuredUpMbps} Mbps totales ({((totalUpMbps / configuredUpMbps) * 100).toFixed(0)}%)
                           </span>
                         ) : (
-                          <span className="text-[10px] text-muted-foreground block font-normal mt-0.5">Límite router: Ilimitado</span>
+                          <span className="text-[10px] text-muted-foreground block font-normal mt-0.5">Límite gateway: Ilimitado</span>
                         )}
                       </span>
                     )}
                   </div>
                   <div className="bg-secondary/20 p-4 rounded-lg border border-border/20">
                     <span className="block text-xs text-muted-foreground">Capacidad Límite del Router</span>
-                    {isLoadingRouter || isLoadingQueues ? (
+                    {isLoadingGateway || isLoadingQueues ? (
                       <div className="flex items-center gap-1.5 mt-2">
                         <Loader2 className="w-3.5 h-3.5 animate-spin text-brand-400" />
                         <span className="text-xs text-muted-foreground">Cargando...</span>
@@ -972,7 +972,7 @@ export function GatewayProfilePage() {
                           'Ilimitado (0/0)'
                         )}
                         <span className="text-[10px] text-muted-foreground block font-normal mt-0.5">
-                          Cola: <strong>{parentQueue?.name || router?.cola_padre || 'sin cola'}</strong>
+                          Cola: <strong>{parentQueue?.name || gateway?.parent_queue || 'sin cola'}</strong>
                         </span>
                       </span>
                     )}
@@ -1015,12 +1015,12 @@ export function GatewayProfilePage() {
                       <tbody>
                         {liveClients.slice(0, 10).map((lc: any) => (
                           <tr
-                            key={lc.cliente_id}
-                            onClick={() => navigate(`/clients/${lc.cliente_id}`)}
+                            key={lc.client_id}
+                            onClick={() => navigate(`/clients/${lc.client_id}`)}
                             className="hover:bg-secondary/40 cursor-pointer transition-colors"
                           >
                             <td className="font-semibold text-sm text-foreground">
-                              {lc.nombre}
+                              {lc.name}
                             </td>
                             <td className="font-mono text-xs text-cyan-400 font-bold">
                               {formatSpeed(lc.rx_rate)}
@@ -1059,13 +1059,13 @@ export function GatewayProfilePage() {
                     type="text"
                     value={searchTerm}
                     onChange={(e) => { setSearchTerm(e.target.value); setClientsPage(1) }}
-                    placeholder="Buscar cliente por nombre, cédula o IP..."
+                    placeholder="Buscar cliente por name, cédula o IP..."
                     className="input-field pl-10"
                   />
                 </div>
                 {isAdmin && (
                   <div>
-                    {router.status === 'online' ? (
+                    {gateway.status === 'online' ? (
                       <button
                         onClick={() => setImportingOpen(true)}
                         className="btn-secondary text-brand-400 hover:text-brand-300 text-xs py-2 px-3 flex items-center gap-1.5"
@@ -1074,7 +1074,7 @@ export function GatewayProfilePage() {
                         Importar desde Address-list
                       </button>
                     ) : (
-                      <span className="text-xs text-muted-foreground bg-secondary/40 py-2 px-3 rounded-lg border border-border/20" title="El router debe estar En línea para permitir la importación automática de clientes.">
+                      <span className="text-xs text-muted-foreground bg-secondary/40 py-2 px-3 rounded-lg border border-border/20" title="El gateway debe estar En línea para permitir la importación automática de clientes.">
                         Router fuera de línea (sin importación)
                       </span>
                     )}
@@ -1085,7 +1085,7 @@ export function GatewayProfilePage() {
               {paginatedClientsData.items.length === 0 ? (
                 <div className="glass-card p-8 text-center text-muted-foreground">
                   <Users className="w-10 h-10 mx-auto mb-2 text-muted-foreground/60" />
-                  No se encontraron clientes asignados a este router que coincidan con la búsqueda.
+                  No se encontraron clientes asignados a este gateway que coincidan con la búsqueda.
                 </div>
               ) : (
                 <>
@@ -1108,9 +1108,9 @@ export function GatewayProfilePage() {
                             className="hover:bg-secondary/40 cursor-pointer transition-colors"
                           >
                             <td>
-                              <div className="font-semibold text-sm text-foreground">{client.nombre}</div>
+                              <div className="font-semibold text-sm text-foreground">{client.name}</div>
                               <div className="text-xs text-muted-foreground capitalize sm:hidden">
-                                {client.tipo === 'static' ? 'IP Estática' : 'PPPoE'}
+                                {client.connection_type === 'static' ? 'IP Estática' : 'PPPoE'}
                               </div>
                             </td>
                             <td className="hidden sm:table-cell font-mono text-xs text-muted-foreground">
@@ -1122,14 +1122,14 @@ export function GatewayProfilePage() {
                               </code>
                             </td>
                             <td className="text-xs text-brand-400 font-medium">
-                              {client.plan_activo?.nombre ? client.plan_activo.nombre : 'Sin plan'}
+                              {client.plan_activo?.name ? client.plan_activo.name : 'Sin plan'}
                             </td>
                             <td>
-                              <span className={`text-[10px] uppercase font-bold px-2 py-0.5 rounded-full ${client.activo
+                              <span className={`text-[10px] uppercase font-bold px-2 py-0.5 rounded-full ${client.active
                                 ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20'
                                 : 'bg-amber-500/10 text-amber-400 border border-amber-500/20'
                                 }`}>
-                                {client.activo ? 'Activo' : 'Suspendido'}
+                                {client.active ? 'Activo' : 'Suspendido'}
                               </span>
                             </td>
                           </tr>
@@ -1197,7 +1197,7 @@ export function GatewayProfilePage() {
               ) : queues.length === 0 ? (
                 <div className="glass-card p-8 text-center text-muted-foreground">
                   <Sliders className="w-10 h-10 mx-auto mb-2 text-muted-foreground/60" />
-                  No se encontraron colas simples configuradas en este router.
+                  No se encontraron colas simples configuradas en este gateway.
                 </div>
               ) : (
                 <div className="glass-card overflow-hidden font-sans">
@@ -1216,9 +1216,9 @@ export function GatewayProfilePage() {
                       {queues.map((q: any) => (
                         <tr key={q.id} className="hover:bg-secondary/40 transition-colors">
                           <td>
-                            {q.cliente_id ? (
+                            {q.client_id ? (
                               <div
-                                onClick={() => navigate(`/clients/${q.cliente_id}`)}
+                                onClick={() => navigate(`/clients/${q.client_id}`)}
                                 className="font-semibold text-sm text-brand-400 hover:underline cursor-pointer"
                               >
                                 {q.name}
@@ -1252,7 +1252,7 @@ export function GatewayProfilePage() {
                           {isAdmin && (
                             <td className="text-right">
                               <div className="flex items-center justify-end gap-2">
-                                {q.cliente_id && (
+                                {q.client_id && (
                                   <>
                                     <button
                                       onClick={() => {
@@ -1267,7 +1267,7 @@ export function GatewayProfilePage() {
                                     </button>
                                     <button
                                       onClick={() => toggleQueueMutation.mutate({
-                                        clientId: q.cliente_id,
+                                        clientId: q.client_id,
                                         disabled: !q.disabled
                                       })}
                                       disabled={toggleQueueMutation.isPending}
@@ -1297,14 +1297,14 @@ export function GatewayProfilePage() {
                 <div>
                   <h3 className="text-sm font-semibold text-foreground">Sesiones PPPoE en tiempo real</h3>
                   <p className="text-xs text-muted-foreground mt-0.5">
-                    Monitoreo de clientes conectados por túnel PPPoE en este router.
+                    Monitoreo de clientes conectados por túnel PPPoE en este gateway.
                   </p>
                 </div>
                 
                 {isAdmin && (
                   <button
                     onClick={() => {
-                      if (confirm('¿Deseas sincronizar los perfiles PPPoE desde el router MikroTik?')) {
+                      if (confirm('¿Deseas sincronizar los perfiles PPPoE desde el gateway MikroTik?')) {
                         syncProfilesMutation.mutate()
                       }
                     }}
@@ -1321,10 +1321,10 @@ export function GatewayProfilePage() {
                 )}
               </div>
 
-              {router.status !== 'online' ? (
+              {gateway.status !== 'online' ? (
                 <div className="bg-amber-500/10 border border-amber-500/30 rounded-lg p-4 text-xs text-amber-500 font-sans flex items-start gap-2.5">
                   <AlertCircle className="w-4.5 h-4.5 text-amber-500 flex-shrink-0 mt-0.5" />
-                  <span>El router se encuentra fuera de línea. No se pueden recuperar las sesiones PPPoE activas en este momento.</span>
+                  <span>El gateway se encuentra fuera de línea. No se pueden recuperar las sesiones PPPoE activas en este momento.</span>
                 </div>
               ) : isLoadingSessions ? (
                 <div className="text-center py-12 text-muted-foreground flex items-center justify-center gap-2">
@@ -1415,7 +1415,7 @@ export function GatewayProfilePage() {
               {fetchingLogs && !logsData ? (
                 <div className="flex items-center justify-center py-12 text-muted-foreground gap-2">
                   <Loader2 className="w-5 h-5 animate-spin" />
-                  <span className="text-sm">Obteniendo logs del router...</span>
+                  <span className="text-sm">Obteniendo logs del gateway...</span>
                 </div>
               ) : logsData && logsData.logs.length > 0 ? (
                 <div className="border border-border/60 rounded-xl overflow-hidden bg-background/20">
@@ -1513,19 +1513,19 @@ export function GatewayProfilePage() {
                     </thead>
                     <tbody>
                       {auditData.items.map((entry) => {
-                        const meta = AUDIT_META[entry.accion] ?? {
-                          label: entry.accion,
+                        const meta = AUDIT_META[entry.action] ?? {
+                          label: entry.action,
                           color: 'text-slate-400 bg-slate-500/10 border-slate-500/20',
                           icon: ClipboardList,
                         }
                         const Icon = meta.icon
-                        const detalle = entry.detalle
-                        const detalleText = detalle
-                          ? Object.entries(detalle)
+                        const detail = entry.detail
+                        const detailText = detail
+                          ? Object.entries(detail)
                               .filter(([k]) => k !== 'source')
                               .map(([k, v]) => {
-                                if (k === 'motivo') return `Motivo: ${v}`
-                                if (k === 'plan_nombre') return `Plan: ${v}`
+                                if (k === 'reason') return `Motivo: ${v}`
+                                if (k === 'plan_name') return `Plan: ${v}`
                                 if (k === 'imported_count') return `${v} importados`
                                 if (k === 'disabled') return v ? 'Deshabilitada' : 'Habilitada'
                                 if (k === 'ip') return `IP: ${v}`
@@ -1552,12 +1552,12 @@ export function GatewayProfilePage() {
                             </td>
                             <td>
                               <span className="text-xs text-muted-foreground">
-                                {detalleText || '—'}
+                                {detailText || '—'}
                               </span>
                             </td>
                             <td>
                               <span className="text-xs text-foreground font-medium">
-                                {entry.usuario_nombre ?? (
+                                {entry.user_name ?? (
                                   <span className="text-muted-foreground italic">Sistema</span>
                                 )}
                               </span>
@@ -1588,11 +1588,11 @@ export function GatewayProfilePage() {
         <GatewayFormDialog
           open={editOpen}
           onClose={() => setEditOpen(false)}
-          gateway={router}
+          gateway={gateway}
           onSuccess={() => {
-            queryClient.invalidateQueries({ queryKey: ['router', id] })
+            queryClient.invalidateQueries({ queryKey: ['gateway', id] })
             queryClient.invalidateQueries({ queryKey: ['routers'] })
-            queryClient.invalidateQueries({ queryKey: ['router-queues', id] })
+            queryClient.invalidateQueries({ queryKey: ['gateway-queues', id] })
             setEditOpen(false)
           }}
           onDelete={() => {
@@ -1606,9 +1606,9 @@ export function GatewayProfilePage() {
       {confirmDeleteOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">
           <div className="glass-card p-6 w-full max-w-sm mx-4 animate-fade-in">
-            <h3 className="text-lg font-semibold text-foreground mb-2">¿Eliminar router?</h3>
+            <h3 className="text-lg font-semibold text-foreground mb-2">¿Eliminar gateway?</h3>
             <p className="text-muted-foreground text-sm mb-6 leading-relaxed">
-              Esta acción desactivará el router <strong>{router.nombre}</strong>. Los clientes asignados no se borrarán pero perderán el enlace a este router.
+              Esta acción desactivará el gateway <strong>{gateway.name}</strong>. Los clientes asignados no se borrarán pero perderán el enlace a este gateway.
             </p>
             <div className="flex gap-3">
               <button
@@ -1669,7 +1669,7 @@ export function GatewayProfilePage() {
             ) : (
               <form onSubmit={handleImportSubmit} className="p-5 space-y-4">
                 <p className="text-xs text-muted-foreground leading-relaxed">
-                  Selecciona una lista de direcciones del router <strong>{router.nombre}</strong>. Se importarán todas sus IPs y se registrarán como nuevos clientes en el sistema y en la lista <strong>clientes</strong> de MikroTik.
+                  Selecciona una lista de direcciones del gateway <strong>{gateway.name}</strong>. Se importarán todas sus IPs y se registrarán como nuevos clientes en el sistema y en la lista <strong>clientes</strong> de MikroTik.
                 </p>
 
                 {importResult && !importResult.success && (
@@ -1695,7 +1695,7 @@ export function GatewayProfilePage() {
                   </label>
                   {isLoadingLists ? (
                     <div className="text-xs text-muted-foreground py-2 flex items-center gap-2">
-                      <Loader2 className="w-3.5 h-3.5 animate-spin" /> Cargando listas del router...
+                      <Loader2 className="w-3.5 h-3.5 animate-spin" /> Cargando listas del gateway...
                     </div>
                   ) : (
                     <select
@@ -1716,7 +1716,7 @@ export function GatewayProfilePage() {
                             {listName}
                           </option>
                         ))}
-                      <option value="custom">-- Escribir nombre personalizado --</option>
+                      <option value="custom">-- Escribir name personalizado --</option>
                     </select>
                   )}
                 </div>
@@ -1780,12 +1780,12 @@ export function GatewayProfilePage() {
 
             <div className="p-5 space-y-4 font-sans">
               <p className="text-xs text-muted-foreground leading-relaxed">
-                Estás cambiando el plan del cliente <strong>{selectedQueue.cliente_nombre}</strong> con IP <strong>{selectedQueue.target}</strong>. El límite de velocidad de MikroTik se modificará inmediatamente.
+                Estás cambiando el plan del cliente <strong>{selectedQueue.client_name}</strong> con IP <strong>{selectedQueue.target}</strong>. El límite de velocidad de MikroTik se modificará inmediatamente.
               </p>
 
               <div>
                 <span className="block text-xs text-muted-foreground">Plan Actual</span>
-                <span className="text-sm font-semibold text-foreground block">{selectedQueue.plan_activo?.nombre || 'Ninguno'}</span>
+                <span className="text-sm font-semibold text-foreground block">{selectedQueue.plan_activo?.name || 'Ninguno'}</span>
               </div>
 
               <div>
@@ -1800,7 +1800,7 @@ export function GatewayProfilePage() {
                   <option value="">-- Seleccionar Plan --</option>
                   {plans.map((p: any) => (
                     <option key={p.id} value={p.id}>
-                      {p.nombre} - ${p.precio}
+                      {p.name} - ${p.price}
                     </option>
                   ))}
                 </select>
@@ -1818,7 +1818,7 @@ export function GatewayProfilePage() {
                   onClick={() => {
                     if (!selectedPlanId) return
                     changePlanMutation.mutate({
-                      clientId: selectedQueue.cliente_id,
+                      clientId: selectedQueue.client_id,
                       planId: selectedPlanId
                     })
                   }}

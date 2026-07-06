@@ -31,23 +31,23 @@ const DEFAULT_CENTER: [number, number] = [-0.180653, -78.467834]
 
 const gatewaySchema = z.object({
   id: z.string().optional(),
-  nombre: z.string().min(2, 'Mínimo 2 caracteres').max(120),
+  name: z.string().min(2, 'Mínimo 2 caracteres').max(120),
   ip: z.string().min(7, 'IP inválida').max(45),
-  puerto_api: z.coerce.number().min(1).max(65535),
-  usuario_api: z.string().min(1, 'Requerido').max(120),
+  api_port: z.coerce.number().min(1).max(65535),
+  api_username: z.string().min(1, 'Requerido').max(120),
   password_api: z.string().optional(),
-  modelo_hw: z.string().max(120).optional(),
-  notas: z.string().optional(),
-  latitud: z.coerce.number().optional().nullable(),
-  longitud: z.coerce.number().optional().nullable(),
-  monitoreo_trafico: z.boolean().default(true),
-  control_velocidad: z.boolean().default(true),
-  sincronizar_logs: z.boolean().default(true),
-  notificaciones_alertas: z.boolean().default(true),
-  cola_padre: z.string().max(100).optional().nullable(),
+  hw_model: z.string().max(120).optional(),
+  notes: z.string().optional(),
+  latitude: z.coerce.number().optional().nullable(),
+  longitude: z.coerce.number().optional().nullable(),
+  traffic_monitoring: z.boolean().default(true),
+  speed_control: z.boolean().default(true),
+  sync_logs: z.boolean().default(true),
+  alert_notifications: z.boolean().default(true),
+  parent_queue: z.string().max(100).optional().nullable(),
   address_list: z.string().max(100).optional().nullable(),
-  ancho_banda_up: z.coerce.number().min(0).default(0),
-  ancho_banda_down: z.coerce.number().min(0).default(0),
+  bandwidth_up: z.coerce.number().min(0).default(0),
+  bandwidth_down: z.coerce.number().min(0).default(0),
   site_id: z.string().optional().nullable(),
 }).refine(
   (data) => {
@@ -66,9 +66,9 @@ type GatewayFormData = z.infer<typeof gatewaySchema>
 
 interface Site {
   id: string
-  nombre: string
-  latitud?: number | null
-  longitud?: number | null
+  name: string
+  latitude?: number | null
+  longitude?: number | null
 }
 
 interface GatewayFormDialogProps {
@@ -76,25 +76,25 @@ interface GatewayFormDialogProps {
   onClose: () => void
   gateway?: {
     id: string;
-    nombre: string;
+    name: string;
     ip: string;
-    puerto_api: number;
-    usuario_api: string;
-    modelo_hw: string | null;
-    notas: string | null;
+    api_port: number;
+    api_username: string;
+    hw_model: string | null;
+    notes: string | null;
     status?: 'online' | 'offline' | 'degraded' | 'unknown' | null;
-    latitud?: number | null;
-    longitud?: number | null;
-    monitoreo_trafico?: boolean;
-    control_velocidad?: boolean;
-    sincronizar_logs?: boolean;
-    notificaciones_alertas?: boolean;
-    cola_padre?: string | null;
+    latitude?: number | null;
+    longitude?: number | null;
+    traffic_monitoring?: boolean;
+    speed_control?: boolean;
+    sync_logs?: boolean;
+    alert_notifications?: boolean;
+    parent_queue?: string | null;
     address_list?: string | null;
-    ancho_banda_up?: number | null;
-    ancho_banda_down?: number | null;
+    bandwidth_up?: number | null;
+    bandwidth_down?: number | null;
     site_id?: string | null;
-    site_nombre?: string | null;
+    site_name?: string | null;
   } | null
   onSuccess: () => void
   onDelete?: (id: string) => void
@@ -149,28 +149,28 @@ export function GatewayFormDialog({ open, onClose, gateway, onSuccess, onDelete 
   } = useForm<GatewayFormData>({
     resolver: zodResolver(gatewaySchema) as unknown as Resolver<GatewayFormData>,
     defaultValues: {
-      puerto_api: 8728,
-      monitoreo_trafico: true,
-      control_velocidad: true,
-      sincronizar_logs: true,
-      notificaciones_alertas: true,
-      ancho_banda_up: 0,
-      ancho_banda_down: 0,
-      cola_padre: '',
+      api_port: 8728,
+      traffic_monitoring: true,
+      speed_control: true,
+      sync_logs: true,
+      alert_notifications: true,
+      bandwidth_up: 0,
+      bandwidth_down: 0,
+      parent_queue: '',
       address_list: '',
     },
   })
 
-  // Observar latitud y longitud en tiempo real para el marcador del mapa
-  const latVal = watch('latitud')
-  const lngVal = watch('longitud')
+  // Observar latitude y longitude en tiempo real para el marcador del mapa
+  const latVal = watch('latitude')
+  const lngVal = watch('longitude')
 
   const handleGetLocation = useCallback(() => {
     if (navigator.geolocation) {
       navigator.geolocation.getCurrentPosition(
         (position) => {
-          setValue('latitud', Number(position.coords.latitude.toFixed(6)))
-          setValue('longitud', Number(position.coords.longitude.toFixed(6)))
+          setValue('latitude', Number(position.coords.latitude.toFixed(6)))
+          setValue('longitude', Number(position.coords.longitude.toFixed(6)))
         },
         (error) => {
           console.warn("Geolocation error:", error)
@@ -198,50 +198,50 @@ export function GatewayFormDialog({ open, onClose, gateway, onSuccess, onDelete 
       if (gateway) {
         reset({
           id: gateway.id,
-          nombre: gateway.nombre,
+          name: gateway.name,
           ip: gateway.ip,
-          puerto_api: gateway.puerto_api,
-          usuario_api: gateway.usuario_api,
+          api_port: gateway.api_port,
+          api_username: gateway.api_username,
           password_api: '',
-          modelo_hw: gateway.modelo_hw ?? '',
-          notas: gateway.notas ?? '',
-          latitud: gateway.latitud ?? null,
-          longitud: gateway.longitud ?? null,
-          monitoreo_trafico: gateway.monitoreo_trafico ?? true,
-          control_velocidad: gateway.control_velocidad ?? true,
-          sincronizar_logs: gateway.sincronizar_logs ?? true,
-          notificaciones_alertas: gateway.notificaciones_alertas ?? true,
-          cola_padre: gateway.cola_padre ?? '',
+          hw_model: gateway.hw_model ?? '',
+          notes: gateway.notes ?? '',
+          latitude: gateway.latitude ?? null,
+          longitude: gateway.longitude ?? null,
+          traffic_monitoring: gateway.traffic_monitoring ?? true,
+          speed_control: gateway.speed_control ?? true,
+          sync_logs: gateway.sync_logs ?? true,
+          alert_notifications: gateway.alert_notifications ?? true,
+          parent_queue: gateway.parent_queue ?? '',
           address_list: gateway.address_list ?? '',
-          ancho_banda_up: gateway.ancho_banda_up ?? 0,
-          ancho_banda_down: gateway.ancho_banda_down ?? 0,
+          bandwidth_up: gateway.bandwidth_up ?? 0,
+          bandwidth_down: gateway.bandwidth_down ?? 0,
           site_id: gateway.site_id ?? null,
         })
         resetSiteState(gateway.site_id ?? '')
       } else {
-        const savedPuerto = localStorage.getItem('wisp_default_puerto_api')
-        const savedUsuario = localStorage.getItem('wisp_default_usuario_api')
-        const savedPassword = localStorage.getItem('wisp_default_password_api')
-        const savedAddressList = localStorage.getItem('wisp_default_address_list')
-        const savedMonitoreo = localStorage.getItem('wisp_default_monitoreo_trafico')
-        const savedControl = localStorage.getItem('wisp_default_control_velocidad')
+        const savedPort = localStorage.getItem('isp_default_api_port')
+        const savedUsername = localStorage.getItem('isp_default_api_username')
+        const savedPassword = localStorage.getItem('isp_default_password_api')
+        const savedAddressList = localStorage.getItem('isp_default_address_list')
+        const savedMonitoring = localStorage.getItem('isp_default_traffic_monitoring')
+        const savedSpeedControl = localStorage.getItem('isp_default_speed_control')
 
         reset({
           id: undefined,
-          puerto_api: savedPuerto ? parseInt(savedPuerto) : 8728,
-          nombre: '',
+          api_port: savedPort ? parseInt(savedPort) : 8728,
+          name: '',
           ip: '',
-          usuario_api: savedUsuario || '',
+          api_username: savedUsername || '',
           password_api: savedPassword || '',
-          latitud: null,
-          longitud: null,
-          monitoreo_trafico: savedMonitoreo !== null ? savedMonitoreo === 'true' : true,
-          control_velocidad: savedControl !== null ? savedControl === 'true' : true,
-          sincronizar_logs: true,
-          notificaciones_alertas: true,
-          ancho_banda_up: 0,
-          ancho_banda_down: 0,
-          cola_padre: '',
+          latitude: null,
+          longitude: null,
+          traffic_monitoring: savedMonitoring !== null ? savedMonitoring === 'true' : true,
+          speed_control: savedSpeedControl !== null ? savedSpeedControl === 'true' : true,
+          sync_logs: true,
+          alert_notifications: true,
+          bandwidth_up: 0,
+          bandwidth_down: 0,
+          parent_queue: '',
           address_list: savedAddressList || '',
           site_id: null,
         })
@@ -252,27 +252,27 @@ export function GatewayFormDialog({ open, onClose, gateway, onSuccess, onDelete 
   }, [open, gateway, reset, setValue, handleGetLocation])
 
   // Preseleccionar la primera cola padre y address list disponible al crear un nuevo gateway
-  const nombreVal = watch('nombre')
+  const nameVal = watch('name')
 
   useEffect(() => {
-    if (!isEdit && nombreVal) {
-      const savedColas = localStorage.getItem('wisp_colas_padre')
-      const colas: string[] = savedColas ? JSON.parse(savedColas) : []
-      if (colas.length > 0) {
-        setValue('cola_padre', colas[0])
+    if (!isEdit && nameVal) {
+      const savedParentQueues = localStorage.getItem('isp_parent_queues')
+      const parentQueues: string[] = savedParentQueues ? JSON.parse(savedParentQueues) : []
+      if (parentQueues.length > 0) {
+        setValue('parent_queue', parentQueues[0])
       }
 
-      const savedAL = localStorage.getItem('wisp_address_lists')
-      const als: string[] = savedAL ? JSON.parse(savedAL) : []
-      if (als.length > 0) {
-        setValue('address_list', als[0])
+      const savedAddressLists = localStorage.getItem('isp_address_lists')
+      const addressLists: string[] = savedAddressLists ? JSON.parse(savedAddressLists) : []
+      if (addressLists.length > 0) {
+        setValue('address_list', addressLists[0])
       }
     }
-  }, [nombreVal, isEdit, setValue])
+  }, [nameVal, isEdit, setValue])
 
   // Site mutations
   const createSiteMutation = useMutation({
-    mutationFn: async (payload: { nombre: string; latitud?: number | null; longitud?: number | null }) => {
+    mutationFn: async (payload: { name: string; latitude?: number | null; longitude?: number | null }) => {
       const { data } = await api.post('/sites', payload)
       return data as Site
     },
@@ -285,8 +285,8 @@ export function GatewayFormDialog({ open, onClose, gateway, onSuccess, onDelete 
       setSiteInputLat('')
       setSiteInputLng('')
       setSiteError(null)
-      if (newSite.latitud && newSite.longitud) {
-        setMapFlyTarget([newSite.latitud, newSite.longitud])
+      if (newSite.latitude && newSite.longitude) {
+        setMapFlyTarget([newSite.latitude, newSite.longitude])
       }
     },
     onError: (err: any) => {
@@ -309,10 +309,10 @@ export function GatewayFormDialog({ open, onClose, gateway, onSuccess, onDelete 
       setValue('site_id', val || null)
       if (val) {
         const site = sites.find(s => s.id === val)
-        if (site?.latitud && site?.longitud) {
-          setValue('latitud', site.latitud)
-          setValue('longitud', site.longitud)
-          setMapFlyTarget([site.latitud, site.longitud])
+        if (site?.latitude && site?.longitude) {
+          setValue('latitude', site.latitude)
+          setValue('longitude', site.longitude)
+          setMapFlyTarget([site.latitude, site.longitude])
         }
       }
     }
@@ -321,9 +321,9 @@ export function GatewayFormDialog({ open, onClose, gateway, onSuccess, onDelete 
   const handleCreateSite = () => {
     if (!siteInput.trim()) return
     createSiteMutation.mutate({
-      nombre: siteInput.trim(),
-      latitud: siteInputLat ? parseFloat(siteInputLat) : null,
-      longitud: siteInputLng ? parseFloat(siteInputLng) : null,
+      name: siteInput.trim(),
+      latitude: siteInputLat ? parseFloat(siteInputLat) : null,
+      longitude: siteInputLng ? parseFloat(siteInputLng) : null,
     })
   }
 
@@ -334,8 +334,8 @@ export function GatewayFormDialog({ open, onClose, gateway, onSuccess, onDelete 
       if (isEdit && !payload.password_api) {
         delete payload.password_api
       }
-      if (!payload.latitud || isNaN(Number(payload.latitud))) payload.latitud = null
-      if (!payload.longitud || isNaN(Number(payload.longitud))) payload.longitud = null
+      if (!payload.latitude || isNaN(Number(payload.latitude))) payload.latitude = null
+      if (!payload.longitude || isNaN(Number(payload.longitude))) payload.longitude = null
       if (!payload.site_id) payload.site_id = null
 
       if (isEdit) {
@@ -348,7 +348,7 @@ export function GatewayFormDialog({ open, onClose, gateway, onSuccess, onDelete 
   })
 
   const handleTest = async () => {
-    const isValid = await trigger(['ip', 'puerto_api', 'usuario_api', 'password_api'])
+    const isValid = await trigger(['ip', 'api_port', 'api_username', 'password_api'])
     if (!isValid) return
 
     setIsTesting(true)
@@ -357,8 +357,8 @@ export function GatewayFormDialog({ open, onClose, gateway, onSuccess, onDelete 
     const formValues = getValues()
     const testPayload = {
       ip: formValues.ip,
-      puerto_api: formValues.puerto_api,
-      usuario_api: formValues.usuario_api,
+      api_port: formValues.api_port,
+      api_username: formValues.api_username,
       password_api: formValues.password_api || undefined,
       gateway_id: gateway?.id || undefined,
     }
@@ -379,8 +379,8 @@ export function GatewayFormDialog({ open, onClose, gateway, onSuccess, onDelete 
   function MapEventsHandler() {
     useMapEvents({
       click(e) {
-        setValue('latitud', Number(e.latlng.lat.toFixed(6)))
-        setValue('longitud', Number(e.latlng.lng.toFixed(6)))
+        setValue('latitude', Number(e.latlng.lat.toFixed(6)))
+        setValue('longitude', Number(e.latlng.lng.toFixed(6)))
       },
     })
     return null
@@ -413,11 +413,11 @@ export function GatewayFormDialog({ open, onClose, gateway, onSuccess, onDelete 
 
   const onFormError = (errors: Record<string, unknown>) => {
     const errorKeys = Object.keys(errors)
-    if (errorKeys.includes('nombre')) {
+    if (errorKeys.includes('name')) {
       setTab('info')
       return
     }
-    const credentialFields = ['ip', 'puerto_api', 'usuario_api', 'password_api']
+    const credentialFields = ['ip', 'api_port', 'api_username', 'password_api']
     const hasCredentialError = errorKeys.some((key) => credentialFields.includes(key))
     if (hasCredentialError) {
       setTab('credentials')
@@ -436,7 +436,7 @@ export function GatewayFormDialog({ open, onClose, gateway, onSuccess, onDelete 
         <div className="flex items-center justify-between p-5 border-b border-border shrink-0">
           <div>
             <h2 className="text-lg font-semibold text-foreground">
-              {isEdit ? `Editar: ${gateway!.nombre}` : 'Agregar Gateway'}
+              {isEdit ? `Editar: ${gateway!.name}` : 'Agregar Gateway'}
             </h2>
           </div>
           <button
@@ -514,13 +514,13 @@ export function GatewayFormDialog({ open, onClose, gateway, onSuccess, onDelete 
                     Nombre del gateway *
                   </label>
                   <input
-                    id="gateway-nombre"
+                    id="gateway-name"
                     type="text"
                     placeholder="Gateway Principal"
-                    {...register('nombre')}
+                    {...register('name')}
                     className="input-field"
                   />
-                  {errors.nombre && <p className="text-xs text-destructive mt-1">{errors.nombre.message}</p>}
+                  {errors.name && <p className="text-xs text-destructive mt-1">{errors.name.message}</p>}
                 </div>
                 {/* Modelo HW (opcional) */}
                 <div>
@@ -531,7 +531,7 @@ export function GatewayFormDialog({ open, onClose, gateway, onSuccess, onDelete 
                     id="gateway-model"
                     type="text"
                     placeholder="RB5009, RB4011iGS+, CCR2116, etc."
-                    {...register('modelo_hw')}
+                    {...register('hw_model')}
                     className="input-field"
                   />
                 </div>
@@ -554,7 +554,7 @@ export function GatewayFormDialog({ open, onClose, gateway, onSuccess, onDelete 
                       <option value="">Sin Sitio (General)</option>
                       {sites.map((site) => (
                         <option key={site.id} value={site.id}>
-                          {site.nombre}{site.latitud && site.longitud ? ' 📍' : ''}
+                          {site.name}{site.latitude && site.longitude ? ' 📍' : ''}
                         </option>
                       ))}
                       <option value="__new__">+ Crear nuevo sitio...</option>
@@ -638,7 +638,7 @@ export function GatewayFormDialog({ open, onClose, gateway, onSuccess, onDelete 
                       type="number"
                       step="0.000001"
                       placeholder="-0.180653"
-                      {...register('latitud')}
+                      {...register('latitude')}
                       className="input-field font-mono"
                     />
                   </div>
@@ -648,7 +648,7 @@ export function GatewayFormDialog({ open, onClose, gateway, onSuccess, onDelete 
                       type="number"
                       step="0.000001"
                       placeholder="-78.467834"
-                      {...register('longitud')}
+                      {...register('longitude')}
                       className="input-field font-mono"
                     />
                   </div>
@@ -660,10 +660,10 @@ export function GatewayFormDialog({ open, onClose, gateway, onSuccess, onDelete 
                     Notas
                   </label>
                   <textarea
-                    id="gateway-notas"
+                    id="gateway-notes"
                     rows={3}
                     placeholder="Ubicación, observaciones..."
-                    {...register('notas')}
+                    {...register('notes')}
                     className="input-field resize-none"
                   />
                 </div>
@@ -739,11 +739,11 @@ export function GatewayFormDialog({ open, onClose, gateway, onSuccess, onDelete 
                     <input
                       id="gateway-port"
                       type="number"
-                      {...register('puerto_api')}
+                      {...register('api_port')}
                       className="input-field font-mono"
                     />
-                    {errors.puerto_api && (
-                      <p className="text-xs text-destructive mt-1">{errors.puerto_api.message}</p>
+                    {errors.api_port && (
+                      <p className="text-xs text-destructive mt-1">{errors.api_port.message}</p>
                     )}
                   </div>
                 </div>
@@ -758,11 +758,11 @@ export function GatewayFormDialog({ open, onClose, gateway, onSuccess, onDelete 
                       id="gateway-user"
                       type="text"
                       placeholder="admin"
-                      {...register('usuario_api')}
+                      {...register('api_username')}
                       className="input-field"
                     />
-                    {errors.usuario_api && (
-                      <p className="text-xs text-destructive mt-1">{errors.usuario_api.message}</p>
+                    {errors.api_username && (
+                      <p className="text-xs text-destructive mt-1">{errors.api_username.message}</p>
                     )}
                   </div>
                   <div>
@@ -882,10 +882,10 @@ export function GatewayFormDialog({ open, onClose, gateway, onSuccess, onDelete 
                     <input
                       type="number"
                       placeholder="Ej. 100 (0 = ilimitado)"
-                      {...register('ancho_banda_down')}
+                      {...register('bandwidth_down')}
                       className="input-field font-mono"
                     />
-                    {errors.ancho_banda_down && <p className="text-xs text-destructive mt-1">{errors.ancho_banda_down.message}</p>}
+                    {errors.bandwidth_down && <p className="text-xs text-destructive mt-1">{errors.bandwidth_down.message}</p>}
                   </div>
 
                   <div>
@@ -895,10 +895,10 @@ export function GatewayFormDialog({ open, onClose, gateway, onSuccess, onDelete 
                     <input
                       type="number"
                       placeholder="Ej. 50 (0 = ilimitado)"
-                      {...register('ancho_banda_up')}
+                      {...register('bandwidth_up')}
                       className="input-field font-mono"
                     />
-                    {errors.ancho_banda_up && <p className="text-xs text-destructive mt-1">{errors.ancho_banda_up.message}</p>}
+                    {errors.bandwidth_up && <p className="text-xs text-destructive mt-1">{errors.bandwidth_up.message}</p>}
                   </div>
 
                   <div>
@@ -906,11 +906,11 @@ export function GatewayFormDialog({ open, onClose, gateway, onSuccess, onDelete 
                       Nombre de la Cola Padre
                     </label>
                     {(() => {
-                      const saved = localStorage.getItem('wisp_colas_padre')
+                      const saved = localStorage.getItem('isp_parent_queues')
                       const opts: string[] = saved ? JSON.parse(saved) : []
                       return opts.length > 0 ? (
                         <select
-                          {...register('cola_padre')}
+                          {...register('parent_queue')}
                           className="input-field font-mono cursor-pointer"
                         >
                           <option value="">— Sin cola padre —</option>
@@ -928,7 +928,7 @@ export function GatewayFormDialog({ open, onClose, gateway, onSuccess, onDelete 
                     <span className="text-[10px] text-muted-foreground mt-1 block">
                       Agrega o edita colas padre desde <strong>Ajustes → Ajustes Gateway</strong>.
                     </span>
-                    {errors.cola_padre && <p className="text-xs text-destructive mt-1">{errors.cola_padre.message}</p>}
+                    {errors.parent_queue && <p className="text-xs text-destructive mt-1">{errors.parent_queue.message}</p>}
                   </div>
 
                   <div>
@@ -936,7 +936,7 @@ export function GatewayFormDialog({ open, onClose, gateway, onSuccess, onDelete 
                       Nombre de la Address List de Clientes
                     </label>
                     {(() => {
-                      const saved = localStorage.getItem('wisp_address_lists')
+                      const saved = localStorage.getItem('isp_address_lists')
                       const opts: string[] = saved ? JSON.parse(saved) : []
                       return opts.length > 0 ? (
                         <select
@@ -970,7 +970,7 @@ export function GatewayFormDialog({ open, onClose, gateway, onSuccess, onDelete 
                   </div>
                   <div className="flex items-center gap-3 py-2">
                     <label className="relative inline-flex items-center cursor-pointer select-none flex-shrink-0">
-                      <input type="checkbox" {...register('monitoreo_trafico')} className="sr-only peer" />
+                      <input type="checkbox" {...register('traffic_monitoring')} className="sr-only peer" />
                       <div className="w-11 h-6 bg-secondary peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-muted-foreground after:border-border after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-brand-500 peer-checked:after:bg-white peer-checked:after:border-brand-500"></div>
                     </label>
                     <div>
@@ -981,7 +981,7 @@ export function GatewayFormDialog({ open, onClose, gateway, onSuccess, onDelete 
 
                   <div className="flex items-center gap-3 py-2 border-t border-border/40 pt-4">
                     <label className="relative inline-flex items-center cursor-pointer select-none flex-shrink-0">
-                      <input type="checkbox" {...register('control_velocidad')} className="sr-only peer" />
+                      <input type="checkbox" {...register('speed_control')} className="sr-only peer" />
                       <div className="w-11 h-6 bg-secondary peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-muted-foreground after:border-border after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-brand-500 peer-checked:after:bg-white peer-checked:after:border-brand-500"></div>
                     </label>
                     <div>

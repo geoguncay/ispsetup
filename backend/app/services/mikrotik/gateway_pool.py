@@ -18,7 +18,7 @@ from app.models.gateway import Gateway
 
 logger = logging.getLogger(__name__)
 
-MAX_CONNECTIONS_PER_ROUTER = 2
+MAX_CONNECTIONS_PER_GATEWAY = 2
 _CONFIG_TTL = 60  # segundos de vida del caché de configuración
 
 
@@ -82,10 +82,10 @@ class GatewayPool:
         self._config_cache = None
         self._config_cache_time = 0.0
 
-    def _get_semaphore(self, router_id: str) -> asyncio.Semaphore:
-        if router_id not in self._semaphores:
-            self._semaphores[router_id] = asyncio.Semaphore(MAX_CONNECTIONS_PER_ROUTER)
-        return self._semaphores[router_id]
+    def _get_semaphore(self, gateway_id: str) -> asyncio.Semaphore:
+        if gateway_id not in self._semaphores:
+            self._semaphores[gateway_id] = asyncio.Semaphore(MAX_CONNECTIONS_PER_GATEWAY)
+        return self._semaphores[gateway_id]
 
     def _build_ssl_wrapper(self):
         ctx = ssl.create_default_context()
@@ -107,9 +107,9 @@ class GatewayPool:
 
         connect_kwargs: dict = {
             "host": gateway.ip,
-            "username": gateway.usuario_api,
+            "username": gateway.api_username,
             "password": password,
-            "port": gateway.puerto_api,
+            "port": gateway.api_port,
             "timeout": cfg["timeout"],
             "encoding": "utf-8",
         }
@@ -121,26 +121,26 @@ class GatewayPool:
             try:
                 api = connect(**connect_kwargs)
                 logger.info(
-                    f"Conexión establecida a {gateway.nombre} ({gateway.ip}) "
+                    f"Conexión establecida a {gateway.name} ({gateway.ip}) "
                     f"[intento {attempt + 1}/{cfg['attempts']}, timeout={cfg['timeout']}s, ssl={cfg['ssl']}]"
                 )
                 break
             except (librouteros.exceptions.TrapError,):
                 # Error de autenticación — no tiene sentido reintentar
                 raise GatewayConnectionError(
-                    f"Error de autenticación en {gateway.nombre}: credenciales incorrectas"
+                    f"Error de autenticación en {gateway.name}: credenciales incorrectas"
                 )
             except (OSError, Exception) as exc:
                 last_exc = exc
                 logger.warning(
-                    f"Intento {attempt + 1}/{cfg['attempts']} fallido para {gateway.nombre}: {exc}"
+                    f"Intento {attempt + 1}/{cfg['attempts']} fallido para {gateway.name}: {exc}"
                 )
                 if attempt < cfg["attempts"] - 1:
                     time.sleep(1)
 
         if api is None:
             raise GatewayConnectionError(
-                f"No se puede alcanzar {gateway.nombre} ({gateway.ip}:{gateway.puerto_api}) "
+                f"No se puede alcanzar {gateway.name} ({gateway.ip}:{gateway.api_port}) "
                 f"tras {cfg['attempts']} intento(s): {last_exc}"
             )
 
@@ -155,4 +155,3 @@ class GatewayPool:
 
 # Singleton global
 gateway_pool = GatewayPool()
-router_pool = gateway_pool  # alias de compatibilidad

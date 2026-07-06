@@ -28,8 +28,8 @@ celery_app.conf.update(
     worker_redirect_stdouts_level="INFO",
     beat_schedule={
         # Health check de todos los routers cada 30 segundos
-        "check-all-routers-health": {
-            "task": "app.workers.health_check.check_all_routers",
+        "check-all-gateways-health": {
+            "task": "app.workers.health_check.check_all_gateways",
             "schedule": 30.0,  # segundos
         },
         # Verificación diaria de suspensiones a la 1:00 AM
