@@ -25,6 +25,7 @@ from app.schemas.gateway import (
     GatewayCreate,
     GatewayRead,
     GatewayStatus,
+    GatewaySettingsUpdate,
     GatewayTestPayload,
     GatewayTestResult,
     GatewayUpdate,
@@ -32,6 +33,10 @@ from app.schemas.gateway import (
 from app.services.mikrotik.health import check_gateway_health, get_cached_gateway_status
 from app.services.audit_service import AuditAction, log_event
 from app.services.mikrotik.gateway_pool import GatewayConnectionError, gateway_pool
+from app.services.mikrotik.gateway_configuration import (
+    GatewayConfigurationError,
+    apply_gateway_configuration,
+)
 
 router = APIRouter(prefix="/gateways", tags=["gateways"])
 
@@ -90,6 +95,10 @@ def create_gateway(payload: GatewayCreate, db: DBSession, current_user: AdminOnl
         speed_control=payload.speed_control,
         sync_logs=payload.sync_logs,
         alert_notifications=payload.alert_notifications,
+        security_mode=payload.security_mode,
+        traffic_accounting=payload.traffic_accounting,
+        speed_control_type=payload.speed_control_type,
+        settings_configured=False,
         parent_queue=None,
         address_list=None,
         suspend_list=None,
@@ -221,8 +230,8 @@ def update_gateway(
         if not r.address_list:
             r.address_list = f"isp_clientes_{clean_name}"
 
-    _router_mode = r.config_mode == 'gateway'
-    if not _router_mode:
+    gateway_mode = r.config_mode == 'gateway'
+    if not gateway_mode:
         if "parent_queue" in update_data and r.parent_queue:
             if not r.parent_queue.startswith("isp_"):
                 r.parent_queue = f"isp_{r.parent_queue}"
@@ -235,11 +244,20 @@ def update_gateway(
             if not r.suspend_list.startswith("isp_"):
                 r.suspend_list = f"isp_{r.suspend_list}"
 
+    try:
+        apply_gateway_configuration(r, set(update_data))
+    except GatewayConfigurationError as exc:
+        db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_502_BAD_GATEWAY,
+            detail=f"No se pudo aplicar la configuración en MikroTik: {exc}",
+        ) from exc
+
     db.commit()
     db.refresh(r)
 
     # Sincronizar cola padre en MikroTik si el control de velocidad está activo
-    if r.speed_control:
+    if r.speed_control and r.speed_control_type == 'simple_queues':
         from app.services.mikrotik.queue import sync_gateway_parent_queue
         try:
             sync_gateway_parent_queue(r, old_parent_name=old_parent_queue)
@@ -255,6 +273,57 @@ def update_gateway(
     )
 
     return r
+
+
+@router.put("/{gateway_id}/settings", response_model=GatewayRead)
+def update_gateway_settings(
+    gateway_id: uuid.UUID,
+    payload: GatewaySettingsUpdate,
+    db: DBSession,
+    current_user: AdminOnly,
+) -> Gateway:
+    """Guarda y aplica los tres modos operativos del Gateway."""
+    gateway = db.get(Gateway, gateway_id)
+    if not gateway or not gateway.active:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Gateway no encontrado")
+
+    settings = payload.model_dump()
+    changes = {
+        field
+        for field, value in settings.items()
+        if getattr(gateway, field) != value
+    }
+    # El primer guardado debe aplicar los tres modos aunque coincidan con los
+    # defaults almacenados al crear el gateway.
+    if not gateway.settings_configured:
+        changes.update(settings)
+
+    for field, value in settings.items():
+        setattr(gateway, field, value)
+
+    try:
+        apply_gateway_configuration(gateway, changes)
+    except GatewayConfigurationError as exc:
+        db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_502_BAD_GATEWAY,
+            detail=f"No se pudo aplicar la configuración en MikroTik: {exc}",
+        ) from exc
+
+    gateway.settings_configured = True
+    db.commit()
+    db.refresh(gateway)
+    log_event(
+        db,
+        AuditAction.UPDATE_GATEWAY,
+        entity_type="Gateway",
+        entity_id=str(gateway.id),
+        entity_name=gateway.name,
+        user_id=current_user.id,
+        user_name=current_user.name,
+        detail={"changed_settings": sorted(changes)},
+    )
+    return gateway
 
 
 @router.delete("/{gateway_id}", status_code=status.HTTP_204_NO_CONTENT)

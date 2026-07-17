@@ -31,6 +31,18 @@ class Gateway(Base):
     speed_control: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
     sync_logs: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
     alert_notifications: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
+    security_mode: Mapped[str] = mapped_column(
+        String(30), nullable=False, default="none_api", server_default="none_api"
+    )
+    traffic_accounting: Mapped[str] = mapped_column(
+        String(30), nullable=False, default="traffic_flow", server_default="traffic_flow"
+    )
+    speed_control_type: Mapped[str] = mapped_column(
+        String(30), nullable=False, default="simple_queues", server_default="simple_queues"
+    )
+    settings_configured: Mapped[bool] = mapped_column(
+        Boolean, nullable=False, default=False, server_default="false"
+    )
 
     # Campos de colas y firewall MikroTik
     parent_queue: Mapped[str | None] = mapped_column(String(100), nullable=True)

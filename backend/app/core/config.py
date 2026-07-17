@@ -37,6 +37,11 @@ class Settings(BaseSettings):
     # ── Fernet (cifrado de credenciales de routers) ───────────
     FERNET_KEY: str
 
+    # ── Integraciones locales NMS / MikroTik ──────────────────────
+    NMS_SERVER_IP: str | None = None
+    TRAFFIC_FLOW_PORT: int = 2055
+    RADIUS_SECRET: str | None = None
+
     # ── Usuario admin inicial (seed) ──────────────────────────
     ADMIN_SEED_EMAIL: str = "admin@email.com"
     ADMIN_SEED_PASSWORD: str = "t3PXeS4tn@"

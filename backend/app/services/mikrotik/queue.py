@@ -87,6 +87,38 @@ def sync_client_queue(
     target_ip = f"{ip}/32"
     max_limit = f"{speed_up}k/{speed_down}k"
 
+    if gateway.speed_control_type == 'pcq_addresslist':
+        from app.services.mikrotik.address_list import get_clean_list_name
+        from app.services.mikrotik.gateway_configuration import ensure_pcq_parent_rules
+
+        with gateway_pool.connect_to(gateway) as api:
+            ensure_pcq_parent_rules(api, get_clean_list_name(gateway.address_list))
+        return
+    if gateway.speed_control_type == 'dhcp_lease_dynamic':
+        try:
+            with gateway_pool.connect_to(gateway) as api:
+                leases = list(
+                    api.path('/ip/dhcp-server/lease').select().where(Key('address') == ip)
+                )
+                if leases:
+                    list(api('/ip/dhcp-server/lease/set', **{
+                        '.id': leases[0]['.id'],
+                        'rate-limit': max_limit,
+                        'comment': f'{client_name} - {plan_name}',
+                    }))
+                else:
+                    logger.warning(
+                        "No existe un DHCP lease para %s en %s; no se puede crear la cola dinámica sin MAC",
+                        ip,
+                        gateway.name,
+                    )
+        except Exception as e:
+            logger.error(f"Error al actualizar DHCP lease para IP {ip} en {gateway.name}: {e}")
+            raise
+        return
+    if gateway.speed_control_type != 'simple_queues':
+        return
+
     try:
         with gateway_pool.connect_to(gateway) as api:
             # Sanear y resolver la cola padre
@@ -283,7 +315,7 @@ def sync_gateway_parent_queue(gateway: Gateway, old_parent_name: str | None = No
     Crea o actualiza la cola simple padre asociada a este router en MikroTik.
     Soporta el renombrado de la cola si cambia de nombre para evitar duplicar recursos.
     """
-    if not gateway.speed_control:
+    if not gateway.speed_control or gateway.speed_control_type != 'simple_queues':
         return
 
     # Si parent_queue no está configurada, usar el default isp_padre
@@ -321,5 +353,3 @@ def sync_gateway_parent_queue(gateway: Gateway, old_parent_name: str | None = No
     except Exception as e:
         logger.error(f"Error al sincronizar cola padre para el router {gateway.name}: {e}")
         raise e
-
-

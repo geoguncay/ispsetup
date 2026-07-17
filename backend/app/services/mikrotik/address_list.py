@@ -40,6 +40,9 @@ def sync_ip_in_address_list(gateway: Gateway, ip: str, client_name: str, list_na
     Crea la entrada si no existe, o actualiza el comentario si difiere.
     Remueve la IP de otras listas (excepto suspendidos/isp_suspendidos) si cambió de lista.
     """
+    if gateway.speed_control_type != 'pcq_addresslist':
+        return
+
     try:
         with gateway_pool.connect_to(gateway) as api:
             list_key = Key('list')
@@ -57,7 +60,7 @@ def sync_ip_in_address_list(gateway: Gateway, ip: str, client_name: str, list_na
                     if current_list == "clientes" or (current_list and current_list.startswith("isp_")):
                         entry_id = entry.get(".id")
                         list(api("/ip/firewall/address-list/remove", **{".id": entry_id}))
-                        logger.info(f"IP {ip} removida de lista antigua '{current_list}' en {gateway.nombre}")
+                        logger.info(f"IP {ip} removida de lista antigua '{current_list}' en {gateway.name}")
 
             query = api.path('/ip/firewall/address-list').select().where(
                 list_key == list_name,
@@ -70,12 +73,12 @@ def sync_ip_in_address_list(gateway: Gateway, ip: str, client_name: str, list_na
                 # Si el comentario cambió, actualizarlo
                 if entry.get("comment") != client_name:
                     list(api("/ip/firewall/address-list/set", **{".id": entry_id, "comment": client_name}))
-                    logger.info(f"Comentario actualizado para IP {ip} en {gateway.nombre} (lista '{list_name}'): {client_name}")
+                    logger.info(f"Comentario actualizado para IP {ip} en {gateway.name} (lista '{list_name}'): {client_name}")
             else:
                 list(api("/ip/firewall/address-list/add", list=list_name, address=ip, comment=client_name))
-                logger.info(f"IP {ip} agregada a lista '{list_name}' en {gateway.nombre}")
+                logger.info(f"IP {ip} agregada a lista '{list_name}' en {gateway.name}")
     except Exception as e:
-        logger.error(f"Error al sincronizar IP {ip} en {gateway.nombre}: {e}")
+        logger.error(f"Error al sincronizar IP {ip} en {gateway.name}: {e}")
         raise e
 
 
@@ -96,9 +99,9 @@ def remove_ip_from_address_list(gateway: Gateway, ip: str) -> None:
                 if list_name and (list_name.startswith("isp_") or list_name in ("clientes", "suspendidos")):
                     entry_id = entry.get(".id")
                     list(api("/ip/firewall/address-list/remove", **{".id": entry_id}))
-                    logger.info(f"IP {ip} removida de lista '{list_name}' en {gateway.nombre}")
+                    logger.info(f"IP {ip} removida de lista '{list_name}' en {gateway.name}")
     except Exception as e:
-        logger.error(f"Error al remover IP {ip} de las listas en {gateway.nombre}: {e}")
+        logger.error(f"Error al remover IP {ip} de las listas en {gateway.name}: {e}")
         raise e
 
 
@@ -124,7 +127,7 @@ def fetch_clients_from_address_list(gateway: Gateway, list_name: str = "isp_clie
                 if entry.get("address")
             ]
     except Exception as e:
-        logger.error(f"Error al obtener clientes de la lista {list_name} en {gateway.nombre}: {e}")
+        logger.error(f"Error al obtener clientes de la lista {list_name} en {gateway.name}: {e}")
         raise e
 
 
@@ -184,4 +187,3 @@ def unsuspend_ip_in_firewall(gateway: Gateway, ip: str) -> None:
     except Exception as e:
         logger.error(f"Error al reactivar (unsuspend) IP {ip} en {gateway.name}: {e}")
         raise e
-

@@ -5,7 +5,11 @@ import uuid
 from datetime import datetime
 from typing import Any, Literal
 
-from pydantic import BaseModel, Field, IPvAnyAddress
+from pydantic import BaseModel, Field
+
+SecurityMode = Literal['none_api', 'ppp_api', 'hotspot_api', 'ppp_radius', 'hotspot_radius']
+TrafficAccounting = Literal['traffic_flow', 'accounting_v6']
+SpeedControlType = Literal['pcq_addresslist', 'simple_queues', 'dhcp_lease_dynamic', 'none']
 
 
 class GatewayCreate(BaseModel):
@@ -27,6 +31,9 @@ class GatewayCreate(BaseModel):
     speed_control: bool = True
     sync_logs: bool = True
     alert_notifications: bool = True
+    security_mode: SecurityMode = 'none_api'
+    traffic_accounting: TrafficAccounting = 'traffic_flow'
+    speed_control_type: SpeedControlType = 'simple_queues'
 
     # Nuevos campos de configuración de MikroTik y ancho de banda
     parent_queue: str | None = Field(default=None, max_length=100)
@@ -57,6 +64,9 @@ class GatewayUpdate(BaseModel):
     speed_control: bool | None = None
     sync_logs: bool | None = None
     alert_notifications: bool | None = None
+    security_mode: SecurityMode | None = None
+    traffic_accounting: TrafficAccounting | None = None
+    speed_control_type: SpeedControlType | None = None
 
     # Nuevos campos de configuración de MikroTik y ancho de banda
     parent_queue: str | None = None
@@ -70,6 +80,11 @@ class GatewayUpdate(BaseModel):
     site_id: uuid.UUID | None = None
     new_site_name: str | None = Field(default=None, max_length=120)
 
+
+class GatewaySettingsUpdate(BaseModel):
+    security_mode: SecurityMode
+    traffic_accounting: TrafficAccounting
+    speed_control_type: SpeedControlType
 
 
 class GatewayRead(BaseModel):
@@ -89,6 +104,10 @@ class GatewayRead(BaseModel):
     speed_control: bool
     sync_logs: bool
     alert_notifications: bool
+    security_mode: SecurityMode
+    traffic_accounting: TrafficAccounting
+    speed_control_type: SpeedControlType
+    settings_configured: bool
 
     # Nuevos campos de configuración de MikroTik y ancho de banda
     parent_queue: str | None

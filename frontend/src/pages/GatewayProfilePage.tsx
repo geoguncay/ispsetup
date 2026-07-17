@@ -137,6 +137,28 @@ interface TestResult {
   error?: string
 }
 
+type GatewayProfileTab = 'stats' | 'clients' | 'queues' | 'pppoe' | 'logs' | 'historial'
+
+const SECURITY_MODE_LABELS: Record<string, string> = {
+  none_api: 'Sin autenticación · API',
+  ppp_api: 'PPP · API',
+  hotspot_api: 'Hotspot · API',
+  ppp_radius: 'PPP · Radius',
+  hotspot_radius: 'Hotspot · Radius',
+}
+
+const TRAFFIC_ACCOUNTING_LABELS: Record<string, string> = {
+  traffic_flow: 'Traffic Flow',
+  accounting_v6: 'Accounting v6',
+}
+
+const SPEED_CONTROL_LABELS: Record<string, string> = {
+  pcq_addresslist: 'PCQ + Address List',
+  simple_queues: 'Colas simples',
+  dhcp_lease_dynamic: 'DHCP + colas dinámicas',
+  none: 'Sin control de velocidad',
+}
+
 interface DonutChartProps {
   percentage: number
   title: string
@@ -231,7 +253,7 @@ export function GatewayProfilePage() {
   const { user } = useAuthStore()
   const isAdmin = user?.role === 'admin'
 
-  const [activeTab, setActiveTab] = useState<'stats' | 'clients' | 'queues' | 'pppoe' | 'logs' | 'historial'>('stats')
+  const [activeTab, setActiveTab] = useState<GatewayProfileTab>('stats')
   const [selectedQueue, setSelectedQueue] = useState<any | null>(null)
   const [selectedPlanId, setSelectedPlanId] = useState<string>('')
   const [searchTerm, setSearchTerm] = useState('')
@@ -256,11 +278,24 @@ export function GatewayProfilePage() {
     }
   }, [importingOpen])
 
+  // Consultar información del Router — se refresca automáticamente cada 15 s
+  const anyModalOpen = editOpen || servicesOpen || importingOpen || confirmDeleteOpen || !!selectedQueue
+  const { data: gateway, isLoading: isLoadingGateway, isError: isErrorGateway, refetch: refetchGateway } = useQuery({
+    queryKey: ['gateway', id],
+    queryFn: async () => {
+      const { data } = await api.get(`/gateways/${id}`)
+      return data
+    },
+    refetchInterval: anyModalOpen ? false : 15_000,
+  })
+
   // Ranking en vivo de clientes por consumo total
   const [liveClients, setLiveClients] = useState<any[]>([])
   const [bridgeBytes, setBridgeBytes] = useState<{ rx: number; tx: number } | null>(null)
 
   useEffect(() => {
+    if (gateway?.settings_configured !== true) return
+
     const wsUrl = (() => {
       const token = localStorage.getItem('access_token') || ''
       const apiHost = import.meta.env.VITE_API_URL
@@ -294,22 +329,7 @@ export function GatewayProfilePage() {
     return () => {
       ws.close()
     }
-  }, [id])
-
-
-
-  // Consultar información del Router — se refresca automáticamente cada 15 s
-  const anyModalOpen = editOpen || servicesOpen || importingOpen || confirmDeleteOpen || !!selectedQueue
-  const { data: gateway, isLoading: isLoadingGateway, isError: isErrorGateway, refetch: refetchGateway } = useQuery({
-    queryKey: ['gateway', id],
-    queryFn: async () => {
-      const { data } = await api.get(`/gateways/${id}`)
-      return data
-    },
-    refetchInterval: anyModalOpen ? false : 15_000,
-  })
-
-
+  }, [id, gateway?.settings_configured])
 
   // Consultar todos los clientes del gateway (para estadísticas y mapa de cobertura)
   const { data: allClients = [], isLoading: isLoadingAllClients } = useQuery<Client[]>({
@@ -319,7 +339,8 @@ export function GatewayProfilePage() {
         params: { gateway_id: id, limit: 1000 }
       })
       return data.items || []
-    }
+    },
+    enabled: gateway?.settings_configured === true,
   })
 
   // Consultar clientes asociados paginados (para la pestaña Clientes)
@@ -339,7 +360,8 @@ export function GatewayProfilePage() {
       }
       const { data } = await api.get(`/clients`, { params })
       return data
-    }
+    },
+    enabled: gateway?.settings_configured === true,
   })
 
   // Query to get address list names from this gateway
@@ -358,7 +380,8 @@ export function GatewayProfilePage() {
     queryFn: async () => {
       const { data } = await api.get(`/gateways/${id}/queues`)
       return data
-    }
+    },
+    enabled: gateway?.settings_configured === true,
   })
 
   // Consultar todos los planes disponibles (para cambiar plan en modal)
@@ -476,7 +499,7 @@ export function GatewayProfilePage() {
       const { data } = await api.get(`/gateways/${id}/pppoe-sessions`)
       return data
     },
-    enabled: activeTab === 'pppoe',
+    enabled: gateway?.settings_configured === true && activeTab === 'pppoe',
     refetchInterval: anyModalOpen ? false : activeTab === 'pppoe' ? 8000 : undefined,
   })
 
@@ -610,11 +633,24 @@ export function GatewayProfilePage() {
   const totalClients = allClients.length
   const activePercentage = totalClients > 0 ? (activeClients / totalClients) * 100 : 0
 
-  // El panel de tabs solo tiene sentido una vez que se hayan hecho ajustes de servicios en el gateway
-  const hasServiceConfig = !!(
-    gateway.parent_queue || gateway.address_list || gateway.suspend_list ||
-    gateway.bandwidth_up || gateway.bandwidth_down
-  )
+  const hasServiceConfig = gateway.settings_configured === true
+  const usesPpp = gateway.security_mode === 'ppp_api' || gateway.security_mode === 'ppp_radius'
+  const usesSimpleQueues = gateway.speed_control_type === 'simple_queues'
+    || gateway.speed_control_type === 'dhcp_lease_dynamic'
+
+  const gatewayTabs: Array<{
+    id: GatewayProfileTab
+    label: string
+    icon: React.ComponentType<{ className?: string }>
+  }> = [
+    { id: 'stats', label: 'Estadísticas', icon: Network },
+    { id: 'clients', label: 'Clientes Asociados', icon: Users },
+    ...(usesSimpleQueues ? [{ id: 'queues' as const, label: 'Colas de Tráfico', icon: Activity }] : []),
+    ...(usesPpp ? [{ id: 'pppoe' as const, label: 'Sesiones PPPoE', icon: Wifi }] : []),
+    ...(debugEnabled ? [{ id: 'logs' as const, label: 'Logs ROS', icon: ScrollText }] : []),
+    { id: 'historial', label: 'Historial ISP', icon: ClipboardList },
+  ]
+  const effectiveActiveTab = gatewayTabs.some((tab) => tab.id === activeTab) ? activeTab : 'stats'
 
   // Calcular ancho de banda dinámicamente desde las colas de MikroTik
   const activeQueues = queues.filter((q: any) => {
@@ -859,43 +895,91 @@ export function GatewayProfilePage() {
         {/* Panel Principal - Tabs a la Derecha */}
         <div className="lg:col-span-2 space-y-6">
           {!hasServiceConfig ? (
-            <div className="glass-card p-12 flex flex-col items-center justify-center text-center min-h-[400px]">
-              <Settings2 className="w-10 h-10 mb-3 text-muted-foreground/30" />
-              <h3 className="text-sm font-semibold text-foreground mb-1">
-                Este gateway aún no tiene servicios configurados
+            <div className="glass-card flex min-h-[400px] flex-col items-center justify-center p-12 text-center">
+              <Settings2 className="mb-3 h-10 w-10 text-muted-foreground/30" />
+              <h3 className="mb-1 text-sm font-semibold text-foreground">
+                Configura los ajustes operativos del gateway
               </h3>
-              <p className="text-xs text-muted-foreground max-w-sm mb-4">
-                Configura la cola padre, listas de direcciones o límites de ancho de banda para habilitar estadísticas, clientes, colas de tráfico, sesiones PPPoE e historial en este panel.
+              <p className="mb-4 max-w-md text-xs leading-relaxed text-muted-foreground">
+                Configura los ajustes operativos del gateway para optimizar su rendimiento y seguridad.
               </p>
-              {isAdmin && (
-                <button
-                  onClick={() => setServicesOpen(true)}
-                  className="btn-primary text-sm"
-                >
-                  <Settings2 className="w-4 h-4" />
-                  Configurar servicios
+              {isAdmin ? (
+                <button type="button" onClick={() => setServicesOpen(true)} className="btn-primary text-sm">
+                  <Settings2 className="h-4 w-4" />
+                  Realizar ajustes
                 </button>
+              ) : (
+                <p className="text-xs text-amber-400">Un administrador debe completar esta configuración.</p>
               )}
             </div>
           ) : (
           <>
+          {/* Resumen de la configuración operativa aplicada al gateway */}
+          <div className={`glass-card border p-4 ${hasServiceConfig ? 'border-border/40' : 'border-amber-500/30 bg-amber-500/5'}`}>
+            <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+              <div className="grid min-w-0 flex-1 grid-cols-1 gap-3 sm:grid-cols-3">
+                {[
+                  {
+                    label: 'Seguridad',
+                    value: SECURITY_MODE_LABELS[gateway.security_mode] ?? 'Pendiente',
+                    icon: Settings2,
+                  },
+                  {
+                    label: 'Registro de tráfico',
+                    value: TRAFFIC_ACCOUNTING_LABELS[gateway.traffic_accounting] ?? 'Pendiente',
+                    icon: Network,
+                  },
+                  {
+                    label: 'Control de velocidad',
+                    value: SPEED_CONTROL_LABELS[gateway.speed_control_type] ?? 'Pendiente',
+                    icon: Sliders,
+                  },
+                ].map((setting) => {
+                  const Icon = setting.icon
+                  return (
+                    <div key={setting.label} className="flex min-w-0 items-center gap-2.5">
+                      <div className="rounded-lg bg-brand-500/10 p-2 text-brand-400">
+                        <Icon className="h-4 w-4" />
+                      </div>
+                      <div className="min-w-0">
+                        <span className="block text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
+                          {setting.label}
+                        </span>
+                        <span className="block truncate text-xs font-semibold text-foreground" title={setting.value}>
+                          {setting.value}
+                        </span>
+                      </div>
+                    </div>
+                  )
+                })}
+              </div>
+              {isAdmin && (
+                <button type="button" onClick={() => setServicesOpen(true)} className="btn-secondary shrink-0 text-xs">
+                  <Settings2 className="h-3.5 w-3.5" />
+                  {hasServiceConfig ? 'Modificar ajustes' : 'Completar ajustes'}
+                </button>
+              )}
+            </div>
+            {!hasServiceConfig && (
+              <p className="mt-3 border-t border-amber-500/20 pt-3 text-xs text-amber-400">
+                Completa los ajustes operativos. Los clientes y el historial siguen disponibles mientras tanto.
+              </p>
+            )}
+          </div>
+
           {/* Navegación de Tabs */}
-          <div className="flex border-b border-border gap-2">
-            {[
-              { id: 'stats', label: 'Estadísticas', icon: Network },
-              { id: 'clients', label: 'Clientes Asociados', icon: Users },
-              { id: 'queues', label: 'Colas de Tráfico', icon: Activity },
-              { id: 'pppoe', label: 'Sesiones PPPoE', icon: Wifi },
-              ...(debugEnabled ? [{ id: 'logs', label: 'Logs ROS', icon: ScrollText }] : []),
-              { id: 'historial', label: 'Historial ISP', icon: ClipboardList },
-            ].map((tab) => {
+          <div className="flex gap-1 overflow-x-auto border-b border-border" role="tablist" aria-label="Secciones del gateway">
+            {gatewayTabs.map((tab) => {
               const Icon = tab.icon
-              const isActive = activeTab === tab.id
+              const isActive = effectiveActiveTab === tab.id
               return (
                 <button
                   key={tab.id}
-                  onClick={() => setActiveTab(tab.id as any)}
-                  className={`flex items-center gap-2 px-4 py-3 text-sm font-semibold border-b-2 transition-all ${isActive
+                  type="button"
+                  role="tab"
+                  aria-selected={isActive}
+                  onClick={() => setActiveTab(tab.id)}
+                  className={`flex shrink-0 items-center gap-2 border-b-2 px-3 py-3 text-sm font-semibold transition-all ${isActive
                     ? 'border-brand-500 text-brand-400'
                     : 'border-transparent text-muted-foreground hover:text-foreground'
                     }`}
@@ -908,7 +992,7 @@ export function GatewayProfilePage() {
           </div>
 
           {/* Pestaña: Estadísticas */}
-          {activeTab === 'stats' && (
+          {effectiveActiveTab === 'stats' && (
             <div className="space-y-6">
               {/* Doughnut charts grid */}
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -940,7 +1024,8 @@ export function GatewayProfilePage() {
               </div>
 
               {/* Ancho de Banda Asignado summaries */}
-              <div className="glass-card p-5 border border-border/40 space-y-4 font-sans">
+              {usesSimpleQueues ? (
+                <div className="glass-card p-5 border border-border/40 space-y-4 font-sans">
                 <h3 className="text-sm font-semibold text-foreground border-b border-border/40 pb-2.5 flex items-center gap-2">
                   <Sliders className="w-4 h-4 text-brand-400" />
                   Distribución de Ancho de Banda Asignado
@@ -1019,7 +1104,31 @@ export function GatewayProfilePage() {
                       : 'Capacidad de carga calculada sobre las colas de tráfico activas en MikroTik.'}
                   </span>
                 </div>
-              </div>
+                </div>
+              ) : (
+                <div className="glass-card flex items-start gap-3 border border-border/40 p-5">
+                  <div className="rounded-lg bg-brand-500/10 p-2 text-brand-400">
+                    <Sliders className="h-4 w-4" />
+                  </div>
+                  <div>
+                    <h3 className="text-sm font-semibold text-foreground">
+                      {gateway.speed_control_type === 'pcq_addresslist'
+                        ? 'Control de velocidad mediante PCQ'
+                        : 'Control de velocidad desactivado'}
+                    </h3>
+                    <p className="mt-1 text-xs leading-relaxed text-muted-foreground">
+                      {gateway.speed_control_type === 'pcq_addresslist'
+                        ? 'La distribución se administra con Queue Tree y Address Lists; por eso no se muestra el resumen de colas simples.'
+                        : 'Las estadísticas de clientes y tráfico continúan disponibles, pero este gateway no aplica límites de velocidad desde el NMS.'}
+                    </p>
+                    {isAdmin && (
+                      <button type="button" onClick={() => setServicesOpen(true)} className="mt-3 text-xs font-semibold text-brand-400 hover:text-brand-300">
+                        Cambiar control de velocidad
+                      </button>
+                    )}
+                  </div>
+                </div>
+              )}
 
               {/* Top 10 Clientes Activos por Consumo */}
               <div className="glass-card p-5 border border-border/40 space-y-4 font-sans">
@@ -1081,7 +1190,7 @@ export function GatewayProfilePage() {
           )}
 
           {/* Pestaña: Clientes */}
-          {activeTab === 'clients' && (
+          {effectiveActiveTab === 'clients' && (
             <div className="space-y-4">
               {/* Barra de Búsqueda y Acciones */}
               <div className="flex flex-wrap items-center justify-between gap-3">
@@ -1203,7 +1312,7 @@ export function GatewayProfilePage() {
           )}
 
           {/* Pestaña: Colas de Tráfico */}
-          {activeTab === 'queues' && (
+          {effectiveActiveTab === 'queues' && (
             <div className="space-y-4">
               <div className="flex justify-between items-center bg-secondary/15 p-4 rounded-xl border border-border/40">
                 <p className="text-xs text-muted-foreground leading-relaxed max-w-xl">
@@ -1323,7 +1432,7 @@ export function GatewayProfilePage() {
           )}
 
           {/* Pestaña: Sesiones PPPoE Activas */}
-          {activeTab === 'pppoe' && (
+          {effectiveActiveTab === 'pppoe' && (
             <div className="space-y-6 font-sans animate-fade-in">
               <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 border-b border-border/40 pb-4">
                 <div>
@@ -1415,7 +1524,7 @@ export function GatewayProfilePage() {
           )}
 
           {/* Pestaña: Logs RouterOS */}
-          {activeTab === 'logs' && debugEnabled && (
+          {effectiveActiveTab === 'logs' && debugEnabled && (
             <div className="space-y-4 animate-fade-in">
               {/* Header */}
               <div className="flex items-center justify-between">
@@ -1502,7 +1611,7 @@ export function GatewayProfilePage() {
           )}
 
           {/* Pestaña: Historial ISP */}
-          {activeTab === 'historial' && (
+          {effectiveActiveTab === 'historial' && (
             <div className="space-y-4 animate-fade-in">
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2">
@@ -1617,7 +1726,7 @@ export function GatewayProfilePage() {
         </div>
       </div>
 
-      {/* ── Dialog Servicios y Monitoreo ── */}
+      {/* ── Dialog Seguridad, Tráfico y Velocidad ── */}
       {servicesOpen && (
         <GatewayServicesDialog
           open={servicesOpen}
@@ -1626,6 +1735,7 @@ export function GatewayProfilePage() {
           onSuccess={() => {
             queryClient.invalidateQueries({ queryKey: ['gateway', id] })
             queryClient.invalidateQueries({ queryKey: ['gateway-queues', id] })
+            setActiveTab('stats')
           }}
         />
       )}
@@ -1638,7 +1748,7 @@ export function GatewayProfilePage() {
           gateway={gateway}
           onSuccess={() => {
             queryClient.invalidateQueries({ queryKey: ['gateway', id] })
-            queryClient.invalidateQueries({ queryKey: ['routers'] })
+            queryClient.invalidateQueries({ queryKey: ['gateways'] })
             queryClient.invalidateQueries({ queryKey: ['gateway-queues', id] })
             setEditOpen(false)
           }}

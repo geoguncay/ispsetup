@@ -83,6 +83,25 @@ def run_migrations(bind_engine) -> None:
             conn.execute(text("ALTER TABLE gateways ADD COLUMN IF NOT EXISTS bandwidth_up INTEGER DEFAULT 0;"))
             conn.execute(text("ALTER TABLE gateways ADD COLUMN IF NOT EXISTS bandwidth_down INTEGER DEFAULT 0;"))
             conn.execute(text("ALTER TABLE gateways ADD COLUMN IF NOT EXISTS config_mode VARCHAR(20) NOT NULL DEFAULT 'system';"))
+            conn.execute(text("ALTER TABLE gateways ADD COLUMN IF NOT EXISTS security_mode VARCHAR(30) NOT NULL DEFAULT 'none_api';"))
+            conn.execute(text("ALTER TABLE gateways ADD COLUMN IF NOT EXISTS traffic_accounting VARCHAR(30) NOT NULL DEFAULT 'traffic_flow';"))
+            conn.execute(text("ALTER TABLE gateways ADD COLUMN IF NOT EXISTS speed_control_type VARCHAR(30) NOT NULL DEFAULT 'simple_queues';"))
+            conn.execute(text("""
+            DO $$
+            BEGIN
+                IF NOT EXISTS (
+                    SELECT 1 FROM information_schema.columns
+                    WHERE table_name = 'gateways' AND column_name = 'settings_configured'
+                ) THEN
+                    -- Los gateways existentes conservan el panel habilitado; los
+                    -- creados después de esta migración comienzan sin configurar.
+                    ALTER TABLE gateways
+                        ADD COLUMN settings_configured BOOLEAN NOT NULL DEFAULT TRUE;
+                    ALTER TABLE gateways
+                        ALTER COLUMN settings_configured SET DEFAULT FALSE;
+                END IF;
+            END $$;
+            """))
             conn.execute(text("ALTER TABLE companies ADD COLUMN IF NOT EXISTS logo_url VARCHAR(255);"))
             conn.execute(text("ALTER TABLE companies ADD COLUMN IF NOT EXISTS use_logo_on_login BOOLEAN NOT NULL DEFAULT FALSE;"))
             conn.execute(text("ALTER TABLE companies ADD COLUMN IF NOT EXISTS login_bg_url VARCHAR(255);"))
@@ -1916,7 +1935,5 @@ def run_migrations(bind_engine) -> None:
             """))
 
             conn.commit()
-
-
 
 

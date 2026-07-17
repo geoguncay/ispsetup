@@ -326,10 +326,14 @@ export function GatewaysPage() {
         open={dialogOpen}
         onClose={() => { setDialogOpen(false); setEditingGateway(null) }}
         gateway={editingGateway}
-        onSuccess={() => {
+        onSuccess={(savedGateway) => {
           queryClient.invalidateQueries({ queryKey: ['gateways'] })
           setDialogOpen(false)
+          const wasEditing = Boolean(editingGateway)
           setEditingGateway(null)
+          if (!wasEditing) {
+            navigate(`/gateways/${savedGateway.id}`)
+          }
         }}
         onDelete={(id) => setConfirmDelete(id)}
       />

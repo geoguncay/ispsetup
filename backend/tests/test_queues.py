@@ -222,6 +222,128 @@ def test_toggle_client_queue_endpoint(mock_toggle_queue, client: TestClient):
     mock_toggle_queue.assert_called_with(ANY, "192.168.10.30", True)
 
 
+@patch("app.api.gateways_api.apply_gateway_configuration")
+def test_update_gateway_operating_settings(mock_apply, client: TestClient):
+    login = client.post(
+        "/api/auth/login",
+        json={"email": "admin@test.com", "password": "adminpass123"},
+    )
+    token = login.json()["access_token"]
+
+    db = TestingSessionLocal()
+    gateway_id = str(db.query(Gateway).first().id)
+    db.close()
+
+    response = client.put(
+        f"/api/gateways/{gateway_id}/settings",
+        headers={"Authorization": f"Bearer {token}"},
+        json={
+            "security_mode": "ppp_radius",
+            "traffic_accounting": "accounting_v6",
+            "speed_control_type": "pcq_addresslist",
+        },
+    )
+
+    assert response.status_code == 200
+    assert response.json()["security_mode"] == "ppp_radius"
+    assert response.json()["traffic_accounting"] == "accounting_v6"
+    assert response.json()["speed_control_type"] == "pcq_addresslist"
+    assert response.json()["settings_configured"] is True
+    mock_apply.assert_called_once()
+    assert mock_apply.call_args.args[1] == {
+        "security_mode", "traffic_accounting", "speed_control_type"
+    }
+
+
+def test_new_gateway_starts_without_operating_settings(client: TestClient):
+    login = client.post(
+        "/api/auth/login",
+        json={"email": "admin@test.com", "password": "adminpass123"},
+    )
+    token = login.json()["access_token"]
+
+    response = client.post(
+        "/api/gateways",
+        headers={"Authorization": f"Bearer {token}"},
+        json={
+            "name": "Router Nuevo",
+            "ip": "10.0.0.2",
+            "api_port": 8728,
+            "api_username": "admin",
+            "password_api": "test-password",
+        },
+    )
+
+    assert response.status_code == 201
+    assert response.json()["settings_configured"] is False
+
+
+@patch("app.api.gateways_api.apply_gateway_configuration")
+def test_gateway_settings_are_rolled_back_when_mikrotik_fails(mock_apply, client: TestClient):
+    from app.services.mikrotik.gateway_configuration import GatewayConfigurationError
+
+    mock_apply.side_effect = GatewayConfigurationError("sin conexión")
+    login = client.post(
+        "/api/auth/login",
+        json={"email": "admin@test.com", "password": "adminpass123"},
+    )
+    token = login.json()["access_token"]
+
+    db = TestingSessionLocal()
+    gateway_id = str(db.query(Gateway).first().id)
+    db.close()
+
+    response = client.put(
+        f"/api/gateways/{gateway_id}/settings",
+        headers={"Authorization": f"Bearer {token}"},
+        json={
+            "security_mode": "ppp_radius",
+            "traffic_accounting": "accounting_v6",
+            "speed_control_type": "pcq_addresslist",
+        },
+    )
+
+    assert response.status_code == 502
+    db = TestingSessionLocal()
+    gateway = db.query(Gateway).first()
+    assert gateway.security_mode == "none_api"
+    assert gateway.traffic_accounting == "traffic_flow"
+    assert gateway.speed_control_type == "simple_queues"
+    assert gateway.settings_configured is False
+    db.close()
+
+
+@patch("app.api.gateways_api.apply_gateway_configuration")
+def test_first_gateway_settings_save_applies_defaults(mock_apply, client: TestClient):
+    """Guardar los defaults por primera vez también configura el MikroTik."""
+    login = client.post(
+        "/api/auth/login",
+        json={"email": "admin@test.com", "password": "adminpass123"},
+    )
+    token = login.json()["access_token"]
+
+    db = TestingSessionLocal()
+    gateway_id = str(db.query(Gateway).first().id)
+    db.close()
+
+    response = client.put(
+        f"/api/gateways/{gateway_id}/settings",
+        headers={"Authorization": f"Bearer {token}"},
+        json={
+            "security_mode": "none_api",
+            "traffic_accounting": "traffic_flow",
+            "speed_control_type": "simple_queues",
+        },
+    )
+
+    assert response.status_code == 200
+    assert response.json()["settings_configured"] is True
+    mock_apply.assert_called_once()
+    assert mock_apply.call_args.args[1] == {
+        "security_mode", "traffic_accounting", "speed_control_type"
+    }
+
+
 @patch("app.api.gateways_api.fetch_queues")
 def test_get_router_queues_enriched(mock_fetch_queues, client: TestClient):
     login = client.post(

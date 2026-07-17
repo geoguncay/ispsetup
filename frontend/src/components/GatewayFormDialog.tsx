@@ -5,7 +5,7 @@ import { useState, useEffect, useCallback, useRef } from 'react'
 import { useForm, Resolver } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
-import { X, Loader2, CheckCircle2, XCircle, Plug, Eye, EyeOff, Trash2, MapPin, Server, Key, Activity, Router as GatewayIcon, Hash, Plus } from 'lucide-react'
+import { X, Loader2, CheckCircle2, XCircle, Plug, Eye, EyeOff, Trash2, MapPin, Server, Key, Plus } from 'lucide-react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { MapContainer, TileLayer, Marker, useMapEvents, useMap } from 'react-leaflet'
 import L from 'leaflet'
@@ -100,7 +100,7 @@ interface GatewayFormDialogProps {
     site_id?: string | null;
     site_name?: string | null;
   } | null
-  onSuccess: () => void
+  onSuccess: (savedGateway: { id: string }) => void
   onDelete?: (id: string) => void
 }
 
@@ -118,11 +118,7 @@ export function GatewayFormDialog({ open, onClose, gateway, onSuccess, onDelete 
   const [testResult, setTestResult] = useState<TestResult | null>(null)
   const [isTesting, setIsTesting] = useState(false)
   const [showPassword, setShowPassword] = useState(false)
-  const [tab, setTab] = useState<'info' | 'credentials' | 'services'>('info')
-  const [configMode, setConfigMode] = useState<'system' | 'gateway'>('system')
-  const [routerQueues, setRouterQueues] = useState<string[]>([])
-  const [routerAddressLists, setRouterAddressLists] = useState<string[]>([])
-  const [routerFetchState, setRouterFetchState] = useState<'idle' | 'loading' | 'error' | 'loaded'>('idle')
+  const [tab, setTab] = useState<'info' | 'credentials'>('info')
 
   // Site selector state
   const [siteSelectorValue, setSiteSelectorValue] = useState<string>('')
@@ -144,22 +140,6 @@ export function GatewayFormDialog({ open, onClose, gateway, onSuccess, onDelete 
     },
     enabled: open,
   })
-
-  const fetchRouterResources = async () => {
-    if (!gateway?.id) return
-    setRouterFetchState('loading')
-    try {
-      const [listsRes, queuesRes] = await Promise.all([
-        api.get(`/gateways/${gateway.id}/address-lists`),
-        api.get(`/gateways/${gateway.id}/queues`),
-      ])
-      setRouterAddressLists(listsRes.data as string[])
-      setRouterQueues((queuesRes.data as { name: string }[]).map((q) => q.name))
-      setRouterFetchState('loaded')
-    } catch {
-      setRouterFetchState('error')
-    }
-  }
 
   const {
     register,
@@ -220,12 +200,8 @@ export function GatewayFormDialog({ open, onClose, gateway, onSuccess, onDelete 
       setTab('info')
       setTestResult(null)
       setShowPassword(false)
-      setRouterQueues([])
-      setRouterAddressLists([])
-      setRouterFetchState('idle')
       if (gateway) {
         const mode = (gateway.config_mode === 'gateway' ? 'gateway' : 'system') as 'system' | 'gateway'
-        setConfigMode(mode)
         reset({
           id: gateway.id,
           name: gateway.name,
@@ -258,7 +234,6 @@ export function GatewayFormDialog({ open, onClose, gateway, onSuccess, onDelete 
         const savedMonitoring = localStorage.getItem('isp_default_traffic_monitoring')
         const savedSpeedControl = localStorage.getItem('isp_default_speed_control')
 
-        setConfigMode('system')
         reset({
           id: undefined,
           api_port: savedPort ? parseInt(savedPort) : 8728,
@@ -381,9 +356,11 @@ export function GatewayFormDialog({ open, onClose, gateway, onSuccess, onDelete 
       }
 
       if (isEdit) {
-        await api.put(`/gateways/${gateway!.id}`, payload)
+        const { data: savedGateway } = await api.put(`/gateways/${gateway!.id}`, payload)
+        return savedGateway as { id: string }
       } else {
-        await api.post('/gateways', payload)
+        const { data: savedGateway } = await api.post('/gateways', payload)
+        return savedGateway as { id: string }
       }
     },
     onSuccess,
@@ -493,18 +470,6 @@ export function GatewayFormDialog({ open, onClose, gateway, onSuccess, onDelete 
         {/* Tab Navigation */}
         <div className="border-b border-border bg-secondary/10 shrink-0">
           <div className="flex overflow-x-auto">
-              <button
-              type="button"
-              onClick={() => setTab('credentials')}
-              className={`px-5 py-3 text-sm font-medium flex items-center gap-2 border-b-2 transition-colors whitespace-nowrap shrink-0 ${
-                tab === 'credentials'
-                  ? 'border-brand-500 text-brand-400'
-                  : 'border-transparent text-muted-foreground hover:text-foreground'
-              }`}
-            >
-              <Key className="w-4 h-4" />
-              Credenciales y Test
-            </button>
             <button
               type="button"
               onClick={() => setTab('info')}
@@ -516,6 +481,18 @@ export function GatewayFormDialog({ open, onClose, gateway, onSuccess, onDelete 
             >
               <Server className="w-4 h-4" />
               Información y Ubicación
+            </button>
+              <button
+              type="button"
+              onClick={() => setTab('credentials')}
+              className={`px-5 py-3 text-sm font-medium flex items-center gap-2 border-b-2 transition-colors whitespace-nowrap shrink-0 ${
+                tab === 'credentials'
+                  ? 'border-brand-500 text-brand-400'
+                  : 'border-transparent text-muted-foreground hover:text-foreground'
+              }`}
+            >
+              <Key className="w-4 h-4" />
+              Credenciales API y Prueba de Conexión
             </button>
           </div>
         </div>
@@ -876,291 +853,6 @@ export function GatewayFormDialog({ open, onClose, gateway, onSuccess, onDelete 
                     )}
                   </MapContainer>
                 </div>
-              </div>
-            </div>
-          )}
-
-          {/* Servicios movidos a GatewayServicesDialog (botón Ajustes en perfil del gateway) */}
-          {false && (
-            <div className="space-y-6 max-w-3xl mx-auto py-4 animate-fade-in">
-              <div className="bg-brand-500/10 border border-brand-500/30 rounded-xl p-4 flex gap-3.5 items-start">
-                <div className="p-2 bg-brand-500/20 text-brand-400 rounded-lg shrink-0">
-                  <Activity className="w-5 h-5 animate-pulse" />
-                </div>
-                <div>
-                  <h4 className="text-sm font-semibold text-brand-300">Configuración de Servicios del Gateway</h4>
-                  <p className="text-xs text-muted-foreground mt-1 leading-relaxed">
-                    Habilite o deshabilite las funciones y herramientas de control automatizadas para este gateway.
-                    Los servicios configurados se ejecutarán en segundo plano de manera periódica.
-                  </p>
-                </div>
-              </div>
-
-              {/* MikroTik: Ancho de Banda y Recursos */}
-              <div className="glass-card p-6 border border-border/60 space-y-5 bg-secondary/10">
-                <div className="flex items-center gap-2 text-brand-400 text-xs font-semibold uppercase tracking-wider">
-                  <Server className="w-4 h-4" /> Recursos y Ancho de Banda (MikroTik)
-                </div>
-
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
-                  <div>
-                    <label className="block text-sm font-medium text-foreground mb-1.5">
-                      Límite de Bajada de la Cola Padre (Mbps)
-                    </label>
-                    <input
-                      type="number"
-                      placeholder="Ej. 100 (0 = ilimitado)"
-                      {...register('bandwidth_down')}
-                      className="input-field font-mono"
-                    />
-                    {errors.bandwidth_down && <p className="text-xs text-destructive mt-1">{errors.bandwidth_down.message}</p>}
-                  </div>
-
-                  <div>
-                    <label className="block text-sm font-medium text-foreground mb-1.5">
-                      Límite de Subida de la Cola Padre (Mbps)
-                    </label>
-                    <input
-                      type="number"
-                      placeholder="Ej. 50 (0 = ilimitado)"
-                      {...register('bandwidth_up')}
-                      className="input-field font-mono"
-                    />
-                    {errors.bandwidth_up && <p className="text-xs text-destructive mt-1">{errors.bandwidth_up.message}</p>}
-                  </div>
-
-                  {/* Selector de modo: Sistema vs Router */}
-                  <div className="col-span-1 md:col-span-2">
-                    <p className="text-xs font-semibold text-foreground mb-2 uppercase tracking-wide">Modo de asignación de colas y listas</p>
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setConfigMode('system')
-                          setValue('config_mode', 'system')
-                        }}
-                        className={`text-left p-3.5 rounded-lg border transition-all ${
-                          configMode === 'system'
-                            ? 'border-brand-500 bg-brand-500/10 ring-1 ring-brand-500/40'
-                            : 'border-border/50 bg-secondary/10 hover:border-border'
-                        }`}
-                      >
-                        <div className="flex items-center gap-2 mb-1">
-                          <div className={`w-3.5 h-3.5 rounded-full border-2 flex items-center justify-center ${configMode === 'system' ? 'border-brand-400' : 'border-muted-foreground'}`}>
-                            {configMode === 'system' && <div className="w-1.5 h-1.5 rounded-full bg-brand-400" />}
-                          </div>
-                          <span className="text-sm font-medium text-foreground">Configuración del sistema</span>
-                        </div>
-                        <p className="text-xs text-muted-foreground pl-5">Usa los nombres del catálogo. La plataforma crea las colas y listas si no existen.</p>
-                      </button>
-
-                      <button
-                        type="button"
-                        disabled={!isEdit}
-                        onClick={() => {
-                          if (!isEdit) return
-                          setConfigMode('router')
-                          setValue('config_mode', 'router')
-                        }}
-                        className={`text-left p-3.5 rounded-lg border transition-all ${
-                          !isEdit
-                            ? 'opacity-40 cursor-not-allowed border-border/30 bg-secondary/5'
-                            : configMode === 'router'
-                            ? 'border-amber-500 bg-amber-500/10 ring-1 ring-amber-500/40'
-                            : 'border-border/50 bg-secondary/10 hover:border-border'
-                        }`}
-                      >
-                        <div className="flex items-center gap-2 mb-1">
-                          <div className={`w-3.5 h-3.5 rounded-full border-2 flex items-center justify-center ${configMode === 'router' ? 'border-amber-400' : 'border-muted-foreground'}`}>
-                            {configMode === 'router' && <div className="w-1.5 h-1.5 rounded-full bg-amber-400" />}
-                          </div>
-                          <span className="text-sm font-medium text-foreground">Usar configuración del router</span>
-                        </div>
-                        <p className="text-xs text-muted-foreground pl-5">
-                          {!isEdit ? 'Disponible al editar un gateway guardado.' : 'Selecciona colas y listas existentes del router. No se crearán recursos nuevos.'}
-                        </p>
-                      </button>
-                    </div>
-                  </div>
-
-                  {/* Botón cargar desde router */}
-                  {configMode === 'router' && isEdit && (
-                    <div className="col-span-1 md:col-span-2">
-                      <div className="flex items-center gap-3">
-                        <button
-                          type="button"
-                          disabled={routerFetchState === 'loading'}
-                          onClick={fetchRouterResources}
-                          className="btn-secondary text-xs flex items-center gap-2 px-4 py-2"
-                        >
-                          {routerFetchState === 'loading' ? (
-                            <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                          ) : (
-                            <Plus className="w-3.5 h-3.5" />
-                          )}
-                          {routerFetchState === 'loading' ? 'Cargando desde el router…' : 'Cargar configuración del router'}
-                        </button>
-                        {routerFetchState === 'loaded' && (
-                          <span className="text-xs text-emerald-400 flex items-center gap-1">
-                            <CheckCircle2 className="w-3.5 h-3.5" /> {routerQueues.length} colas · {routerAddressLists.length} listas cargadas
-                          </span>
-                        )}
-                        {routerFetchState === 'error' && (
-                          <span className="text-xs text-destructive flex items-center gap-1">
-                            <XCircle className="w-3.5 h-3.5" /> No se pudo conectar al router
-                          </span>
-                        )}
-                      </div>
-                    </div>
-                  )}
-
-                  <div>
-                    <label className="block text-sm font-medium text-foreground mb-1.5">
-                      Nombre de la Cola Padre
-                    </label>
-                    {configMode === 'router' ? (
-                      routerFetchState === 'loaded' ? (
-                        <select {...register('parent_queue')} className="input-field font-mono cursor-pointer">
-                          <option value="">— Sin cola padre —</option>
-                          {routerQueues.map((o) => <option key={o} value={o}>{o}</option>)}
-                        </select>
-                      ) : (
-                        <div className="input-field flex items-center gap-2 text-muted-foreground text-xs italic select-none bg-secondary/20">
-                          <GatewayIcon className="w-3.5 h-3.5 flex-shrink-0" />
-                          {routerFetchState === 'loading' ? 'Cargando colas del router…' : 'Carga la configuración del router para ver las colas disponibles'}
-                        </div>
-                      )
-                    ) : (() => {
-                      const saved = localStorage.getItem('isp_parent_queues')
-                      const opts: string[] = saved ? JSON.parse(saved) : []
-                      return opts.length > 0 ? (
-                        <select {...register('parent_queue')} className="input-field font-mono cursor-pointer">
-                          <option value="">— Sin cola padre —</option>
-                          {opts.map((o) => <option key={o} value={o}>{o}</option>)}
-                        </select>
-                      ) : (
-                        <div className="input-field flex items-center gap-2 text-muted-foreground text-xs italic select-none bg-secondary/20">
-                          <GatewayIcon className="w-3.5 h-3.5 flex-shrink-0" />
-                          Sin colas configuradas — administra desde Ajustes → Ajustes Gateway
-                        </div>
-                      )
-                    })()}
-                    {configMode === 'system' && (
-                      <span className="text-[10px] text-muted-foreground mt-1 block">
-                        Agrega o edita colas padre desde <strong>Ajustes → Ajustes Gateway</strong>.
-                      </span>
-                    )}
-                    {errors.parent_queue && <p className="text-xs text-destructive mt-1">{errors.parent_queue.message}</p>}
-                  </div>
-
-                  <div>
-                    <label className="block text-sm font-medium text-foreground mb-1.5">
-                      Nombre de la Address List de Clientes
-                    </label>
-                    {configMode === 'router' ? (
-                      routerFetchState === 'loaded' ? (
-                        <select {...register('address_list')} className="input-field font-mono cursor-pointer">
-                          <option value="">— Sin address list —</option>
-                          {routerAddressLists.map((o) => <option key={o} value={o}>{o}</option>)}
-                        </select>
-                      ) : (
-                        <div className="input-field flex items-center gap-2 text-muted-foreground text-xs italic select-none bg-secondary/20">
-                          <Hash className="w-3.5 h-3.5 flex-shrink-0" />
-                          {routerFetchState === 'loading' ? 'Cargando address lists del router…' : 'Carga la configuración del router para ver las listas disponibles'}
-                        </div>
-                      )
-                    ) : (() => {
-                      const saved = localStorage.getItem('isp_address_lists')
-                      const opts: string[] = saved ? JSON.parse(saved) : []
-                      return opts.length > 0 ? (
-                        <select {...register('address_list')} className="input-field font-mono cursor-pointer">
-                          <option value="">— Sin address list —</option>
-                          {opts.map((o) => <option key={o} value={o}>{o}</option>)}
-                        </select>
-                      ) : (
-                        <div className="input-field flex items-center gap-2 text-muted-foreground text-xs italic select-none bg-secondary/20">
-                          <Hash className="w-3.5 h-3.5 flex-shrink-0" />
-                          Sin address lists configuradas — administra desde Ajustes → Ajustes Gateway
-                        </div>
-                      )
-                    })()}
-                    {configMode === 'system' && (
-                      <span className="text-[10px] text-muted-foreground mt-1 block">
-                        Agrega o edita address lists desde <strong>Ajustes → Ajustes Gateway</strong>.
-                      </span>
-                    )}
-                    {errors.address_list && <p className="text-xs text-destructive mt-1">{errors.address_list.message}</p>}
-                  </div>
-
-                  <div>
-                    <label className="block text-sm font-medium text-foreground mb-1.5">
-                      Lista de Suspendidos
-                    </label>
-                    {configMode === 'router' ? (
-                      routerFetchState === 'loaded' ? (
-                        <select {...register('suspend_list')} className="input-field font-mono cursor-pointer">
-                          <option value="">— Sin lista de suspendidos —</option>
-                          {routerAddressLists.map((o) => <option key={o} value={o}>{o}</option>)}
-                        </select>
-                      ) : (
-                        <div className="input-field flex items-center gap-2 text-muted-foreground text-xs italic select-none bg-secondary/20">
-                          <Hash className="w-3.5 h-3.5 flex-shrink-0" />
-                          {routerFetchState === 'loading' ? 'Cargando listas del router…' : 'Carga la configuración del router para ver las listas disponibles'}
-                        </div>
-                      )
-                    ) : (() => {
-                      const saved = localStorage.getItem('isp_suspend_lists')
-                      const opts: string[] = saved ? JSON.parse(saved) : []
-                      return opts.length > 0 ? (
-                        <select {...register('suspend_list')} className="input-field font-mono cursor-pointer">
-                          <option value="">— Default (isp_suspendidos) —</option>
-                          {opts.map((o) => <option key={o} value={o}>{o}</option>)}
-                        </select>
-                      ) : (
-                        <div className="input-field flex items-center gap-2 text-muted-foreground text-xs italic select-none bg-secondary/20">
-                          <Hash className="w-3.5 h-3.5 flex-shrink-0" />
-                          Sin listas configuradas — administra desde Ajustes → Ajustes Gateway
-                        </div>
-                      )
-                    })()}
-                    {configMode === 'system' && (
-                      <span className="text-[10px] text-muted-foreground mt-1 block">
-                        Lista de firewall para clientes suspendidos. Si no se selecciona, se usa <code>isp_suspendidos</code>.
-                      </span>
-                    )}
-                    {errors.suspend_list && <p className="text-xs text-destructive mt-1">{errors.suspend_list.message}</p>}
-                  </div>
-                </div>
-              </div>
-
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
-                <div className="glass-card p-5 border border-border/60 space-y-4 bg-secondary/10">
-                  <div className="flex items-center gap-2 text-brand-400 text-xs font-semibold uppercase tracking-wider">
-                    <Activity className="w-4 h-4" /> Tráfico y Rendimiento
-                  </div>
-                  <div className="flex items-center gap-3 py-2">
-                    <label className="relative inline-flex items-center cursor-pointer select-none flex-shrink-0">
-                      <input type="checkbox" {...register('traffic_monitoring')} className="sr-only peer" />
-                      <div className="w-11 h-6 bg-secondary peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-muted-foreground after:border-border after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-brand-500 peer-checked:after:bg-white peer-checked:after:border-brand-500"></div>
-                    </label>
-                    <div>
-                      <span className="text-sm font-medium text-foreground block">Registro de Tráfico</span>
-                      <span className="text-xs text-muted-foreground">Monitorear y graficar consumo de interfaces</span>
-                    </div>
-                  </div>
-
-                  <div className="flex items-center gap-3 py-2 border-t border-border/40 pt-4">
-                    <label className="relative inline-flex items-center cursor-pointer select-none flex-shrink-0">
-                      <input type="checkbox" {...register('speed_control')} className="sr-only peer" />
-                      <div className="w-11 h-6 bg-secondary peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-muted-foreground after:border-border after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-brand-500 peer-checked:after:bg-white peer-checked:after:border-brand-500"></div>
-                    </label>
-                    <div>
-                      <span className="text-sm font-medium text-foreground block">Control de Velocidad</span>
-                      <span className="text-xs text-muted-foreground">Administración dinámica de colas (Queues)</span>
-                    </div>
-                  </div>
-                </div>
-
               </div>
             </div>
           )}
