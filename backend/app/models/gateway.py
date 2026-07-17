@@ -35,6 +35,8 @@ class Gateway(Base):
     # Campos de colas y firewall MikroTik
     parent_queue: Mapped[str | None] = mapped_column(String(100), nullable=True)
     address_list: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    suspend_list: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    config_mode: Mapped[str] = mapped_column(String(20), nullable=False, server_default="system")
     bandwidth_up: Mapped[int | None] = mapped_column(Integer, nullable=True, default=0)
     bandwidth_down: Mapped[int | None] = mapped_column(Integer, nullable=True, default=0)
 

@@ -93,10 +93,17 @@ export function GatewaySettingsTab({ isAdmin, setStatusMessage }: { isAdmin: boo
   const [editingAddressList, setEditingAddressList] = useState<string | null>(null)
   const [editingAddressListVal, setEditingAddressListVal] = useState('')
 
+  const [suspendLists, setSuspendLists] = useState<string[]>([])
+  const [newSuspendList, setNewSuspendList] = useState('')
+  const [editingSuspendList, setEditingSuspendList] = useState<string | null>(null)
+  const [editingSuspendListVal, setEditingSuspendListVal] = useState('')
+
   useEffect(() => {
     if (systemSettingsQuery.data) {
       setParentQueues(systemSettingsQuery.data.catalogs.parent_queues || [])
       setAddressLists(systemSettingsQuery.data.catalogs.address_lists || [])
+      setSuspendLists(systemSettingsQuery.data.catalogs.suspend_lists || [])
+      localStorage.setItem('isp_suspend_lists', JSON.stringify(systemSettingsQuery.data.catalogs.suspend_lists || []))
     }
   }, [systemSettingsQuery.data])
 
@@ -156,6 +163,35 @@ export function GatewaySettingsTab({ isAdmin, setStatusMessage }: { isAdmin: boo
     catalogsMutation.mutate({ address_lists: updated })
     setEditingAddressList(null)
     setStatusMessage({ type: 'success', text: 'Address List actualizada.' })
+  }
+
+  const handleAddSuspendList = (e: React.FormEvent) => {
+    e.preventDefault()
+    const val = newSuspendList.trim()
+    if (!val) return
+    if (suspendLists.includes(val)) {
+      setStatusMessage({ type: 'error', text: 'Esa lista de suspendidos ya existe.' }); return
+    }
+    const updated = [...suspendLists, val]
+    setSuspendLists(updated)
+    catalogsMutation.mutate({ suspend_lists: updated })
+    setNewSuspendList('')
+    setStatusMessage({ type: 'success', text: `Lista de suspendidos "${val}" agregada.` })
+  }
+  const handleDeleteSuspendList = (val: string) => {
+    const updated = suspendLists.filter(s => s !== val)
+    setSuspendLists(updated)
+    catalogsMutation.mutate({ suspend_lists: updated })
+    setStatusMessage({ type: 'success', text: 'Lista de suspendidos eliminada.' })
+  }
+  const handleSaveSuspendList = (old: string) => {
+    const val = editingSuspendListVal.trim()
+    if (!val) return
+    const updated = suspendLists.map(s => s === old ? val : s)
+    setSuspendLists(updated)
+    catalogsMutation.mutate({ suspend_lists: updated })
+    setEditingSuspendList(null)
+    setStatusMessage({ type: 'success', text: 'Lista de suspendidos actualizada.' })
   }
 
   // ── Sitios ───────────────────────────────────────────────────────────────
@@ -562,6 +598,101 @@ export function GatewaySettingsTab({ isAdmin, setStatusMessage }: { isAdmin: boo
           <div className="text-center py-6 text-muted-foreground text-sm border border-dashed border-border/40 rounded-xl">
             <Hash className="w-6 h-6 mx-auto mb-2 opacity-40" />
             <p>No hay Address Lists configuradas. Agrega una arriba.</p>
+          </div>
+        )}
+      </div>
+
+      {/* ── Sección: Listas de Suspendidos ────────────────────────────────── */}
+      <div className="glass-card p-6 space-y-5">
+        <div>
+          <h3 className="text-lg font-semibold text-foreground flex items-center gap-2">
+            <Hash className="w-5 h-5 text-brand-400" />
+            Nombres de Lista de Suspendidos
+          </h3>
+          <p className="text-muted-foreground text-xs mt-1">
+            Gestiona los nombres de las listas de firewall para clientes suspendidos. Si no se configura en el router, se usa <code className="font-mono">isp_suspendidos</code>.
+          </p>
+        </div>
+
+        <form onSubmit={handleAddSuspendList} className="flex gap-3 max-w-md items-end">
+          <div className="flex-1 space-y-1.5">
+            <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider block">
+              Nueva Lista de Suspendidos
+            </label>
+            <input
+              type="text"
+              value={newSuspendList}
+              onChange={(e) => setNewSuspendList(e.target.value)}
+              className="input-field font-mono"
+              placeholder="isp_suspendidos_zona1"
+            />
+          </div>
+          <button type="submit" className="btn-primary select-none h-11 px-4">
+            <Plus className="w-4 h-4" />
+            Agregar
+          </button>
+        </form>
+
+        {suspendLists.length > 0 ? (
+          <div className="border border-border/60 rounded-xl overflow-hidden bg-background/20">
+            <table className="w-full text-left border-collapse">
+              <thead>
+                <tr className="bg-secondary/40 border-b border-border/60 text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+                  <th className="px-4 py-3">Nombre de la Lista</th>
+                  <th className="px-4 py-3 text-right">Acciones</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-border/40 text-sm">
+                {suspendLists.map((s) => (
+                  <tr key={s} className="hover:bg-secondary/20 transition-colors">
+                    <td className="px-4 py-3">
+                      {editingSuspendList === s ? (
+                        <input
+                          type="text"
+                          value={editingSuspendListVal}
+                          onChange={(e) => setEditingSuspendListVal(e.target.value)}
+                          className="input-field py-1 px-2 text-sm max-w-[280px] font-mono"
+                        />
+                      ) : (
+                        <span className="font-mono font-semibold text-foreground">{s}</span>
+                      )}
+                    </td>
+                    <td className="px-4 py-3 text-right">
+                      <div className="flex justify-end gap-2">
+                        {editingSuspendList === s ? (
+                          <>
+                            <button type="button" onClick={() => handleSaveSuspendList(s)}
+                              className="p-1 text-emerald-400 hover:bg-emerald-500/10 rounded transition-all cursor-pointer" title="Guardar">
+                              <Check className="w-4 h-4" />
+                            </button>
+                            <button type="button" onClick={() => setEditingSuspendList(null)}
+                              className="p-1 text-muted-foreground hover:bg-secondary/50 rounded transition-all cursor-pointer" title="Cancelar">
+                              <X className="w-4 h-4" />
+                            </button>
+                          </>
+                        ) : (
+                          <>
+                            <button type="button" onClick={() => { setEditingSuspendList(s); setEditingSuspendListVal(s) }}
+                              className="p-1 text-muted-foreground hover:text-foreground hover:bg-secondary/50 rounded transition-all cursor-pointer" title="Editar">
+                              <Edit2 className="w-4 h-4" />
+                            </button>
+                            <button type="button" onClick={() => handleDeleteSuspendList(s)}
+                              className="p-1 text-destructive hover:text-red-400 hover:bg-red-500/10 rounded transition-all cursor-pointer" title="Eliminar">
+                              <Trash2 className="w-4 h-4" />
+                            </button>
+                          </>
+                        )}
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        ) : (
+          <div className="text-center py-6 text-muted-foreground text-sm border border-dashed border-border/40 rounded-xl">
+            <Hash className="w-6 h-6 mx-auto mb-2 opacity-40" />
+            <p>No hay listas de suspendidos configuradas. Se usará <code className="font-mono">isp_suspendidos</code> por defecto.</p>
           </div>
         )}
       </div>

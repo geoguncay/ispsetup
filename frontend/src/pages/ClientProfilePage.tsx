@@ -151,6 +151,10 @@ export function ClientProfilePage() {
   const [confirmDeleteOpen, setConfirmDeleteOpen] = useState(false)
   const [deleteError, setDeleteError] = useState<string | null>(null)
 
+  const anyModalOpen = editOpen || confirmDeleteOpen || changePlanOpen || suspendOpen ||
+    deferOpen || confirmCancelDeferOpen || confirmCancelReactivationOpen ||
+    confirmDisconnectSessionOpen || deferReactivationOpen || manualInvoiceOpen || createTicketOpen
+
   const deleteClientMutation = useMutation({
     mutationFn: async () => {
       await api.delete(`/clients/${id}`)
@@ -175,7 +179,7 @@ export function ClientProfilePage() {
       const { data } = await api.get(`/clients/${id}`)
       return data
     },
-    refetchInterval: 30_000,
+    refetchInterval: anyModalOpen ? false : 30_000,
   })
 
   // Detecta cambios de estado que llegaron por el worker automático (no por una acción
@@ -213,7 +217,7 @@ export function ClientProfilePage() {
       return data
     },
     enabled: !!client && client.connection_type === 'pppoe' && !!client.gateway_id,
-    refetchInterval: 10000, // Refrescar cada 10 s
+    refetchInterval: anyModalOpen ? false : 10000,
   })
 
   // Buscar la sesión correspondiente a este cliente

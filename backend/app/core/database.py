@@ -82,6 +82,7 @@ def run_migrations(bind_engine) -> None:
             conn.execute(text("ALTER TABLE gateways ADD COLUMN IF NOT EXISTS address_list VARCHAR(100);"))
             conn.execute(text("ALTER TABLE gateways ADD COLUMN IF NOT EXISTS bandwidth_up INTEGER DEFAULT 0;"))
             conn.execute(text("ALTER TABLE gateways ADD COLUMN IF NOT EXISTS bandwidth_down INTEGER DEFAULT 0;"))
+            conn.execute(text("ALTER TABLE gateways ADD COLUMN IF NOT EXISTS config_mode VARCHAR(20) NOT NULL DEFAULT 'system';"))
             conn.execute(text("ALTER TABLE companies ADD COLUMN IF NOT EXISTS logo_url VARCHAR(255);"))
             conn.execute(text("ALTER TABLE companies ADD COLUMN IF NOT EXISTS use_logo_on_login BOOLEAN NOT NULL DEFAULT FALSE;"))
             conn.execute(text("ALTER TABLE companies ADD COLUMN IF NOT EXISTS login_bg_url VARCHAR(255);"))
@@ -1017,6 +1018,8 @@ def run_migrations(bind_engine) -> None:
             conn.execute(text("ALTER TABLE system_settings ADD COLUMN IF NOT EXISTS cutoff_dates JSONB;"))
             conn.execute(text("ALTER TABLE system_settings ADD COLUMN IF NOT EXISTS parent_queues JSONB;"))
             conn.execute(text("ALTER TABLE system_settings ADD COLUMN IF NOT EXISTS address_lists JSONB;"))
+            conn.execute(text("ALTER TABLE system_settings ADD COLUMN IF NOT EXISTS suspend_lists JSONB;"))
+            conn.execute(text("ALTER TABLE gateways ADD COLUMN IF NOT EXISTS suspend_list VARCHAR(100);"))
 
             # Renombrar columna router_id → gateway_id en cada tabla relacionada
             conn.execute(text("""

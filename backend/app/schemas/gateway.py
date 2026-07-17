@@ -3,7 +3,7 @@ Schemas Pydantic v2 para gateways MikroTik.
 """
 import uuid
 from datetime import datetime
-from typing import Any
+from typing import Any, Literal
 
 from pydantic import BaseModel, Field, IPvAnyAddress
 
@@ -31,6 +31,8 @@ class GatewayCreate(BaseModel):
     # Nuevos campos de configuración de MikroTik y ancho de banda
     parent_queue: str | None = Field(default=None, max_length=100)
     address_list: str | None = Field(default=None, max_length=100)
+    suspend_list: str | None = Field(default=None, max_length=100)
+    config_mode: Literal['system', 'gateway'] = 'system'
     bandwidth_up: int | None = Field(default=0, ge=0)
     bandwidth_down: int | None = Field(default=0, ge=0)
 
@@ -59,6 +61,8 @@ class GatewayUpdate(BaseModel):
     # Nuevos campos de configuración de MikroTik y ancho de banda
     parent_queue: str | None = None
     address_list: str | None = None
+    suspend_list: str | None = None
+    config_mode: Literal['system', 'gateway'] | None = None
     bandwidth_up: int | None = None
     bandwidth_down: int | None = None
 
@@ -89,6 +93,8 @@ class GatewayRead(BaseModel):
     # Nuevos campos de configuración de MikroTik y ancho de banda
     parent_queue: str | None
     address_list: str | None
+    suspend_list: str | None
+    config_mode: str
     bandwidth_up: int | None
     bandwidth_down: int | None
 

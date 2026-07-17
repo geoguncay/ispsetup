@@ -8,7 +8,7 @@ import {
   ArrowLeft, RefreshCw, MapPin, Wifi, Server,
   CheckCircle2, XCircle, Sliders, AlertCircle, Loader2, X,
   Edit2, Download, Search, Users, Network, Activity, ScrollText, ClipboardList,
-  WifiOff, UserPlus, UserX, UserCheck, Zap, ToggleLeft,
+  WifiOff, UserPlus, UserX, UserCheck, Zap, ToggleLeft, Settings2,
 } from 'lucide-react'
 import { MapContainer, TileLayer, Marker, Popup } from 'react-leaflet'
 import L from 'leaflet'
@@ -16,6 +16,7 @@ import 'leaflet/dist/leaflet.css'
 import api from '@/services/api'
 import { GatewayStatusBadge } from '@/components/GatewayStatusBadge'
 import { GatewayFormDialog } from '@/components/GatewayFormDialog'
+import { GatewayServicesDialog } from '@/components/GatewayServicesDialog'
 import { useAuthStore } from '@/stores/authStore'
 import { formatUptime } from '@/lib/utils'
 import { formatSpeed } from '@/components/TrafficChart'
@@ -235,6 +236,7 @@ export function GatewayProfilePage() {
   const [selectedPlanId, setSelectedPlanId] = useState<string>('')
   const [searchTerm, setSearchTerm] = useState('')
   const [editOpen, setEditOpen] = useState(false)
+  const [servicesOpen, setServicesOpen] = useState(false)
   const [confirmDeleteOpen, setConfirmDeleteOpen] = useState(false)
 
   // Test connection state
@@ -297,13 +299,14 @@ export function GatewayProfilePage() {
 
 
   // Consultar información del Router — se refresca automáticamente cada 15 s
+  const anyModalOpen = editOpen || servicesOpen || importingOpen || confirmDeleteOpen || !!selectedQueue
   const { data: gateway, isLoading: isLoadingGateway, isError: isErrorGateway, refetch: refetchGateway } = useQuery({
     queryKey: ['gateway', id],
     queryFn: async () => {
       const { data } = await api.get(`/gateways/${id}`)
       return data
     },
-    refetchInterval: 15_000,
+    refetchInterval: anyModalOpen ? false : 15_000,
   })
 
 
@@ -474,7 +477,7 @@ export function GatewayProfilePage() {
       return data
     },
     enabled: activeTab === 'pppoe',
-    refetchInterval: activeTab === 'pppoe' ? 8000 : undefined,
+    refetchInterval: anyModalOpen ? false : activeTab === 'pppoe' ? 8000 : undefined,
   })
 
   // Mutación para desconectar sesión activa
@@ -527,7 +530,7 @@ export function GatewayProfilePage() {
       return data
     },
     enabled: activeTab === 'logs' && debugEnabled,
-    refetchInterval: activeTab === 'logs' && debugEnabled ? 10000 : undefined,
+    refetchInterval: anyModalOpen ? false : activeTab === 'logs' && debugEnabled ? 10000 : undefined,
   })
 
   // Historial ISP: audit logs filtrados por este gateway
@@ -547,7 +550,7 @@ export function GatewayProfilePage() {
       return data
     },
     enabled: activeTab === 'historial',
-    refetchInterval: activeTab === 'historial' ? 15_000 : undefined,
+    refetchInterval: anyModalOpen ? false : activeTab === 'historial' ? 15_000 : undefined,
   })
 
   const AUDIT_META: Record<string, { label: string; color: string; icon: React.ComponentType<any> }> = {
@@ -606,6 +609,12 @@ export function GatewayProfilePage() {
   const inactiveClients = allClients.length - activeClients
   const totalClients = allClients.length
   const activePercentage = totalClients > 0 ? (activeClients / totalClients) * 100 : 0
+
+  // El panel de tabs solo tiene sentido una vez que se hayan hecho ajustes de servicios en el gateway
+  const hasServiceConfig = !!(
+    gateway.parent_queue || gateway.address_list || gateway.suspend_list ||
+    gateway.bandwidth_up || gateway.bandwidth_down
+  )
 
   // Calcular ancho de banda dinámicamente desde las colas de MikroTik
   const activeQueues = queues.filter((q: any) => {
@@ -681,21 +690,23 @@ export function GatewayProfilePage() {
         </div>
 
         <div className="flex items-center gap-2">
-          <button
-            onClick={handleSyncAll}
-            className="btn-secondary"
-          >
-            <RefreshCw className="w-4 h-4" />
-            Sincronizar
-          </button>
           {isAdmin && (
-            <button
-              onClick={() => setEditOpen(true)}
-              className="btn-primary"
-            >
-              <Edit2 className="w-4 h-4" />
-              Editar
-            </button>
+            <>
+              <button
+                onClick={() => setServicesOpen(true)}
+                className="btn-secondary"
+              >
+                <Settings2 className="w-4 h-4" />
+                Ajustes
+              </button>
+              <button
+                onClick={() => setEditOpen(true)}
+                className="btn-primary"
+              >
+                <Edit2 className="w-4 h-4" />
+                Editar
+              </button>
+            </>
           )}
         </div>
       </div>
@@ -847,6 +858,27 @@ export function GatewayProfilePage() {
 
         {/* Panel Principal - Tabs a la Derecha */}
         <div className="lg:col-span-2 space-y-6">
+          {!hasServiceConfig ? (
+            <div className="glass-card p-12 flex flex-col items-center justify-center text-center min-h-[400px]">
+              <Settings2 className="w-10 h-10 mb-3 text-muted-foreground/30" />
+              <h3 className="text-sm font-semibold text-foreground mb-1">
+                Este gateway aún no tiene servicios configurados
+              </h3>
+              <p className="text-xs text-muted-foreground max-w-sm mb-4">
+                Configura la cola padre, listas de direcciones o límites de ancho de banda para habilitar estadísticas, clientes, colas de tráfico, sesiones PPPoE e historial en este panel.
+              </p>
+              {isAdmin && (
+                <button
+                  onClick={() => setServicesOpen(true)}
+                  className="btn-primary text-sm"
+                >
+                  <Settings2 className="w-4 h-4" />
+                  Configurar servicios
+                </button>
+              )}
+            </div>
+          ) : (
+          <>
           {/* Navegación de Tabs */}
           <div className="flex border-b border-border gap-2">
             {[
@@ -1580,8 +1612,23 @@ export function GatewayProfilePage() {
               </p>
             </div>
           )}
+          </>
+          )}
         </div>
       </div>
+
+      {/* ── Dialog Servicios y Monitoreo ── */}
+      {servicesOpen && (
+        <GatewayServicesDialog
+          open={servicesOpen}
+          onClose={() => setServicesOpen(false)}
+          gateway={gateway}
+          onSuccess={() => {
+            queryClient.invalidateQueries({ queryKey: ['gateway', id] })
+            queryClient.invalidateQueries({ queryKey: ['gateway-queues', id] })
+          }}
+        />
+      )}
 
       {/* ── Dialog Crear/Editar Router ── */}
       {editOpen && (

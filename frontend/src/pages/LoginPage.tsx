@@ -11,9 +11,7 @@ import { useAuthStore } from '@/stores/authStore'
 import { getLogoUrl } from '@/components/AppLayout'
 import axios from 'axios'
 
-const BASE_URL = import.meta.env.VITE_API_URL
-  ? `${import.meta.env.VITE_API_URL}/api`
-  : '/api'
+const BASE_URL = '/api'
 
 interface CompanyPublic {
   name: string

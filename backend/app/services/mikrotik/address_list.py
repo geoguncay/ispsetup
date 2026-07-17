@@ -9,6 +9,17 @@ from librouteros.query import Key
 logger = logging.getLogger(__name__)
 
 
+def get_suspend_list_name(gateway) -> str:
+    """
+    Retorna el nombre de la lista de suspendidos configurada en el gateway.
+    Fallback: 'isp_suspendidos'.
+    """
+    name = getattr(gateway, 'suspend_list', None)
+    if not name or name.strip().lower() in ('none', ''):
+        return 'isp_suspendidos'
+    return name.strip()
+
+
 def get_clean_list_name(name: str | None) -> str:
     """
     Sanea el nombre de una address-list en MikroTik aplicando el prefijo isp_.
@@ -38,9 +49,10 @@ def sync_ip_in_address_list(gateway: Gateway, ip: str, client_name: str, list_na
             query_all = api.path('/ip/firewall/address-list').select().where(
                 address_key == ip
             )
+            suspend_list = get_suspend_list_name(gateway)
             for entry in list(query_all):
                 current_list = entry.get("list")
-                if current_list not in ("suspendidos", "isp_suspendidos") and current_list != list_name:
+                if current_list not in ("suspendidos", "isp_suspendidos", suspend_list) and current_list != list_name:
                     # Solo limpiar si empieza con "isp_" o es el legado "clientes"
                     if current_list == "clientes" or (current_list and current_list.startswith("isp_")):
                         entry_id = entry.get(".id")
@@ -118,15 +130,16 @@ def fetch_clients_from_address_list(gateway: Gateway, list_name: str = "isp_clie
 
 def suspend_ip_in_firewall(gateway: Gateway, ip: str, client_name: str) -> None:
     """
-    Agrega una dirección IP a la lista de firewall 'isp_suspendidos' de MikroTik.
-    Crea la entrada si no existe, o actualiza el comentario si difiere.
+    Agrega una dirección IP a la lista de suspendidos configurada del gateway.
+    Usa gateway.suspend_list si está configurado, de lo contrario 'isp_suspendidos'.
     """
+    suspend_list = get_suspend_list_name(gateway)
     try:
         with gateway_pool.connect_to(gateway) as api:
             list_key = Key('list')
             address_key = Key('address')
             query = api.path('/ip/firewall/address-list').select().where(
-                list_key == 'isp_suspendidos',
+                list_key == suspend_list,
                 address_key == ip
             )
             existing = list(query)
@@ -135,40 +148,40 @@ def suspend_ip_in_firewall(gateway: Gateway, ip: str, client_name: str) -> None:
                 entry_id = entry.get(".id")
                 if entry.get("comment") != client_name:
                     list(api("/ip/firewall/address-list/set", **{".id": entry_id, "comment": client_name}))
-                    logger.info(f"Comentario actualizado para IP suspendida {ip} en {gateway.nombre}: {client_name}")
+                    logger.info(f"Comentario actualizado para IP suspendida {ip} en {gateway.name}: {client_name}")
             else:
-                list(api("/ip/firewall/address-list/add", list="isp_suspendidos", address=ip, comment=client_name))
-                logger.info(f"IP {ip} agregada a lista 'isp_suspendidos' en {gateway.nombre}")
+                list(api("/ip/firewall/address-list/add", list=suspend_list, address=ip, comment=client_name))
+                logger.info(f"IP {ip} agregada a lista '{suspend_list}' en {gateway.name}")
     except Exception as e:
-        logger.error(f"Error al suspender IP {ip} en {gateway.nombre}: {e}")
+        logger.error(f"Error al suspender IP {ip} en {gateway.name}: {e}")
         raise e
 
 
 def unsuspend_ip_in_firewall(gateway: Gateway, ip: str) -> None:
     """
-    Remueve una dirección IP de la lista de firewall 'isp_suspendidos' y la legada 'suspendidos'.
+    Remueve una IP de la lista de suspendidos del gateway y de las listas legadas.
+    Busca en gateway.suspend_list, 'isp_suspendidos' y 'suspendidos' para cubrir migraciones.
     """
+    suspend_list = get_suspend_list_name(gateway)
     try:
         with gateway_pool.connect_to(gateway) as api:
             list_key = Key('list')
             address_key = Key('address')
-            
-            # Buscar en 'isp_suspendidos' y 'suspendidos'
-            query_isp = api.path('/ip/firewall/address-list').select().where(
-                list_key == 'isp_suspendidos',
-                address_key == ip
-            )
-            query_legacy = api.path('/ip/firewall/address-list').select().where(
-                list_key == 'suspendidos',
-                address_key == ip
-            )
-            
-            existing = list(query_isp) + list(query_legacy)
+
+            lists_to_check = {suspend_list, 'isp_suspendidos', 'suspendidos'}
+            existing = []
+            for list_name in lists_to_check:
+                query = api.path('/ip/firewall/address-list').select().where(
+                    list_key == list_name,
+                    address_key == ip
+                )
+                existing.extend(list(query))
+
             for entry in existing:
                 entry_id = entry.get(".id")
                 list(api("/ip/firewall/address-list/remove", **{".id": entry_id}))
-                logger.info(f"IP {ip} removida de lista '{entry.get('list')}' en {gateway.nombre}")
+                logger.info(f"IP {ip} removida de lista '{entry.get('list')}' en {gateway.name}")
     except Exception as e:
-        logger.error(f"Error al reactivar (unsuspend) IP {ip} en {gateway.nombre}: {e}")
+        logger.error(f"Error al reactivar (unsuspend) IP {ip} en {gateway.name}: {e}")
         raise e
 

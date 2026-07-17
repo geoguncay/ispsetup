@@ -46,6 +46,8 @@ const gatewaySchema = z.object({
   alert_notifications: z.boolean().default(true),
   parent_queue: z.string().max(100).optional().nullable(),
   address_list: z.string().max(100).optional().nullable(),
+  suspend_list: z.string().max(100).optional().nullable(),
+  config_mode: z.enum(['system', 'gateway']).default('system'),
   bandwidth_up: z.coerce.number().min(0).default(0),
   bandwidth_down: z.coerce.number().min(0).default(0),
   site_id: z.string().optional().nullable(),
@@ -91,6 +93,8 @@ interface GatewayFormDialogProps {
     alert_notifications?: boolean;
     parent_queue?: string | null;
     address_list?: string | null;
+    suspend_list?: string | null;
+    config_mode?: string | null;
     bandwidth_up?: number | null;
     bandwidth_down?: number | null;
     site_id?: string | null;
@@ -115,6 +119,10 @@ export function GatewayFormDialog({ open, onClose, gateway, onSuccess, onDelete 
   const [isTesting, setIsTesting] = useState(false)
   const [showPassword, setShowPassword] = useState(false)
   const [tab, setTab] = useState<'info' | 'credentials' | 'services'>('info')
+  const [configMode, setConfigMode] = useState<'system' | 'gateway'>('system')
+  const [routerQueues, setRouterQueues] = useState<string[]>([])
+  const [routerAddressLists, setRouterAddressLists] = useState<string[]>([])
+  const [routerFetchState, setRouterFetchState] = useState<'idle' | 'loading' | 'error' | 'loaded'>('idle')
 
   // Site selector state
   const [siteSelectorValue, setSiteSelectorValue] = useState<string>('')
@@ -137,6 +145,22 @@ export function GatewayFormDialog({ open, onClose, gateway, onSuccess, onDelete 
     enabled: open,
   })
 
+  const fetchRouterResources = async () => {
+    if (!gateway?.id) return
+    setRouterFetchState('loading')
+    try {
+      const [listsRes, queuesRes] = await Promise.all([
+        api.get(`/gateways/${gateway.id}/address-lists`),
+        api.get(`/gateways/${gateway.id}/queues`),
+      ])
+      setRouterAddressLists(listsRes.data as string[])
+      setRouterQueues((queuesRes.data as { name: string }[]).map((q) => q.name))
+      setRouterFetchState('loaded')
+    } catch {
+      setRouterFetchState('error')
+    }
+  }
+
   const {
     register,
     handleSubmit,
@@ -158,6 +182,7 @@ export function GatewayFormDialog({ open, onClose, gateway, onSuccess, onDelete 
       bandwidth_down: 0,
       parent_queue: '',
       address_list: '',
+      suspend_list: '',
     },
   })
 
@@ -195,7 +220,12 @@ export function GatewayFormDialog({ open, onClose, gateway, onSuccess, onDelete 
       setTab('info')
       setTestResult(null)
       setShowPassword(false)
+      setRouterQueues([])
+      setRouterAddressLists([])
+      setRouterFetchState('idle')
       if (gateway) {
+        const mode = (gateway.config_mode === 'gateway' ? 'gateway' : 'system') as 'system' | 'gateway'
+        setConfigMode(mode)
         reset({
           id: gateway.id,
           name: gateway.name,
@@ -213,6 +243,8 @@ export function GatewayFormDialog({ open, onClose, gateway, onSuccess, onDelete 
           alert_notifications: gateway.alert_notifications ?? true,
           parent_queue: gateway.parent_queue ?? '',
           address_list: gateway.address_list ?? '',
+          suspend_list: gateway.suspend_list ?? '',
+          config_mode: mode,
           bandwidth_up: gateway.bandwidth_up ?? 0,
           bandwidth_down: gateway.bandwidth_down ?? 0,
           site_id: gateway.site_id ?? null,
@@ -226,6 +258,7 @@ export function GatewayFormDialog({ open, onClose, gateway, onSuccess, onDelete 
         const savedMonitoring = localStorage.getItem('isp_default_traffic_monitoring')
         const savedSpeedControl = localStorage.getItem('isp_default_speed_control')
 
+        setConfigMode('system')
         reset({
           id: undefined,
           api_port: savedPort ? parseInt(savedPort) : 8728,
@@ -243,6 +276,7 @@ export function GatewayFormDialog({ open, onClose, gateway, onSuccess, onDelete 
           bandwidth_down: 0,
           parent_queue: '',
           address_list: savedAddressList || '',
+          config_mode: 'system',
           site_id: null,
         })
         resetSiteState()
@@ -337,6 +371,14 @@ export function GatewayFormDialog({ open, onClose, gateway, onSuccess, onDelete 
       if (!payload.latitude || isNaN(Number(payload.latitude))) payload.latitude = null
       if (!payload.longitude || isNaN(Number(payload.longitude))) payload.longitude = null
       if (!payload.site_id) payload.site_id = null
+      if (!isEdit) {
+        payload.parent_queue = null
+        payload.address_list = null
+        payload.suspend_list = null
+        payload.config_mode = 'system'
+        payload.bandwidth_up = 0
+        payload.bandwidth_down = 0
+      }
 
       if (isEdit) {
         await api.put(`/gateways/${gateway!.id}`, payload)
@@ -451,6 +493,18 @@ export function GatewayFormDialog({ open, onClose, gateway, onSuccess, onDelete 
         {/* Tab Navigation */}
         <div className="border-b border-border bg-secondary/10 shrink-0">
           <div className="flex overflow-x-auto">
+              <button
+              type="button"
+              onClick={() => setTab('credentials')}
+              className={`px-5 py-3 text-sm font-medium flex items-center gap-2 border-b-2 transition-colors whitespace-nowrap shrink-0 ${
+                tab === 'credentials'
+                  ? 'border-brand-500 text-brand-400'
+                  : 'border-transparent text-muted-foreground hover:text-foreground'
+              }`}
+            >
+              <Key className="w-4 h-4" />
+              Credenciales y Test
+            </button>
             <button
               type="button"
               onClick={() => setTab('info')}
@@ -463,32 +517,6 @@ export function GatewayFormDialog({ open, onClose, gateway, onSuccess, onDelete 
               <Server className="w-4 h-4" />
               Información y Ubicación
             </button>
-            <button
-              type="button"
-              onClick={() => setTab('credentials')}
-              className={`px-5 py-3 text-sm font-medium flex items-center gap-2 border-b-2 transition-colors whitespace-nowrap shrink-0 ${
-                tab === 'credentials'
-                  ? 'border-brand-500 text-brand-400'
-                  : 'border-transparent text-muted-foreground hover:text-foreground'
-              }`}
-            >
-              <Key className="w-4 h-4" />
-              Credenciales y Test
-            </button>
-            {isEdit && (
-              <button
-                type="button"
-                onClick={() => setTab('services')}
-                className={`px-5 py-3 text-sm font-medium flex items-center gap-2 border-b-2 transition-colors whitespace-nowrap shrink-0 ${
-                  tab === 'services'
-                    ? 'border-brand-500 text-brand-400'
-                    : 'border-transparent text-muted-foreground hover:text-foreground'
-                }`}
-              >
-                <Activity className="w-4 h-4" />
-                Servicios y Monitoreo
-              </button>
-            )}
           </div>
         </div>
 
@@ -499,6 +527,149 @@ export function GatewayFormDialog({ open, onClose, gateway, onSuccess, onDelete 
           className="flex flex-col flex-1 min-h-0"
         >
         <div className="flex-1 overflow-y-auto p-5 space-y-4">
+          {/* TAB: CREDENCIALES Y TEST */}
+          {tab === 'credentials' && (
+            <div className="max-w-2xl mx-auto py-4 space-y-4 animate-fade-in">
+              <div className="flex items-center gap-2 text-brand-400 text-xs font-semibold uppercase tracking-wider">
+                <Key className="w-4 h-4" /> Parámetros de Red y API MikroTik
+              </div>
+
+              <div className="glass-card p-6 border border-border/60 space-y-4 bg-secondary/10">
+                {/* IP y puerto */}
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                  <div className="sm:col-span-2">
+                    <label className="block text-sm font-medium text-foreground mb-1.5">
+                      Dirección IP / Host *
+                    </label>
+                    <input
+                      id="gateway-ip"
+                      type="text"
+                      placeholder="192.168.88.1"
+                      {...register('ip')}
+                      className="input-field font-mono"
+                    />
+                    {errors.ip && (
+                      <p className="text-xs text-destructive mt-1">{errors.ip.message}</p>
+                    )}
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-foreground mb-1.5">Puerto API *</label>
+                    <input
+                      id="gateway-port"
+                      type="number"
+                      {...register('api_port')}
+                      className="input-field font-mono"
+                    />
+                    {errors.api_port && (
+                      <p className="text-xs text-destructive mt-1">{errors.api_port.message}</p>
+                    )}
+                  </div>
+                </div>
+
+                {/* Usuario y contraseña */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm font-medium text-foreground mb-1.5">
+                      Usuario API *
+                    </label>
+                    <input
+                      id="gateway-user"
+                      type="text"
+                      placeholder="admin"
+                      {...register('api_username')}
+                      className="input-field"
+                    />
+                    {errors.api_username && (
+                      <p className="text-xs text-destructive mt-1">{errors.api_username.message}</p>
+                    )}
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-foreground mb-1.5">
+                      Contraseña API *{isEdit && <span className="text-muted-foreground text-xs"> (dejar vacío = no cambiar)</span>}
+                    </label>
+                    <div className="relative">
+                      <input
+                        id="gateway-password"
+                        type={showPassword ? 'text' : 'password'}
+                        placeholder="••••••••"
+                        {...register('password_api')}
+                        className="input-field pr-11"
+                      />
+                      <button
+                        type="button"
+                        id="toggle-gateway-password-visibility"
+                        onClick={() => setShowPassword(!showPassword)}
+                        className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors"
+                      >
+                        {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                      </button>
+                    </div>
+                    {errors.password_api && (
+                      <p className="text-xs text-destructive mt-1">{errors.password_api.message}</p>
+                    )}
+                  </div>
+                </div>
+              </div>
+
+              {/* Panel de prueba de conexión */}
+              <div className="border border-border rounded-xl p-5 space-y-4 bg-secondary/5">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <h4 className="text-sm font-medium text-foreground">Prueba de conexión API</h4>
+                    <p className="text-xs text-muted-foreground mt-0.5">
+                      Verifica que el puerto esté abierto y que las credenciales de acceso sean correctas.
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    id="test-connection-btn"
+                    onClick={handleTest}
+                    disabled={isTesting}
+                    className="btn-primary text-xs py-1.5 px-4 shrink-0"
+                  >
+                    {isTesting ? (
+                      <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                    ) : (
+                      <Plug className="w-3.5 h-3.5" />
+                    )}
+                    {isTesting ? 'Probando...' : 'Probar conexión'}
+                  </button>
+                </div>
+
+                {testResult && (
+                  <div
+                    className={`rounded-lg p-4 flex items-start gap-3.5 ${testResult.success
+                      ? 'bg-emerald-500/10 border border-emerald-500/30'
+                      : 'bg-destructive/10 border border-destructive/30'
+                      }`}
+                  >
+                    {testResult.success ? (
+                      <CheckCircle2 className="w-5 h-5 text-emerald-400 flex-shrink-0 mt-0.5" />
+                    ) : (
+                      <XCircle className="w-5 h-5 text-destructive flex-shrink-0 mt-0.5" />
+                    )}
+                    <div className="text-xs space-y-1.5 leading-relaxed">
+                      <p className={`font-semibold ${testResult.success ? 'text-emerald-400' : 'text-destructive'}`}>
+                        {testResult.message}
+                      </p>
+                      {testResult.ros_version && (
+                        <div className="text-muted-foreground space-y-0.5">
+                          <p><span className="font-semibold text-foreground">Versión RouterOS:</span> v{testResult.ros_version}</p>
+                          <p><span className="font-semibold text-foreground">Tiempo encendido:</span> {testResult.uptime}</p>
+                        </div>
+                      )}
+                      {testResult.error && (
+                        <p className="text-muted-foreground font-mono bg-black/30 p-2 rounded border border-border/50 mt-1 max-w-full overflow-x-auto">
+                          {testResult.error}
+                        </p>
+                      )}
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+
           {/* TAB: INFORMACIÓN Y UBICACIÓN */}
           {tab === 'info' && (
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 animate-fade-in">
@@ -709,151 +880,8 @@ export function GatewayFormDialog({ open, onClose, gateway, onSuccess, onDelete 
             </div>
           )}
 
-          {/* TAB: CREDENCIALES Y TEST */}
-          {tab === 'credentials' && (
-            <div className="max-w-2xl mx-auto py-4 space-y-4 animate-fade-in">
-              <div className="flex items-center gap-2 text-brand-400 text-xs font-semibold uppercase tracking-wider">
-                <Key className="w-4 h-4" /> Parámetros de Red y API MikroTik
-              </div>
-
-              <div className="glass-card p-6 border border-border/60 space-y-4 bg-secondary/10">
-                {/* IP y puerto */}
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-                  <div className="sm:col-span-2">
-                    <label className="block text-sm font-medium text-foreground mb-1.5">
-                      Dirección IP / Host *
-                    </label>
-                    <input
-                      id="gateway-ip"
-                      type="text"
-                      placeholder="192.168.88.1"
-                      {...register('ip')}
-                      className="input-field font-mono"
-                    />
-                    {errors.ip && (
-                      <p className="text-xs text-destructive mt-1">{errors.ip.message}</p>
-                    )}
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-foreground mb-1.5">Puerto API *</label>
-                    <input
-                      id="gateway-port"
-                      type="number"
-                      {...register('api_port')}
-                      className="input-field font-mono"
-                    />
-                    {errors.api_port && (
-                      <p className="text-xs text-destructive mt-1">{errors.api_port.message}</p>
-                    )}
-                  </div>
-                </div>
-
-                {/* Usuario y contraseña */}
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                  <div>
-                    <label className="block text-sm font-medium text-foreground mb-1.5">
-                      Usuario API *
-                    </label>
-                    <input
-                      id="gateway-user"
-                      type="text"
-                      placeholder="admin"
-                      {...register('api_username')}
-                      className="input-field"
-                    />
-                    {errors.api_username && (
-                      <p className="text-xs text-destructive mt-1">{errors.api_username.message}</p>
-                    )}
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-foreground mb-1.5">
-                      Contraseña API *{isEdit && <span className="text-muted-foreground text-xs"> (dejar vacío = no cambiar)</span>}
-                    </label>
-                    <div className="relative">
-                      <input
-                        id="gateway-password"
-                        type={showPassword ? 'text' : 'password'}
-                        placeholder="••••••••"
-                        {...register('password_api')}
-                        className="input-field pr-11"
-                      />
-                      <button
-                        type="button"
-                        id="toggle-gateway-password-visibility"
-                        onClick={() => setShowPassword(!showPassword)}
-                        className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors"
-                      >
-                        {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-                      </button>
-                    </div>
-                    {errors.password_api && (
-                      <p className="text-xs text-destructive mt-1">{errors.password_api.message}</p>
-                    )}
-                  </div>
-                </div>
-              </div>
-
-              {/* Panel de prueba de conexión */}
-              <div className="border border-border rounded-xl p-5 space-y-4 bg-secondary/5">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <h4 className="text-sm font-medium text-foreground">Prueba de conexión API</h4>
-                    <p className="text-xs text-muted-foreground mt-0.5">
-                      Verifica que el puerto esté abierto y que las credenciales de acceso sean correctas.
-                    </p>
-                  </div>
-                  <button
-                    type="button"
-                    id="test-connection-btn"
-                    onClick={handleTest}
-                    disabled={isTesting}
-                    className="btn-primary text-xs py-1.5 px-4 shrink-0"
-                  >
-                    {isTesting ? (
-                      <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                    ) : (
-                      <Plug className="w-3.5 h-3.5" />
-                    )}
-                    {isTesting ? 'Probando...' : 'Probar conexión'}
-                  </button>
-                </div>
-
-                {testResult && (
-                  <div
-                    className={`rounded-lg p-4 flex items-start gap-3.5 ${testResult.success
-                      ? 'bg-emerald-500/10 border border-emerald-500/30'
-                      : 'bg-destructive/10 border border-destructive/30'
-                      }`}
-                  >
-                    {testResult.success ? (
-                      <CheckCircle2 className="w-5 h-5 text-emerald-400 flex-shrink-0 mt-0.5" />
-                    ) : (
-                      <XCircle className="w-5 h-5 text-destructive flex-shrink-0 mt-0.5" />
-                    )}
-                    <div className="text-xs space-y-1.5 leading-relaxed">
-                      <p className={`font-semibold ${testResult.success ? 'text-emerald-400' : 'text-destructive'}`}>
-                        {testResult.message}
-                      </p>
-                      {testResult.ros_version && (
-                        <div className="text-muted-foreground space-y-0.5">
-                          <p><span className="font-semibold text-foreground">Versión RouterOS:</span> v{testResult.ros_version}</p>
-                          <p><span className="font-semibold text-foreground">Tiempo encendido:</span> {testResult.uptime}</p>
-                        </div>
-                      )}
-                      {testResult.error && (
-                        <p className="text-muted-foreground font-mono bg-black/30 p-2 rounded border border-border/50 mt-1 max-w-full overflow-x-auto">
-                          {testResult.error}
-                        </p>
-                      )}
-                    </div>
-                  </div>
-                )}
-              </div>
-            </div>
-          )}
-
-          {/* TAB: SERVICIOS Y MONITOREO */}
-          {tab === 'services' && (
+          {/* Servicios movidos a GatewayServicesDialog (botón Ajustes en perfil del gateway) */}
+          {false && (
             <div className="space-y-6 max-w-3xl mx-auto py-4 animate-fade-in">
               <div className="bg-brand-500/10 border border-brand-500/30 rounded-xl p-4 flex gap-3.5 items-start">
                 <div className="p-2 bg-brand-500/20 text-brand-400 rounded-lg shrink-0">
@@ -901,22 +929,114 @@ export function GatewayFormDialog({ open, onClose, gateway, onSuccess, onDelete 
                     {errors.bandwidth_up && <p className="text-xs text-destructive mt-1">{errors.bandwidth_up.message}</p>}
                   </div>
 
+                  {/* Selector de modo: Sistema vs Router */}
+                  <div className="col-span-1 md:col-span-2">
+                    <p className="text-xs font-semibold text-foreground mb-2 uppercase tracking-wide">Modo de asignación de colas y listas</p>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setConfigMode('system')
+                          setValue('config_mode', 'system')
+                        }}
+                        className={`text-left p-3.5 rounded-lg border transition-all ${
+                          configMode === 'system'
+                            ? 'border-brand-500 bg-brand-500/10 ring-1 ring-brand-500/40'
+                            : 'border-border/50 bg-secondary/10 hover:border-border'
+                        }`}
+                      >
+                        <div className="flex items-center gap-2 mb-1">
+                          <div className={`w-3.5 h-3.5 rounded-full border-2 flex items-center justify-center ${configMode === 'system' ? 'border-brand-400' : 'border-muted-foreground'}`}>
+                            {configMode === 'system' && <div className="w-1.5 h-1.5 rounded-full bg-brand-400" />}
+                          </div>
+                          <span className="text-sm font-medium text-foreground">Configuración del sistema</span>
+                        </div>
+                        <p className="text-xs text-muted-foreground pl-5">Usa los nombres del catálogo. La plataforma crea las colas y listas si no existen.</p>
+                      </button>
+
+                      <button
+                        type="button"
+                        disabled={!isEdit}
+                        onClick={() => {
+                          if (!isEdit) return
+                          setConfigMode('router')
+                          setValue('config_mode', 'router')
+                        }}
+                        className={`text-left p-3.5 rounded-lg border transition-all ${
+                          !isEdit
+                            ? 'opacity-40 cursor-not-allowed border-border/30 bg-secondary/5'
+                            : configMode === 'router'
+                            ? 'border-amber-500 bg-amber-500/10 ring-1 ring-amber-500/40'
+                            : 'border-border/50 bg-secondary/10 hover:border-border'
+                        }`}
+                      >
+                        <div className="flex items-center gap-2 mb-1">
+                          <div className={`w-3.5 h-3.5 rounded-full border-2 flex items-center justify-center ${configMode === 'router' ? 'border-amber-400' : 'border-muted-foreground'}`}>
+                            {configMode === 'router' && <div className="w-1.5 h-1.5 rounded-full bg-amber-400" />}
+                          </div>
+                          <span className="text-sm font-medium text-foreground">Usar configuración del router</span>
+                        </div>
+                        <p className="text-xs text-muted-foreground pl-5">
+                          {!isEdit ? 'Disponible al editar un gateway guardado.' : 'Selecciona colas y listas existentes del router. No se crearán recursos nuevos.'}
+                        </p>
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Botón cargar desde router */}
+                  {configMode === 'router' && isEdit && (
+                    <div className="col-span-1 md:col-span-2">
+                      <div className="flex items-center gap-3">
+                        <button
+                          type="button"
+                          disabled={routerFetchState === 'loading'}
+                          onClick={fetchRouterResources}
+                          className="btn-secondary text-xs flex items-center gap-2 px-4 py-2"
+                        >
+                          {routerFetchState === 'loading' ? (
+                            <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                          ) : (
+                            <Plus className="w-3.5 h-3.5" />
+                          )}
+                          {routerFetchState === 'loading' ? 'Cargando desde el router…' : 'Cargar configuración del router'}
+                        </button>
+                        {routerFetchState === 'loaded' && (
+                          <span className="text-xs text-emerald-400 flex items-center gap-1">
+                            <CheckCircle2 className="w-3.5 h-3.5" /> {routerQueues.length} colas · {routerAddressLists.length} listas cargadas
+                          </span>
+                        )}
+                        {routerFetchState === 'error' && (
+                          <span className="text-xs text-destructive flex items-center gap-1">
+                            <XCircle className="w-3.5 h-3.5" /> No se pudo conectar al router
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                  )}
+
                   <div>
                     <label className="block text-sm font-medium text-foreground mb-1.5">
                       Nombre de la Cola Padre
                     </label>
-                    {(() => {
+                    {configMode === 'router' ? (
+                      routerFetchState === 'loaded' ? (
+                        <select {...register('parent_queue')} className="input-field font-mono cursor-pointer">
+                          <option value="">— Sin cola padre —</option>
+                          {routerQueues.map((o) => <option key={o} value={o}>{o}</option>)}
+                        </select>
+                      ) : (
+                        <div className="input-field flex items-center gap-2 text-muted-foreground text-xs italic select-none bg-secondary/20">
+                          <GatewayIcon className="w-3.5 h-3.5 flex-shrink-0" />
+                          {routerFetchState === 'loading' ? 'Cargando colas del router…' : 'Carga la configuración del router para ver las colas disponibles'}
+                        </div>
+                      )
+                    ) : (() => {
                       const saved = localStorage.getItem('isp_parent_queues')
                       const opts: string[] = saved ? JSON.parse(saved) : []
                       return opts.length > 0 ? (
-                        <select
-                          {...register('parent_queue')}
-                          className="input-field font-mono cursor-pointer"
-                        >
+                        <select {...register('parent_queue')} className="input-field font-mono cursor-pointer">
                           <option value="">— Sin cola padre —</option>
-                          {opts.map((o) => (
-                            <option key={o} value={o}>{o}</option>
-                          ))}
+                          {opts.map((o) => <option key={o} value={o}>{o}</option>)}
                         </select>
                       ) : (
                         <div className="input-field flex items-center gap-2 text-muted-foreground text-xs italic select-none bg-secondary/20">
@@ -925,9 +1045,11 @@ export function GatewayFormDialog({ open, onClose, gateway, onSuccess, onDelete 
                         </div>
                       )
                     })()}
-                    <span className="text-[10px] text-muted-foreground mt-1 block">
-                      Agrega o edita colas padre desde <strong>Ajustes → Ajustes Gateway</strong>.
-                    </span>
+                    {configMode === 'system' && (
+                      <span className="text-[10px] text-muted-foreground mt-1 block">
+                        Agrega o edita colas padre desde <strong>Ajustes → Ajustes Gateway</strong>.
+                      </span>
+                    )}
                     {errors.parent_queue && <p className="text-xs text-destructive mt-1">{errors.parent_queue.message}</p>}
                   </div>
 
@@ -935,18 +1057,25 @@ export function GatewayFormDialog({ open, onClose, gateway, onSuccess, onDelete 
                     <label className="block text-sm font-medium text-foreground mb-1.5">
                       Nombre de la Address List de Clientes
                     </label>
-                    {(() => {
+                    {configMode === 'router' ? (
+                      routerFetchState === 'loaded' ? (
+                        <select {...register('address_list')} className="input-field font-mono cursor-pointer">
+                          <option value="">— Sin address list —</option>
+                          {routerAddressLists.map((o) => <option key={o} value={o}>{o}</option>)}
+                        </select>
+                      ) : (
+                        <div className="input-field flex items-center gap-2 text-muted-foreground text-xs italic select-none bg-secondary/20">
+                          <Hash className="w-3.5 h-3.5 flex-shrink-0" />
+                          {routerFetchState === 'loading' ? 'Cargando address lists del router…' : 'Carga la configuración del router para ver las listas disponibles'}
+                        </div>
+                      )
+                    ) : (() => {
                       const saved = localStorage.getItem('isp_address_lists')
                       const opts: string[] = saved ? JSON.parse(saved) : []
                       return opts.length > 0 ? (
-                        <select
-                          {...register('address_list')}
-                          className="input-field font-mono cursor-pointer"
-                        >
+                        <select {...register('address_list')} className="input-field font-mono cursor-pointer">
                           <option value="">— Sin address list —</option>
-                          {opts.map((o) => (
-                            <option key={o} value={o}>{o}</option>
-                          ))}
+                          {opts.map((o) => <option key={o} value={o}>{o}</option>)}
                         </select>
                       ) : (
                         <div className="input-field flex items-center gap-2 text-muted-foreground text-xs italic select-none bg-secondary/20">
@@ -955,10 +1084,51 @@ export function GatewayFormDialog({ open, onClose, gateway, onSuccess, onDelete 
                         </div>
                       )
                     })()}
-                    <span className="text-[10px] text-muted-foreground mt-1 block">
-                      Agrega o edita address lists desde <strong>Ajustes → Ajustes Gateway</strong>.
-                    </span>
+                    {configMode === 'system' && (
+                      <span className="text-[10px] text-muted-foreground mt-1 block">
+                        Agrega o edita address lists desde <strong>Ajustes → Ajustes Gateway</strong>.
+                      </span>
+                    )}
                     {errors.address_list && <p className="text-xs text-destructive mt-1">{errors.address_list.message}</p>}
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-foreground mb-1.5">
+                      Lista de Suspendidos
+                    </label>
+                    {configMode === 'router' ? (
+                      routerFetchState === 'loaded' ? (
+                        <select {...register('suspend_list')} className="input-field font-mono cursor-pointer">
+                          <option value="">— Sin lista de suspendidos —</option>
+                          {routerAddressLists.map((o) => <option key={o} value={o}>{o}</option>)}
+                        </select>
+                      ) : (
+                        <div className="input-field flex items-center gap-2 text-muted-foreground text-xs italic select-none bg-secondary/20">
+                          <Hash className="w-3.5 h-3.5 flex-shrink-0" />
+                          {routerFetchState === 'loading' ? 'Cargando listas del router…' : 'Carga la configuración del router para ver las listas disponibles'}
+                        </div>
+                      )
+                    ) : (() => {
+                      const saved = localStorage.getItem('isp_suspend_lists')
+                      const opts: string[] = saved ? JSON.parse(saved) : []
+                      return opts.length > 0 ? (
+                        <select {...register('suspend_list')} className="input-field font-mono cursor-pointer">
+                          <option value="">— Default (isp_suspendidos) —</option>
+                          {opts.map((o) => <option key={o} value={o}>{o}</option>)}
+                        </select>
+                      ) : (
+                        <div className="input-field flex items-center gap-2 text-muted-foreground text-xs italic select-none bg-secondary/20">
+                          <Hash className="w-3.5 h-3.5 flex-shrink-0" />
+                          Sin listas configuradas — administra desde Ajustes → Ajustes Gateway
+                        </div>
+                      )
+                    })()}
+                    {configMode === 'system' && (
+                      <span className="text-[10px] text-muted-foreground mt-1 block">
+                        Lista de firewall para clientes suspendidos. Si no se selecciona, se usa <code>isp_suspendidos</code>.
+                      </span>
+                    )}
+                    {errors.suspend_list && <p className="text-xs text-destructive mt-1">{errors.suspend_list.message}</p>}
                   </div>
                 </div>
               </div>

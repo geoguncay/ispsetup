@@ -875,7 +875,7 @@ def get_client_plan_history(
     return (
         db.query(ClientPlan)
         .filter(ClientPlan.cliente_id == client_id)
-        .order_by(ClientPlan.fecha_inicio.desc())
+        .order_by(ClientPlan.fecha_inicio.desc(), ClientPlan.estado.asc())
         .all()
     )
 
@@ -896,7 +896,7 @@ def assign_client_plan(
     if not plan:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Plan no encontrado")
 
-    now = datetime.now()
+    now = datetime.now(timezone.utc)
 
     # Desactivar planes activos anteriores
     active_plans = (

@@ -207,6 +207,7 @@ class CatalogSettings(BaseModel):
     cutoff_dates: list[int] | None = None
     parent_queues: list[str] | None = None
     address_lists: list[str] | None = None
+    suspend_lists: list[str] | None = None
 
 
 class CatalogSettingsRead(BaseModel):
@@ -214,6 +215,7 @@ class CatalogSettingsRead(BaseModel):
     cutoff_dates: list[int]
     parent_queues: list[str]
     address_lists: list[str]
+    suspend_lists: list[str]
 
 
 # ── Agregado para GET /settings/system ──────────────────────────────────────

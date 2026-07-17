@@ -62,23 +62,6 @@ async def list_gateways(db: DBSession, _: CurrentUser) -> list:
 
 @router.post("", response_model=GatewayRead, status_code=status.HTTP_201_CREATED)
 def create_gateway(payload: GatewayCreate, db: DBSession, current_user: AdminOnly) -> Gateway:
-    # 1. Determinar y sanear nombres de cola padre y address list
-    clean_name = payload.name.strip().lower().replace(" ", "_")
-    import re
-    clean_name = re.sub(r'[^a-z0-9_-]', '', clean_name)
-
-    parent_queue_name = payload.parent_queue
-    if not parent_queue_name:
-        parent_queue_name = f"isp_padre_{clean_name}"
-    elif not parent_queue_name.startswith("isp_"):
-        parent_queue_name = f"isp_{parent_queue_name}"
-
-    address_list_name = payload.address_list
-    if not address_list_name:
-        address_list_name = f"isp_clientes_{clean_name}"
-    elif not address_list_name.startswith("isp_"):
-        address_list_name = f"isp_{address_list_name}"
-
     # Manejar creación o asignación de Sitio
     site_id = payload.site_id
     if payload.new_site_name and payload.new_site_name.strip():
@@ -107,25 +90,17 @@ def create_gateway(payload: GatewayCreate, db: DBSession, current_user: AdminOnl
         speed_control=payload.speed_control,
         sync_logs=payload.sync_logs,
         alert_notifications=payload.alert_notifications,
-        parent_queue=parent_queue_name,
-        address_list=address_list_name,
-        bandwidth_up=payload.bandwidth_up or 0,
-        bandwidth_down=payload.bandwidth_down or 0,
+        parent_queue=None,
+        address_list=None,
+        suspend_list=None,
+        config_mode="system",
+        bandwidth_up=0,
+        bandwidth_down=0,
         site_id=site_id,
     )
     db.add(r)
     db.commit()
     db.refresh(r)
-
-    # 2. Sincronizar cola padre en MikroTik si está activo
-    if r.speed_control:
-        from app.services.mikrotik.queue import sync_gateway_parent_queue
-        try:
-            sync_gateway_parent_queue(r)
-        except Exception as e:
-            import logging
-            logging.getLogger(__name__).error(f"No se pudo crear cola padre en MikroTik para el router: {e}")
-            pass
 
     log_event(
         db, AuditAction.CREATE_GATEWAY,
@@ -246,13 +221,19 @@ def update_gateway(
         if not r.address_list:
             r.address_list = f"isp_clientes_{clean_name}"
 
-    if "parent_queue" in update_data and r.parent_queue:
-        if not r.parent_queue.startswith("isp_"):
-            r.parent_queue = f"isp_{r.parent_queue}"
+    _router_mode = r.config_mode == 'gateway'
+    if not _router_mode:
+        if "parent_queue" in update_data and r.parent_queue:
+            if not r.parent_queue.startswith("isp_"):
+                r.parent_queue = f"isp_{r.parent_queue}"
 
-    if "address_list" in update_data and r.address_list:
-        if not r.address_list.startswith("isp_"):
-            r.address_list = f"isp_{r.address_list}"
+        if "address_list" in update_data and r.address_list:
+            if not r.address_list.startswith("isp_"):
+                r.address_list = f"isp_{r.address_list}"
+
+        if "suspend_list" in update_data and r.suspend_list:
+            if not r.suspend_list.startswith("isp_"):
+                r.suspend_list = f"isp_{r.suspend_list}"
 
     db.commit()
     db.refresh(r)

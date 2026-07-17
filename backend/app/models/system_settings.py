@@ -103,6 +103,7 @@ class SystemSettings(Base):
     cutoff_dates: Mapped[list | None] = mapped_column(JSON, nullable=True)
     parent_queues: Mapped[list | None] = mapped_column(JSON, nullable=True)
     address_lists: Mapped[list | None] = mapped_column(JSON, nullable=True)
+    suspend_lists: Mapped[list | None] = mapped_column(JSON, nullable=True)
 
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
