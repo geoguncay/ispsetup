@@ -9,7 +9,7 @@ import api from '@/services/api'
 
 const settingsSchema = z.object({
   security_mode: z.enum(['none_api', 'ppp_api', 'hotspot_api', 'ppp_radius', 'hotspot_radius']),
-  traffic_accounting: z.enum(['traffic_flow', 'accounting_v6']),
+  traffic_accounting: z.enum(['traffic_flow', 'accounting_v6', 'queue_accounting', 'none']),
   speed_control_type: z.enum(['pcq_addresslist', 'simple_queues', 'dhcp_lease_dynamic', 'none']),
 })
 
@@ -24,6 +24,7 @@ interface GatewayServicesDialogProps {
     security_mode?: GatewaySettingsForm['security_mode']
     traffic_accounting?: GatewaySettingsForm['traffic_accounting']
     speed_control_type?: GatewaySettingsForm['speed_control_type']
+    ros_version?: string | null
     settings_configured?: boolean
   }
   onSuccess: () => void
@@ -66,6 +67,7 @@ export function GatewayServicesDialog({ open, onClose, gateway, onSuccess }: Gat
 
   const errorDetail = (saveMutation.error as { response?: { data?: { detail?: string } } } | null)
     ?.response?.data?.detail
+  const isRouterOs7 = gateway.ros_version?.trim().startsWith('7.') ?? false
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
@@ -104,7 +106,9 @@ export function GatewayServicesDialog({ open, onClose, gateway, onSuccess }: Gat
               </label>
               <select id="gateway-traffic-accounting" {...register('traffic_accounting')} className="input-field cursor-pointer">
                 <option value="traffic_flow">Traffic Flow (RouterOS V6.x, V7.x)</option>
-                <option value="accounting_v6">Accounting (RouterOS V6.x)</option>
+                <option value="accounting_v6" disabled={isRouterOs7}>Accounting (RouterOS V6.x)</option>
+                <option value="queue_accounting">Colas / Queue accounting</option>
+                <option value="none">Ninguno</option>
               </select>
             </div>
 

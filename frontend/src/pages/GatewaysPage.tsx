@@ -7,6 +7,7 @@ import { Plus, RefreshCw, Wifi, Server, Clock, Download, X, Loader2, SlidersHori
 import api from '@/services/api'
 import { GatewayStatusBadge } from '@/components/GatewayStatusBadge'
 import { GatewayFormDialog } from '@/components/GatewayFormDialog'
+import { GatewayDeleteDialog, type GatewayDeletionOptions } from '@/components/GatewayDeleteDialog'
 import { useAuthStore } from '@/stores/authStore'
 import { useNavigate } from 'react-router-dom'
 import { formatUptime } from '@/lib/utils'
@@ -36,8 +37,14 @@ async function fetchGateways(): Promise<Gateway[]> {
   return data
 }
 
-async function deleteGateway(id: string): Promise<void> {
-  await api.delete(`/gateways/${id}`)
+async function deleteGateway({ id, options }: { id: string; options: GatewayDeletionOptions }): Promise<void> {
+  await api.delete(`/gateways/${id}`, {
+    params: {
+      cleanup_routeros: options.cleanupRouterOs,
+      delete_historical_data: options.deleteHistoricalData,
+      confirmation: options.confirmation,
+    },
+  })
 }
 
 export function GatewaysPage() {
@@ -193,28 +200,6 @@ export function GatewaysPage() {
         </div>
       ) : (
         <div className="space-y-4">
-          {/* ── Filtros ── */}
-          <div className="glass-card p-4 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
-            <div className="flex items-center gap-2 text-xs font-semibold text-brand-400 tracking-wider uppercase">
-              <SlidersHorizontal className="w-3.5 h-3.5" />
-              Filtros de búsqueda
-            </div>
-            <div className="w-full sm:w-64">
-              <select
-                id="filter-gateway-site"
-                value={selectedSiteId}
-                onChange={(e) => setSelectedSiteId(e.target.value)}
-                className="input-field cursor-pointer font-medium"
-              >
-                <option value="">Todos los Sitios</option>
-                {sites.map((site: any) => (
-                  <option key={site.id} value={site.id}>
-                    {site.name}
-                  </option>
-                ))}
-              </select>
-            </div>
-          </div>
 
           {filteredGateways.length === 0 ? (
             <div className="glass-card p-12 text-center">
@@ -293,33 +278,16 @@ export function GatewaysPage() {
         </div>
       )}
 
-      {/* ── Confirmación de borrado ── */}
-      {confirmDelete && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">
-          <div className="glass-card p-6 w-full max-w-sm mx-4 animate-fade-in">
-            <h3 className="text-lg font-semibold text-foreground mb-2">¿Eliminar gateway?</h3>
-            <p className="text-muted-foreground text-sm mb-6">
-              Esta acción desactivará el gateway. No se eliminan datos históricos.
-            </p>
-            <div className="flex gap-3">
-              <button
-                onClick={() => setConfirmDelete(null)}
-                className="btn-secondary flex-1 justify-center"
-              >
-                Cancelar
-              </button>
-              <button
-                id="confirm-delete-gateway"
-                onClick={() => deleteMutation.mutate(confirmDelete)}
-                disabled={deleteMutation.isPending}
-                className="btn-destructive flex-1 justify-center"
-              >
-                {deleteMutation.isPending ? 'Eliminando...' : 'Eliminar'}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+      <GatewayDeleteDialog
+        open={Boolean(confirmDelete)}
+        gatewayName={gateways.find((gateway) => gateway.id === confirmDelete)?.name ?? 'Gateway'}
+        pending={deleteMutation.isPending}
+        error={(deleteMutation.error as { response?: { data?: { detail?: string } } } | null)?.response?.data?.detail}
+        onClose={() => setConfirmDelete(null)}
+        onConfirm={(options) => {
+          if (confirmDelete) deleteMutation.mutate({ id: confirmDelete, options })
+        }}
+      />
 
       {/* ── Dialog crear/editar ── */}
       <GatewayFormDialog

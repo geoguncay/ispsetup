@@ -9,10 +9,14 @@ from sqlalchemy.exc import IntegrityError
 from app.core.deps import AdminOnly, AdminOrTechnician, CurrentUser, DBSession
 from app.core.security import decrypt_secret, encrypt_secret
 from app.models.gateway import Gateway
+from app.models.audit_log import AuditLog
 from app.models.client import Client
+from app.models.mikrotik_sync_queue import MikroTikSyncQueue
 from app.models.site import Site
 from app.models.static_ip import StaticIP
+from app.models.traffic_sample import TrafficSample
 from app.models.pppoe_profile import PPPoEProfile
+from app.models.pppoe_secret import PPPoESecret
 from app.schemas.pppoe import PPPoEProfileRead, PPPoESessionActive
 from app.services.mikrotik.pppoe import (
     sync_pppoe_profiles_from_gateway,
@@ -36,6 +40,7 @@ from app.services.mikrotik.gateway_pool import GatewayConnectionError, gateway_p
 from app.services.mikrotik.gateway_configuration import (
     GatewayConfigurationError,
     apply_gateway_configuration,
+    cleanup_gateway_configuration,
 )
 
 router = APIRouter(prefix="/gateways", tags=["gateways"])
@@ -327,18 +332,80 @@ def update_gateway_settings(
 
 
 @router.delete("/{gateway_id}", status_code=status.HTTP_204_NO_CONTENT)
-def delete_gateway(gateway_id: uuid.UUID, db: DBSession, current_user: AdminOnly) -> None:
-    r = db.get(Gateway, gateway_id)
-    if not r:
+def delete_gateway(
+    gateway_id: uuid.UUID,
+    db: DBSession,
+    current_user: AdminOnly,
+    cleanup_routeros: bool = False,
+    delete_historical_data: bool = False,
+    confirmation: str | None = None,
+) -> None:
+    gateway = db.get(Gateway, gateway_id)
+    if not gateway:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Gateway no encontrado")
-    gateway_name = r.name
-    # Soft delete
-    r.active = False
+    if delete_historical_data and confirmation != gateway.name:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="La confirmación no coincide con el nombre del Gateway.",
+        )
+
+    cleanup_summary = None
+    if cleanup_routeros:
+        client_ips = [
+            row.ip for row in db.query(StaticIP).filter(StaticIP.gateway_id == gateway_id).all()
+        ]
+        ppp_usernames = [
+            row.ppp_username
+            for row in db.query(PPPoESecret).filter(PPPoESecret.gateway_id == gateway_id).all()
+        ]
+        ppp_profile_names = [
+            row.name
+            for row in db.query(PPPoEProfile).filter(PPPoEProfile.gateway_id == gateway_id).all()
+        ]
+        try:
+            cleanup_summary = cleanup_gateway_configuration(
+                gateway, client_ips, ppp_usernames, ppp_profile_names
+            )
+        except GatewayConfigurationError as exc:
+            db.rollback()
+            raise HTTPException(
+                status_code=status.HTTP_502_BAD_GATEWAY,
+                detail=f"No se pudo limpiar la configuración en RouterOS: {exc}",
+            ) from exc
+
+    gateway_name = gateway.name
+    client_ids = [row.id for row in db.query(Client).filter(Client.gateway_id == gateway_id).all()]
+
+    if delete_historical_data:
+        # TrafficSample usa particiones en PostgreSQL; se elimina explícitamente antes
+        # de borrar clientes y Gateway para que el flujo también funcione en SQLite tests.
+        db.query(TrafficSample).filter(TrafficSample.gateway_id == gateway_id).delete(
+            synchronize_session=False
+        )
+        db.query(MikroTikSyncQueue).filter(MikroTikSyncQueue.gateway_id == gateway_id).delete(
+            synchronize_session=False
+        )
+        related_entity_ids = [str(gateway_id), *(str(client_id) for client_id in client_ids)]
+        db.query(AuditLog).filter(AuditLog.entity_id.in_(related_entity_ids)).delete(
+            synchronize_session=False
+        )
+        for client in db.query(Client).filter(Client.gateway_id == gateway_id).all():
+            db.delete(client)
+        db.flush()
+        db.delete(gateway)
+    else:
+        gateway.active = False
     db.commit()
     log_event(
         db, AuditAction.DELETE_GATEWAY,
         entity_type="Gateway", entity_id=str(gateway_id), entity_name=gateway_name,
         user_id=current_user.id, user_name=current_user.name,
+        detail={
+            "routeros_configuration": "removed" if cleanup_routeros else "preserved",
+            "historical_data": "removed" if delete_historical_data else "preserved",
+            "cleanup_summary": cleanup_summary,
+            "deleted_clients": len(client_ids) if delete_historical_data else 0,
+        },
     )
 
 

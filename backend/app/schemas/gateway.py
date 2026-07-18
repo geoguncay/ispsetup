@@ -8,7 +8,7 @@ from typing import Any, Literal
 from pydantic import BaseModel, Field
 
 SecurityMode = Literal['none_api', 'ppp_api', 'hotspot_api', 'ppp_radius', 'hotspot_radius']
-TrafficAccounting = Literal['traffic_flow', 'accounting_v6']
+TrafficAccounting = Literal['traffic_flow', 'accounting_v6', 'queue_accounting', 'none']
 SpeedControlType = Literal['pcq_addresslist', 'simple_queues', 'dhcp_lease_dynamic', 'none']
 
 

@@ -239,20 +239,47 @@ def test_update_gateway_operating_settings(mock_apply, client: TestClient):
         headers={"Authorization": f"Bearer {token}"},
         json={
             "security_mode": "ppp_radius",
-            "traffic_accounting": "accounting_v6",
+            "traffic_accounting": "queue_accounting",
             "speed_control_type": "pcq_addresslist",
         },
     )
 
     assert response.status_code == 200
     assert response.json()["security_mode"] == "ppp_radius"
-    assert response.json()["traffic_accounting"] == "accounting_v6"
+    assert response.json()["traffic_accounting"] == "queue_accounting"
     assert response.json()["speed_control_type"] == "pcq_addresslist"
     assert response.json()["settings_configured"] is True
     mock_apply.assert_called_once()
     assert mock_apply.call_args.args[1] == {
         "security_mode", "traffic_accounting", "speed_control_type"
     }
+
+
+@patch("app.api.gateways_api.apply_gateway_configuration")
+def test_update_gateway_operating_settings_accepts_none_accounting(mock_apply, client: TestClient):
+    login = client.post(
+        "/api/auth/login",
+        json={"email": "admin@test.com", "password": "adminpass123"},
+    )
+    token = login.json()["access_token"]
+
+    db = TestingSessionLocal()
+    gateway_id = str(db.query(Gateway).first().id)
+    db.close()
+
+    response = client.put(
+        f"/api/gateways/{gateway_id}/settings",
+        headers={"Authorization": f"Bearer {token}"},
+        json={
+            "security_mode": "none_api",
+            "traffic_accounting": "none",
+            "speed_control_type": "simple_queues",
+        },
+    )
+
+    assert response.status_code == 200
+    assert response.json()["traffic_accounting"] == "none"
+    mock_apply.assert_called_once()
 
 
 def test_new_gateway_starts_without_operating_settings(client: TestClient):
@@ -342,6 +369,178 @@ def test_first_gateway_settings_save_applies_defaults(mock_apply, client: TestCl
     assert mock_apply.call_args.args[1] == {
         "security_mode", "traffic_accounting", "speed_control_type"
     }
+
+
+@patch("app.api.gateways_api.cleanup_gateway_configuration")
+def test_delete_gateway_can_preserve_routeros_configuration(mock_cleanup, client: TestClient):
+    login = client.post(
+        "/api/auth/login",
+        json={"email": "admin@test.com", "password": "adminpass123"},
+    )
+    token = login.json()["access_token"]
+    db = TestingSessionLocal()
+    gateway_id = str(db.query(Gateway).first().id)
+    db.close()
+
+    response = client.delete(
+        f"/api/gateways/{gateway_id}",
+        headers={"Authorization": f"Bearer {token}"},
+        params={"cleanup_routeros": False},
+    )
+
+    assert response.status_code == 204
+    mock_cleanup.assert_not_called()
+    db = TestingSessionLocal()
+    assert db.query(Gateway).first().active is False
+    db.close()
+
+
+@patch("app.api.gateways_api.cleanup_gateway_configuration")
+def test_delete_gateway_can_remove_routeros_configuration(mock_cleanup, client: TestClient):
+    mock_cleanup.return_value = {"simple_queues": 2}
+    login = client.post(
+        "/api/auth/login",
+        json={"email": "admin@test.com", "password": "adminpass123"},
+    )
+    token = login.json()["access_token"]
+    db = TestingSessionLocal()
+    gateway_id = str(db.query(Gateway).first().id)
+    db.close()
+
+    response = client.delete(
+        f"/api/gateways/{gateway_id}",
+        headers={"Authorization": f"Bearer {token}"},
+        params={"cleanup_routeros": True},
+    )
+
+    assert response.status_code == 204
+    mock_cleanup.assert_called_once()
+    db = TestingSessionLocal()
+    assert db.query(Gateway).first().active is False
+    db.close()
+
+
+@patch("app.api.gateways_api.cleanup_gateway_configuration")
+def test_delete_gateway_stays_active_when_routeros_cleanup_fails(mock_cleanup, client: TestClient):
+    from app.services.mikrotik.gateway_configuration import GatewayConfigurationError
+
+    mock_cleanup.side_effect = GatewayConfigurationError("sin conexión")
+    login = client.post(
+        "/api/auth/login",
+        json={"email": "admin@test.com", "password": "adminpass123"},
+    )
+    token = login.json()["access_token"]
+    db = TestingSessionLocal()
+    gateway_id = str(db.query(Gateway).first().id)
+    db.close()
+
+    response = client.delete(
+        f"/api/gateways/{gateway_id}",
+        headers={"Authorization": f"Bearer {token}"},
+        params={"cleanup_routeros": True},
+    )
+
+    assert response.status_code == 502
+    db = TestingSessionLocal()
+    assert db.query(Gateway).first().active is True
+    db.close()
+
+
+@patch("app.api.gateways_api.cleanup_gateway_configuration")
+def test_hard_delete_preserves_routeros_and_removes_gateway_data(mock_cleanup, client: TestClient):
+    login = client.post(
+        "/api/auth/login",
+        json={"email": "admin@test.com", "password": "adminpass123"},
+    )
+    token = login.json()["access_token"]
+    db = TestingSessionLocal()
+    gateway = db.query(Gateway).first()
+    customer = Client(
+        name="Cliente a eliminar",
+        cedula="1711111116",
+        phone="0991111111",
+        address="Quito",
+        gateway_id=gateway.id,
+        connection_type="static",
+        active=True,
+    )
+    db.add(customer)
+    db.commit()
+    gateway_id = str(gateway.id)
+    db.close()
+
+    response = client.delete(
+        f"/api/gateways/{gateway_id}",
+        headers={"Authorization": f"Bearer {token}"},
+        params={
+            "cleanup_routeros": False,
+            "delete_historical_data": True,
+            "confirmation": "Router Central",
+        },
+    )
+
+    assert response.status_code == 204
+    mock_cleanup.assert_not_called()
+    db = TestingSessionLocal()
+    assert db.query(Gateway).count() == 0
+    assert db.query(Client).count() == 0
+    db.close()
+
+
+@patch("app.api.gateways_api.cleanup_gateway_configuration")
+def test_hard_delete_can_remove_routeros_and_historical_data(mock_cleanup, client: TestClient):
+    mock_cleanup.return_value = {"simple_queues": 1}
+    login = client.post(
+        "/api/auth/login",
+        json={"email": "admin@test.com", "password": "adminpass123"},
+    )
+    token = login.json()["access_token"]
+    db = TestingSessionLocal()
+    gateway_id = str(db.query(Gateway).first().id)
+    db.close()
+
+    response = client.delete(
+        f"/api/gateways/{gateway_id}",
+        headers={"Authorization": f"Bearer {token}"},
+        params={
+            "cleanup_routeros": True,
+            "delete_historical_data": True,
+            "confirmation": "Router Central",
+        },
+    )
+
+    assert response.status_code == 204
+    mock_cleanup.assert_called_once()
+    db = TestingSessionLocal()
+    assert db.query(Gateway).count() == 0
+    db.close()
+
+
+@patch("app.api.gateways_api.cleanup_gateway_configuration")
+def test_hard_delete_requires_exact_gateway_name(mock_cleanup, client: TestClient):
+    login = client.post(
+        "/api/auth/login",
+        json={"email": "admin@test.com", "password": "adminpass123"},
+    )
+    token = login.json()["access_token"]
+    db = TestingSessionLocal()
+    gateway_id = str(db.query(Gateway).first().id)
+    db.close()
+
+    response = client.delete(
+        f"/api/gateways/{gateway_id}",
+        headers={"Authorization": f"Bearer {token}"},
+        params={
+            "delete_historical_data": True,
+            "confirmation": "nombre incorrecto",
+        },
+    )
+
+    assert response.status_code == 400
+    mock_cleanup.assert_not_called()
+    db = TestingSessionLocal()
+    assert db.query(Gateway).first().active is True
+    db.close()
 
 
 @patch("app.api.gateways_api.fetch_queues")

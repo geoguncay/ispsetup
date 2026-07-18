@@ -5,8 +5,9 @@ from librouteros.query import Key
 
 from app.core.config import settings
 from app.models.gateway import Gateway
-from app.services.mikrotik.address_list import get_clean_list_name
+from app.services.mikrotik.address_list import get_clean_list_name, get_suspend_list_name
 from app.services.mikrotik.gateway_pool import gateway_pool
+from app.services.mikrotik.queue import get_clean_parent_name
 
 logger = logging.getLogger(__name__)
 
@@ -105,20 +106,76 @@ def _ensure_traffic_flow_target(api) -> None:
         list(api('/ip/traffic-flow/target/add', **params))
 
 
+def _disable_traffic_flow_target(api) -> None:
+    nms_ip = settings.NMS_SERVER_IP
+    if not nms_ip:
+        return
+    existing = list(
+        api.path('/ip/traffic-flow/target').select().where(Key('dst-address') == nms_ip)
+    )
+    for entry in existing:
+        list(api('/ip/traffic-flow/target/set', **{'.id': entry['.id'], 'disabled': 'yes'}))
+
+
+def _routeros_major_version(api) -> int | None:
+    resources = list(api('/system/resource/print'))
+    if not resources:
+        return None
+    version = str(resources[0].get('version', '')).split('.', maxsplit=1)[0]
+    return int(version) if version.isdigit() else None
+
+
+def _missing_accounting_menu(exc: Exception) -> bool:
+    message = str(exc).lower()
+    return 'no such command' in message or 'no such command prefix' in message
+
+
 def configure_traffic_accounting(api, traffic_accounting: str) -> None:
-    """Activa Accounting v6 o Traffic Flow y desactiva el mecanismo alternativo."""
-    nms_ip = _nms_ip()
+    """Activa el modo de accounting seleccionado y desactiva los mecanismos alternativos."""
+    routeros_major = _routeros_major_version(api)
     if traffic_accounting == 'accounting_v6':
+        nms_ip = _nms_ip()
+        if routeros_major is not None and routeros_major >= 7:
+            raise GatewayConfigurationError(
+                'Accounting solamente está disponible en RouterOS 6.x. Seleccione Traffic Flow para RouterOS 7.x.'
+            )
         list(api('/ip/traffic-flow/set', enabled='no'))
-        list(api('/ip/accounting/set', enabled='yes'))
-        list(api('/ip/accounting/web-access/set', **{
-            'accessible-via-web': 'yes',
-            'address': f'{nms_ip}/32',
-        }))
+        try:
+            list(api('/ip/accounting/set', enabled='yes'))
+            list(api('/ip/accounting/web-access/set', **{
+                'accessible-via-web': 'yes',
+                'address': f'{nms_ip}/32',
+            }))
+        except Exception as exc:
+            if _missing_accounting_menu(exc):
+                raise GatewayConfigurationError(
+                    'Este Gateway no soporta IP Accounting. Seleccione Traffic Flow.'
+                ) from exc
+            raise
         return
 
-    list(api('/ip/accounting/set', enabled='no'))
-    list(api('/ip/accounting/web-access/set', **{'accessible-via-web': 'no'}))
+    if traffic_accounting in ('queue_accounting', 'none'):
+        if routeros_major is None or routeros_major < 7:
+            try:
+                list(api('/ip/accounting/set', enabled='no'))
+                list(api('/ip/accounting/web-access/set', **{'accessible-via-web': 'no'}))
+            except Exception as exc:
+                if not _missing_accounting_menu(exc):
+                    raise
+        list(api('/ip/traffic-flow/set', enabled='no'))
+        _disable_traffic_flow_target(api)
+        return
+
+    # /ip/accounting fue retirado de RouterOS 7. Solo intentamos desactivarlo
+    # en V6 o cuando el Gateway no informa una versión reconocible.
+    _nms_ip()
+    if routeros_major is None or routeros_major < 7:
+        try:
+            list(api('/ip/accounting/set', enabled='no'))
+            list(api('/ip/accounting/web-access/set', **{'accessible-via-web': 'no'}))
+        except Exception as exc:
+            if not _missing_accounting_menu(exc):
+                raise
     list(api('/ip/traffic-flow/set', enabled='yes'))
     _ensure_traffic_flow_target(api)
 
@@ -214,3 +271,143 @@ def apply_gateway_configuration(gateway: Gateway, changed_fields: set[str]) -> N
     except Exception as exc:
         logger.exception('No se pudo configurar el Gateway %s', gateway.name)
         raise GatewayConfigurationError(str(exc)) from exc
+
+
+def _remove_entries(api, path: str, remove_command: str, predicate) -> int:
+    removed = 0
+    for entry in list(api.path(path)):
+        entry_id = entry.get('.id')
+        if entry_id and predicate(entry):
+            list(api(remove_command, **{'.id': entry_id}))
+            removed += 1
+    return removed
+
+
+def cleanup_gateway_configuration(
+    gateway: Gateway,
+    client_ips: list[str],
+    ppp_usernames: list[str],
+    ppp_profile_names: list[str],
+) -> dict[str, int]:
+    """Elimina de RouterOS únicamente recursos identificables administrados por el NMS."""
+    summary = {
+        'address_list_entries': 0,
+        'simple_queues': 0,
+        'pcq_rules': 0,
+        'ppp_secrets': 0,
+        'ppp_profiles': 0,
+        'traffic_targets': 0,
+        'radius_clients': 0,
+    }
+    targets = {f'{ip}/32' for ip in client_ips}
+    managed_lists = {
+        get_clean_list_name(gateway.address_list),
+        get_suspend_list_name(gateway),
+    }
+    parent_name = get_clean_parent_name(gateway.parent_queue)
+
+    try:
+        with gateway_pool.connect_to(gateway) as api:
+            # Autenticación creada por el NMS.
+            list(api('/ppp/aaa/set', **{'use-radius': 'no', 'accounting': 'no'}))
+            _set_hotspot_radius(api, False)
+            if settings.NMS_SERVER_IP:
+                summary['radius_clients'] = _remove_entries(
+                    api,
+                    '/radius',
+                    '/radius/remove',
+                    lambda entry: entry.get('address') == settings.NMS_SERVER_IP,
+                )
+
+            # Exportadores de tráfico del NMS. Accounting no existe en RouterOS 7.
+            remaining_traffic_targets = list(api.path('/ip/traffic-flow/target'))
+            if settings.NMS_SERVER_IP:
+                summary['traffic_targets'] = _remove_entries(
+                    api,
+                    '/ip/traffic-flow/target',
+                    '/ip/traffic-flow/target/remove',
+                    lambda entry: entry.get('dst-address') == settings.NMS_SERVER_IP
+                    and str(entry.get('port', settings.TRAFFIC_FLOW_PORT)) == str(settings.TRAFFIC_FLOW_PORT),
+                )
+                remaining_traffic_targets = [
+                    entry for entry in remaining_traffic_targets
+                    if not (
+                        entry.get('dst-address') == settings.NMS_SERVER_IP
+                        and str(entry.get('port', settings.TRAFFIC_FLOW_PORT)) == str(settings.TRAFFIC_FLOW_PORT)
+                    )
+                ]
+            if not remaining_traffic_targets:
+                list(api('/ip/traffic-flow/set', enabled='no'))
+            try:
+                list(api('/ip/accounting/set', enabled='no'))
+                list(api('/ip/accounting/web-access/set', **{'accessible-via-web': 'no'}))
+            except Exception as exc:
+                if not _missing_accounting_menu(exc):
+                    raise
+
+            # Clientes estáticos, listas y control de velocidad.
+            summary['simple_queues'] += _remove_entries(
+                api,
+                '/queue/simple',
+                '/queue/simple/remove',
+                lambda entry: entry.get('target') in targets or entry.get('name') == parent_name,
+            )
+            summary['address_list_entries'] = _remove_entries(
+                api,
+                '/ip/firewall/address-list',
+                '/ip/firewall/address-list/remove',
+                lambda entry: entry.get('list') in managed_lists
+                and entry.get('address') in client_ips,
+            )
+            for lease in list(api.path('/ip/dhcp-server/lease')):
+                if lease.get('address') in client_ips and lease.get('.id'):
+                    list(api('/ip/dhcp-server/lease/set', **{
+                        '.id': lease['.id'],
+                        'rate-limit': '0/0',
+                    }))
+
+            summary['pcq_rules'] += _remove_entries(
+                api,
+                '/queue/tree',
+                '/queue/tree/remove',
+                lambda entry: entry.get('name') in ('isp_pcq_upload', 'isp_pcq_download'),
+            )
+            summary['pcq_rules'] += _remove_entries(
+                api,
+                '/ip/firewall/mangle',
+                '/ip/firewall/mangle/remove',
+                lambda entry: entry.get('comment') in ('ISP NMS PCQ upload', 'ISP NMS PCQ download'),
+            )
+            summary['pcq_rules'] += _remove_entries(
+                api,
+                '/queue/type',
+                '/queue/type/remove',
+                lambda entry: entry.get('name') in ('isp_pcq_upload', 'isp_pcq_download'),
+            )
+
+            # Usuarios y perfiles PPPoE registrados desde el NMS.
+            usernames = set(ppp_usernames)
+            profile_names = set(ppp_profile_names)
+            _remove_entries(
+                api,
+                '/ppp/active',
+                '/ppp/active/remove',
+                lambda entry: entry.get('name') in usernames,
+            )
+            summary['ppp_secrets'] = _remove_entries(
+                api,
+                '/ppp/secret',
+                '/ppp/secret/remove',
+                lambda entry: entry.get('name') in usernames,
+            )
+            summary['ppp_profiles'] = _remove_entries(
+                api,
+                '/ppp/profile',
+                '/ppp/profile/remove',
+                lambda entry: entry.get('name') in profile_names,
+            )
+    except Exception as exc:
+        logger.exception('No se pudo limpiar la configuración del Gateway %s', gateway.name)
+        raise GatewayConfigurationError(str(exc)) from exc
+
+    return summary

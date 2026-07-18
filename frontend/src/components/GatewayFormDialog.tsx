@@ -480,7 +480,7 @@ export function GatewayFormDialog({ open, onClose, gateway, onSuccess, onDelete 
               }`}
             >
               <Server className="w-4 h-4" />
-              Información y Ubicación
+              Información
             </button>
               <button
               type="button"
@@ -492,7 +492,7 @@ export function GatewayFormDialog({ open, onClose, gateway, onSuccess, onDelete 
               }`}
             >
               <Key className="w-4 h-4" />
-              Credenciales API y Prueba de Conexión
+              Credenciales API
             </button>
           </div>
         </div>
@@ -504,149 +504,6 @@ export function GatewayFormDialog({ open, onClose, gateway, onSuccess, onDelete 
           className="flex flex-col flex-1 min-h-0"
         >
         <div className="flex-1 overflow-y-auto p-5 space-y-4">
-          {/* TAB: CREDENCIALES Y TEST */}
-          {tab === 'credentials' && (
-            <div className="max-w-2xl mx-auto py-4 space-y-4 animate-fade-in">
-              <div className="flex items-center gap-2 text-brand-400 text-xs font-semibold uppercase tracking-wider">
-                <Key className="w-4 h-4" /> Parámetros de Red y API MikroTik
-              </div>
-
-              <div className="glass-card p-6 border border-border/60 space-y-4 bg-secondary/10">
-                {/* IP y puerto */}
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-                  <div className="sm:col-span-2">
-                    <label className="block text-sm font-medium text-foreground mb-1.5">
-                      Dirección IP / Host *
-                    </label>
-                    <input
-                      id="gateway-ip"
-                      type="text"
-                      placeholder="192.168.88.1"
-                      {...register('ip')}
-                      className="input-field font-mono"
-                    />
-                    {errors.ip && (
-                      <p className="text-xs text-destructive mt-1">{errors.ip.message}</p>
-                    )}
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-foreground mb-1.5">Puerto API *</label>
-                    <input
-                      id="gateway-port"
-                      type="number"
-                      {...register('api_port')}
-                      className="input-field font-mono"
-                    />
-                    {errors.api_port && (
-                      <p className="text-xs text-destructive mt-1">{errors.api_port.message}</p>
-                    )}
-                  </div>
-                </div>
-
-                {/* Usuario y contraseña */}
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                  <div>
-                    <label className="block text-sm font-medium text-foreground mb-1.5">
-                      Usuario API *
-                    </label>
-                    <input
-                      id="gateway-user"
-                      type="text"
-                      placeholder="admin"
-                      {...register('api_username')}
-                      className="input-field"
-                    />
-                    {errors.api_username && (
-                      <p className="text-xs text-destructive mt-1">{errors.api_username.message}</p>
-                    )}
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-foreground mb-1.5">
-                      Contraseña API *{isEdit && <span className="text-muted-foreground text-xs"> (dejar vacío = no cambiar)</span>}
-                    </label>
-                    <div className="relative">
-                      <input
-                        id="gateway-password"
-                        type={showPassword ? 'text' : 'password'}
-                        placeholder="••••••••"
-                        {...register('password_api')}
-                        className="input-field pr-11"
-                      />
-                      <button
-                        type="button"
-                        id="toggle-gateway-password-visibility"
-                        onClick={() => setShowPassword(!showPassword)}
-                        className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors"
-                      >
-                        {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-                      </button>
-                    </div>
-                    {errors.password_api && (
-                      <p className="text-xs text-destructive mt-1">{errors.password_api.message}</p>
-                    )}
-                  </div>
-                </div>
-              </div>
-
-              {/* Panel de prueba de conexión */}
-              <div className="border border-border rounded-xl p-5 space-y-4 bg-secondary/5">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <h4 className="text-sm font-medium text-foreground">Prueba de conexión API</h4>
-                    <p className="text-xs text-muted-foreground mt-0.5">
-                      Verifica que el puerto esté abierto y que las credenciales de acceso sean correctas.
-                    </p>
-                  </div>
-                  <button
-                    type="button"
-                    id="test-connection-btn"
-                    onClick={handleTest}
-                    disabled={isTesting}
-                    className="btn-primary text-xs py-1.5 px-4 shrink-0"
-                  >
-                    {isTesting ? (
-                      <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                    ) : (
-                      <Plug className="w-3.5 h-3.5" />
-                    )}
-                    {isTesting ? 'Probando...' : 'Probar conexión'}
-                  </button>
-                </div>
-
-                {testResult && (
-                  <div
-                    className={`rounded-lg p-4 flex items-start gap-3.5 ${testResult.success
-                      ? 'bg-emerald-500/10 border border-emerald-500/30'
-                      : 'bg-destructive/10 border border-destructive/30'
-                      }`}
-                  >
-                    {testResult.success ? (
-                      <CheckCircle2 className="w-5 h-5 text-emerald-400 flex-shrink-0 mt-0.5" />
-                    ) : (
-                      <XCircle className="w-5 h-5 text-destructive flex-shrink-0 mt-0.5" />
-                    )}
-                    <div className="text-xs space-y-1.5 leading-relaxed">
-                      <p className={`font-semibold ${testResult.success ? 'text-emerald-400' : 'text-destructive'}`}>
-                        {testResult.message}
-                      </p>
-                      {testResult.ros_version && (
-                        <div className="text-muted-foreground space-y-0.5">
-                          <p><span className="font-semibold text-foreground">Versión RouterOS:</span> v{testResult.ros_version}</p>
-                          <p><span className="font-semibold text-foreground">Tiempo encendido:</span> {testResult.uptime}</p>
-                        </div>
-                      )}
-                      {testResult.error && (
-                        <p className="text-muted-foreground font-mono bg-black/30 p-2 rounded border border-border/50 mt-1 max-w-full overflow-x-auto">
-                          {testResult.error}
-                        </p>
-                      )}
-                    </div>
-                  </div>
-                )}
-              </div>
-            </div>
-          )}
-
           {/* TAB: INFORMACIÓN Y UBICACIÓN */}
           {tab === 'info' && (
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 animate-fade-in">
@@ -857,6 +714,149 @@ export function GatewayFormDialog({ open, onClose, gateway, onSuccess, onDelete 
             </div>
           )}
 
+          {/* TAB: CREDENCIALES Y TEST */}
+          {tab === 'credentials' && (
+            <div className="max-w-2xl mx-auto py-4 space-y-4 animate-fade-in">
+              <div className="flex items-center gap-2 text-brand-400 text-xs font-semibold uppercase tracking-wider">
+                <Key className="w-4 h-4" /> Parámetros de Red y API MikroTik
+              </div>
+
+              <div className="glass-card p-6 border border-border/60 space-y-4 bg-secondary/10">
+                {/* IP y puerto */}
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                  <div className="sm:col-span-2">
+                    <label className="block text-sm font-medium text-foreground mb-1.5">
+                      Dirección IP / Host *
+                    </label>
+                    <input
+                      id="gateway-ip"
+                      type="text"
+                      placeholder="192.168.88.1"
+                      {...register('ip')}
+                      className="input-field font-mono"
+                    />
+                    {errors.ip && (
+                      <p className="text-xs text-destructive mt-1">{errors.ip.message}</p>
+                    )}
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-foreground mb-1.5">Puerto API *</label>
+                    <input
+                      id="gateway-port"
+                      type="number"
+                      {...register('api_port')}
+                      className="input-field font-mono"
+                    />
+                    {errors.api_port && (
+                      <p className="text-xs text-destructive mt-1">{errors.api_port.message}</p>
+                    )}
+                  </div>
+                </div>
+
+                {/* Usuario y contraseña */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm font-medium text-foreground mb-1.5">
+                      Usuario API *
+                    </label>
+                    <input
+                      id="gateway-user"
+                      type="text"
+                      placeholder="admin"
+                      {...register('api_username')}
+                      className="input-field"
+                    />
+                    {errors.api_username && (
+                      <p className="text-xs text-destructive mt-1">{errors.api_username.message}</p>
+                    )}
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-foreground mb-1.5">
+                      Contraseña API *{isEdit && <span className="text-muted-foreground text-xs"> (dejar vacío = no cambiar)</span>}
+                    </label>
+                    <div className="relative">
+                      <input
+                        id="gateway-password"
+                        type={showPassword ? 'text' : 'password'}
+                        placeholder="••••••••"
+                        {...register('password_api')}
+                        className="input-field pr-11"
+                      />
+                      <button
+                        type="button"
+                        id="toggle-gateway-password-visibility"
+                        onClick={() => setShowPassword(!showPassword)}
+                        className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors"
+                      >
+                        {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                      </button>
+                    </div>
+                    {errors.password_api && (
+                      <p className="text-xs text-destructive mt-1">{errors.password_api.message}</p>
+                    )}
+                  </div>
+                </div>
+              </div>
+
+              {/* Panel de prueba de conexión */}
+              <div className="border border-border rounded-xl p-5 space-y-4 bg-secondary/5">
+                <div className="grid sm:grid-cols-3 gap-4 items-center">
+                  <div className="sm:col-span-2">
+                    <h4 className="text-sm font-medium text-foreground">Prueba de conexión API</h4>
+                    <p className="text-xs text-muted-foreground mt-0.5">
+                      Verifica que el puerto esté abierto y que las credenciales de acceso sean correctas.
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    id="test-connection-btn"
+                    onClick={handleTest}
+                    disabled={isTesting}
+                    className="btn-primary text-xs py-1.5 px-4 shrink-0 justify-self-end"
+                  >
+                    {isTesting ? (
+                      <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                    ) : (
+                      <Plug className="w-3.5 h-3.5" />
+                    )}
+                    {isTesting ? 'Probando...' : 'Probar conexión'}
+                  </button>
+                </div>
+
+                {testResult && (
+                  <div
+                    className={`rounded-lg p-4 flex items-start gap-3.5 ${testResult.success
+                      ? 'bg-emerald-500/10 border border-emerald-500/30'
+                      : 'bg-destructive/10 border border-destructive/30'
+                      }`}
+                  >
+                    {testResult.success ? (
+                      <CheckCircle2 className="w-5 h-5 text-emerald-400 flex-shrink-0 mt-0.5" />
+                    ) : (
+                      <XCircle className="w-5 h-5 text-destructive flex-shrink-0 mt-0.5" />
+                    )}
+                    <div className="text-xs space-y-1.5 leading-relaxed">
+                      <p className={`font-semibold ${testResult.success ? 'text-emerald-400' : 'text-destructive'}`}>
+                        {testResult.message}
+                      </p>
+                      {testResult.ros_version && (
+                        <div className="text-muted-foreground space-y-0.5">
+                          <p><span className="font-semibold text-foreground">Versión RouterOS:</span> v{testResult.ros_version}</p>
+                          <p><span className="font-semibold text-foreground">Tiempo encendido:</span> {testResult.uptime}</p>
+                        </div>
+                      )}
+                      {testResult.error && (
+                        <p className="text-muted-foreground font-mono bg-black/30 p-2 rounded border border-border/50 mt-1 max-w-full overflow-x-auto">
+                          {testResult.error}
+                        </p>
+                      )}
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+
           {/* Error de guardado */}
           {saveMutation.isError && (
             <div className="bg-destructive/10 border border-destructive/30 rounded-lg px-4 py-3">
@@ -888,22 +888,13 @@ export function GatewayFormDialog({ open, onClose, gateway, onSuccess, onDelete 
 
             <div className="flex gap-3">
               <button
-                type="button"
-                id="cancel-gateway-form"
-                onClick={onClose}
-                className="btn-secondary w-32 justify-center"
-              >
-                Cancelar
-              </button>
-
-              <button
                 type="submit"
                 id="save-gateway-btn"
                 disabled={saveMutation.isPending}
                 className="btn-primary w-44 justify-center"
               >
                 {saveMutation.isPending && <Loader2 className="w-4 h-4 animate-spin" />}
-                {saveMutation.isPending ? 'Guardando...' : isEdit ? 'Guardar cambios' : 'Agregar gateway'}
+                {saveMutation.isPending ? 'Guardando...' : isEdit ? 'Guardar' : 'Agregar'}
               </button>
             </div>
           </div>

@@ -17,6 +17,7 @@ import api from '@/services/api'
 import { GatewayStatusBadge } from '@/components/GatewayStatusBadge'
 import { GatewayFormDialog } from '@/components/GatewayFormDialog'
 import { GatewayServicesDialog } from '@/components/GatewayServicesDialog'
+import { GatewayDeleteDialog, type GatewayDeletionOptions } from '@/components/GatewayDeleteDialog'
 import { useAuthStore } from '@/stores/authStore'
 import { formatUptime } from '@/lib/utils'
 import { formatSpeed } from '@/components/TrafficChart'
@@ -107,15 +108,6 @@ function formatBytes(bytes: number): string {
   return `${mb.toFixed(1)} MB`
 }
 
-// Helper to format dynamic assigned bandwidth dynamically (e.g. 1500 Mbps -> 1.5 GB)
-function formatBandwidth(mbps: number): string {
-  if (mbps >= 1024) {
-    const gb = mbps / 1024
-    return `${gb % 1 === 0 ? gb.toFixed(0) : gb.toFixed(1)} GB`
-  }
-  return `${mbps.toFixed(0)} MB`
-}
-
 interface Client {
   id: string
   name: string
@@ -127,14 +119,6 @@ interface Client {
   longitude: number | null
   plan_activo?: { name: string; speed_down_mbps?: number; speed_up_mbps?: number } | null
   static_ip?: { ip: string } | null
-}
-
-interface TestResult {
-  success: boolean
-  message: string
-  ros_version?: string
-  uptime?: string
-  error?: string
 }
 
 type GatewayProfileTab = 'stats' | 'clients' | 'queues' | 'pppoe' | 'logs' | 'historial'
@@ -150,6 +134,8 @@ const SECURITY_MODE_LABELS: Record<string, string> = {
 const TRAFFIC_ACCOUNTING_LABELS: Record<string, string> = {
   traffic_flow: 'Traffic Flow',
   accounting_v6: 'Accounting v6',
+  queue_accounting: 'Colas / Queue accounting',
+  none: 'Ninguno',
 }
 
 const SPEED_CONTROL_LABELS: Record<string, string> = {
@@ -261,10 +247,6 @@ export function GatewayProfilePage() {
   const [servicesOpen, setServicesOpen] = useState(false)
   const [confirmDeleteOpen, setConfirmDeleteOpen] = useState(false)
 
-  // Test connection state
-  const [testResult, setTestResult] = useState<TestResult | null>(null)
-  const [isTesting, setIsTesting] = useState(false)
-
   // Address-list client import states
   const [importingOpen, setImportingOpen] = useState(false)
   const [selectedListName, setSelectedListName] = useState('clientes')
@@ -332,7 +314,7 @@ export function GatewayProfilePage() {
   }, [id, gateway?.settings_configured])
 
   // Consultar todos los clientes del gateway (para estadísticas y mapa de cobertura)
-  const { data: allClients = [], isLoading: isLoadingAllClients } = useQuery<Client[]>({
+  const { data: allClients = [] } = useQuery<Client[]>({
     queryKey: ['gateway-clients-all', id],
     queryFn: async () => {
       const { data } = await api.get(`/clients`, {
@@ -347,7 +329,7 @@ export function GatewayProfilePage() {
   const [clientsPage, setClientsPage] = useState(1)
   const clientsLimit = 10
 
-  const { data: paginatedClientsData = { items: [], total: 0 }, isLoading: isLoadingPaginated } = useQuery({
+  const { data: paginatedClientsData = { items: [], total: 0 } } = useQuery({
     queryKey: ['gateway-clients-paginated', id, clientsPage, searchTerm],
     queryFn: async () => {
       const params: any = {
@@ -394,22 +376,6 @@ export function GatewayProfilePage() {
     enabled: activeTab === 'queues',
   })
 
-  // Mutación para activar/desactivar cola
-  const toggleQueueMutation = useMutation({
-    mutationFn: async ({ clientId, disabled }: { clientId: string; disabled: boolean }) => {
-      await api.post(`/clients/${clientId}/toggle-queue`, null, {
-        params: { disabled }
-      })
-    },
-    onSuccess: () => {
-      refetchQueues()
-    },
-    onError: (err: any) => {
-      const msg = err?.response?.data?.detail || 'Error al cambiar estado de la cola'
-      alert(msg)
-    }
-  })
-
   // Mutación para cambiar plan al vuelo
   const changePlanMutation = useMutation({
     mutationFn: async ({ clientId, planId }: { clientId: string; planId: string }) => {
@@ -426,22 +392,6 @@ export function GatewayProfilePage() {
       alert(msg)
     }
   })
-
-  // Mutación para probar conexión
-  const handleTestConnection = async () => {
-    setIsTesting(true)
-    setTestResult(null)
-    try {
-      const { data } = await api.post(`/gateways/${id}/test-connection`)
-      setTestResult(data)
-      refetchGateway()
-    } catch (err: any) {
-      const errMsg = err?.response?.data?.detail || 'Error de red al conectar al gateway'
-      setTestResult({ success: false, message: errMsg })
-    } finally {
-      setIsTesting(false)
-    }
-  }
 
   // Mutación para importar clientes de address-list
   const importMutation = useMutation({
@@ -479,11 +429,17 @@ export function GatewayProfilePage() {
 
   // Mutación para eliminar gateway
   const deleteMutation = useMutation({
-    mutationFn: async () => {
-      await api.delete(`/gateways/${id}`)
+    mutationFn: async (options: GatewayDeletionOptions) => {
+      await api.delete(`/gateways/${id}`, {
+        params: {
+          cleanup_routeros: options.cleanupRouterOs,
+          delete_historical_data: options.deleteHistoricalData,
+          confirmation: options.confirmation,
+        },
+      })
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['routers'] })
+      queryClient.invalidateQueries({ queryKey: ['gateways'] })
       navigate('/gateways')
     },
     onError: (err: any) => {
@@ -1023,113 +979,6 @@ export function GatewayProfilePage() {
                 />
               </div>
 
-              {/* Ancho de Banda Asignado summaries */}
-              {usesSimpleQueues ? (
-                <div className="glass-card p-5 border border-border/40 space-y-4 font-sans">
-                <h3 className="text-sm font-semibold text-foreground border-b border-border/40 pb-2.5 flex items-center gap-2">
-                  <Sliders className="w-4 h-4 text-brand-400" />
-                  Distribución de Ancho de Banda Asignado
-                </h3>
-
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-                  <div className="bg-secondary/20 p-4 rounded-lg border border-border/20">
-                    <span className="block text-xs text-muted-foreground">Velocidad Descarga Asignada</span>
-                    {isLoadingQueues ? (
-                      <div className="flex items-center gap-1.5 mt-2">
-                        <Loader2 className="w-3.5 h-3.5 animate-spin text-blue-400" />
-                        <span className="text-xs text-muted-foreground">Calculando...</span>
-                      </div>
-                    ) : (
-                      <span className="text-lg font-bold text-blue-400 mt-1 block">
-                        {formatBandwidth(totalDownMbps)}
-                        {configuredDownMbps ? (
-                          <span className="text-[10px] text-muted-foreground block font-normal mt-0.5">
-                            de {configuredDownMbps} Mbps totales ({((totalDownMbps / configuredDownMbps) * 100).toFixed(0)}%)
-                          </span>
-                        ) : (
-                          <span className="text-[10px] text-muted-foreground block font-normal mt-0.5">Límite gateway: Ilimitado</span>
-                        )}
-                      </span>
-                    )}
-                  </div>
-                  <div className="bg-secondary/20 p-4 rounded-lg border border-border/20">
-                    <span className="block text-xs text-muted-foreground">Velocidad Subida Asignada</span>
-                    {isLoadingQueues ? (
-                      <div className="flex items-center gap-1.5 mt-2">
-                        <Loader2 className="w-3.5 h-3.5 animate-spin text-purple-400" />
-                        <span className="text-xs text-muted-foreground">Calculando...</span>
-                      </div>
-                    ) : (
-                      <span className="text-lg font-bold text-purple-400 mt-1 block">
-                        {formatBandwidth(totalUpMbps)}
-                        {configuredUpMbps ? (
-                          <span className="text-[10px] text-muted-foreground block font-normal mt-0.5">
-                            de {configuredUpMbps} Mbps totales ({((totalUpMbps / configuredUpMbps) * 100).toFixed(0)}%)
-                          </span>
-                        ) : (
-                          <span className="text-[10px] text-muted-foreground block font-normal mt-0.5">Límite gateway: Ilimitado</span>
-                        )}
-                      </span>
-                    )}
-                  </div>
-                  <div className="bg-secondary/20 p-4 rounded-lg border border-border/20">
-                    <span className="block text-xs text-muted-foreground">Capacidad Límite del Router</span>
-                    {isLoadingGateway || isLoadingQueues ? (
-                      <div className="flex items-center gap-1.5 mt-2">
-                        <Loader2 className="w-3.5 h-3.5 animate-spin text-brand-400" />
-                        <span className="text-xs text-muted-foreground">Cargando...</span>
-                      </div>
-                    ) : (
-                      <span className="text-lg font-bold text-brand-400 mt-1 block">
-                        {configuredDownMbps || configuredUpMbps ? (
-                          <>
-                            ↓ {configuredDownMbps} / ↑ {configuredUpMbps} <span className="text-xs font-semibold text-muted-foreground">Mbps</span>
-                          </>
-                        ) : (
-                          'Ilimitado (0/0)'
-                        )}
-                        <span className="text-[10px] text-muted-foreground block font-normal mt-0.5">
-                          Cola: <strong>{parentQueue?.name || gateway?.parent_queue || 'sin cola'}</strong>
-                        </span>
-                      </span>
-                    )}
-                  </div>
-                </div>
-
-                <div className="text-xs text-muted-foreground leading-relaxed pt-2 border-t border-border/20 flex flex-wrap justify-between gap-2">
-                  <span>Ancho de banda promedio por cliente activo: <strong>{activeClients > 0 ? formatBandwidth((totalDownMbps + totalUpMbps) / activeClients) : '0 MB'}</strong></span>
-                  <span>
-                    {configuredDownMbps && configuredUpMbps
-                      ? `Asignación de capacidad: ↓ ${((totalDownMbps / configuredDownMbps) * 100).toFixed(0)}% / ↑ ${((totalUpMbps / configuredUpMbps) * 100).toFixed(0)}% respecto al límite del Router.`
-                      : 'Capacidad de carga calculada sobre las colas de tráfico activas en MikroTik.'}
-                  </span>
-                </div>
-                </div>
-              ) : (
-                <div className="glass-card flex items-start gap-3 border border-border/40 p-5">
-                  <div className="rounded-lg bg-brand-500/10 p-2 text-brand-400">
-                    <Sliders className="h-4 w-4" />
-                  </div>
-                  <div>
-                    <h3 className="text-sm font-semibold text-foreground">
-                      {gateway.speed_control_type === 'pcq_addresslist'
-                        ? 'Control de velocidad mediante PCQ'
-                        : 'Control de velocidad desactivado'}
-                    </h3>
-                    <p className="mt-1 text-xs leading-relaxed text-muted-foreground">
-                      {gateway.speed_control_type === 'pcq_addresslist'
-                        ? 'La distribución se administra con Queue Tree y Address Lists; por eso no se muestra el resumen de colas simples.'
-                        : 'Las estadísticas de clientes y tráfico continúan disponibles, pero este gateway no aplica límites de velocidad desde el NMS.'}
-                    </p>
-                    {isAdmin && (
-                      <button type="button" onClick={() => setServicesOpen(true)} className="mt-3 text-xs font-semibold text-brand-400 hover:text-brand-300">
-                        Cambiar control de velocidad
-                      </button>
-                    )}
-                  </div>
-                </div>
-              )}
-
               {/* Top 10 Clientes Activos por Consumo */}
               <div className="glass-card p-5 border border-border/40 space-y-4 font-sans">
                 <h3 className="text-sm font-semibold text-foreground border-b border-border/40 pb-2.5 flex items-center gap-2">
@@ -1230,7 +1079,7 @@ export function GatewayProfilePage() {
                 </div>
               ) : (
                 <>
-                  <div className="glass-card overflow-hidden">
+                  <div className="glass-card overflow-x-auto">
                     <table className="data-table">
                       <thead>
                         <tr>
@@ -1314,20 +1163,6 @@ export function GatewayProfilePage() {
           {/* Pestaña: Colas de Tráfico */}
           {effectiveActiveTab === 'queues' && (
             <div className="space-y-4">
-              <div className="flex justify-between items-center bg-secondary/15 p-4 rounded-xl border border-border/40">
-                <p className="text-xs text-muted-foreground leading-relaxed max-w-xl">
-                  Listado de colas simples (Simple Queues) activas en el MikroTik. Las colas enlazadas a clientes locales permiten interactuar directamente para activar, desactivar o modificar sus límites de velocidad.
-                </p>
-                <button
-                  onClick={() => refetchQueues()}
-                  disabled={isLoadingQueues}
-                  className="btn-secondary text-xs"
-                >
-                  <RefreshCw className={`w-3.5 h-3.5 ${isLoadingQueues ? 'animate-spin' : ''}`} />
-                  Actualizar
-                </button>
-              </div>
-
               {isLoadingQueues ? (
                 <div className="flex items-center justify-center py-12">
                   <div className="flex items-center gap-3 text-muted-foreground">
@@ -1341,16 +1176,15 @@ export function GatewayProfilePage() {
                   No se encontraron colas simples configuradas en este gateway.
                 </div>
               ) : (
-                <div className="glass-card overflow-hidden font-sans">
+                <div className="glass-card overflow-x-auto font-sans">
                   <table className="data-table">
                     <thead>
                       <tr>
-                        <th>Cola / Cliente</th>
-                        <th>IP (Target)</th>
+                        <th>Cola</th>
+                        <th>IP / Target</th>
                         <th> Upload / Download</th>
-                        <th>Tráfico actual (TX / RX)</th>
+                        <th>Tráfico actual</th>
                         <th>Estado</th>
-                        {isAdmin && <th className="text-right">Acciones</th>}
                       </tr>
                     </thead>
                     <tbody>
@@ -1360,14 +1194,13 @@ export function GatewayProfilePage() {
                             {q.client_id ? (
                               <div
                                 onClick={() => navigate(`/clients/${q.client_id}`)}
-                                className="font-semibold text-sm text-brand-400 hover:underline cursor-pointer"
+                                className="font-semibold text-sm"
                               >
                                 {q.name}
                               </div>
                             ) : (
                               <div className="font-semibold text-sm text-foreground flex items-center gap-1.5">
                                 {q.name}
-                                <span className="text-[9px] bg-amber-500/10 text-amber-400 border border-amber-500/20 px-1.5 py-0.2 rounded-full uppercase font-bold">Huérfana</span>
                               </div>
                             )}
                           </td>
@@ -1387,41 +1220,9 @@ export function GatewayProfilePage() {
                               ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20'
                               : 'bg-destructive/10 text-destructive border border-destructive/20'
                               }`}>
-                              {!q.disabled ? 'Activo' : 'Suspendido'}
+                              {!q.disabled ? 'Activo' : 'Inactivo'}
                             </span>
                           </td>
-                          {isAdmin && (
-                            <td className="text-right">
-                              <div className="flex items-center justify-end gap-2">
-                                {q.client_id && (
-                                  <>
-                                    <button
-                                      onClick={() => {
-                                        setSelectedQueue(q)
-                                        setSelectedPlanId(q.plan_activo?.id || '')
-                                      }}
-                                      className="btn-secondary py-1 px-2.5 text-xs flex items-center gap-1 hover:text-brand-400"
-                                      title="Cambiar velocidad/plan al vuelo"
-                                    >
-                                      <Sliders className="w-3 h-3" />
-                                      Cambiar Plan
-                                    </button>
-                                    <button
-                                      onClick={() => toggleQueueMutation.mutate({
-                                        clientId: q.client_id,
-                                        disabled: !q.disabled
-                                      })}
-                                      disabled={toggleQueueMutation.isPending}
-                                      className={`btn-secondary py-1 px-2.5 text-xs ${!q.disabled ? 'text-destructive hover:bg-destructive/10' : 'text-emerald-400 hover:bg-emerald-500/10'}`}
-                                      title={!q.disabled ? 'Deshabilitar cola' : 'Habilitar cola'}
-                                    >
-                                      {!q.disabled ? 'Suspender' : 'Activar'}
-                                    </button>
-                                  </>
-                                )}
-                              </div>
-                            </td>
-                          )}
                         </tr>
                       ))}
                     </tbody>
@@ -1616,7 +1417,7 @@ export function GatewayProfilePage() {
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2">
                   <ClipboardList className="w-4 h-4 text-brand-400" />
-                  <span className="text-sm font-semibold text-foreground">Historial de eventos ISP</span>
+                  <span className="text-sm font-semibold text-foreground">Historial de eventos</span>
                   {auditData && (
                     <span className="text-xs text-muted-foreground">
                       — {auditData.total} eventos
@@ -1642,7 +1443,7 @@ export function GatewayProfilePage() {
                   <span className="text-sm">Cargando historial...</span>
                 </div>
               ) : auditData && auditData.items.length > 0 ? (
-                <div className="glass-card overflow-hidden">
+                <div className="glass-card overflow-hidden overflow-x-auto">
                   <table className="data-table">
                     <thead>
                       <tr>
@@ -1740,7 +1541,7 @@ export function GatewayProfilePage() {
         />
       )}
 
-      {/* ── Dialog Crear/Editar Router ── */}
+      {/* ── Dialog Crear/Editar Gateway ── */}
       {editOpen && (
         <GatewayFormDialog
           open={editOpen}
@@ -1759,32 +1560,14 @@ export function GatewayProfilePage() {
         />
       )}
 
-      {/* ── Modal Confirmación de Eliminación ── */}
-      {confirmDeleteOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">
-          <div className="glass-card p-6 w-full max-w-sm mx-4 animate-fade-in">
-            <h3 className="text-lg font-semibold text-foreground mb-2">¿Eliminar gateway?</h3>
-            <p className="text-muted-foreground text-sm mb-6 leading-relaxed">
-              Esta acción desactivará el gateway <strong>{gateway.name}</strong>. Los clientes asignados no se borrarán pero perderán el enlace a este gateway.
-            </p>
-            <div className="flex gap-3">
-              <button
-                onClick={() => setConfirmDeleteOpen(false)}
-                className="btn-secondary flex-1 justify-center"
-              >
-                Cancelar
-              </button>
-              <button
-                onClick={() => deleteMutation.mutate()}
-                disabled={deleteMutation.isPending}
-                className="btn-destructive flex-1 justify-center"
-              >
-                {deleteMutation.isPending ? 'Eliminando...' : 'Eliminar'}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+      <GatewayDeleteDialog
+        open={confirmDeleteOpen}
+        gatewayName={gateway.name}
+        pending={deleteMutation.isPending}
+        error={(deleteMutation.error as { response?: { data?: { detail?: string } } } | null)?.response?.data?.detail}
+        onClose={() => setConfirmDeleteOpen(false)}
+        onConfirm={(options) => deleteMutation.mutate(options)}
+      />
 
       {/* ── Modal Importar Clientes de Address-list ── */}
       {importingOpen && (
