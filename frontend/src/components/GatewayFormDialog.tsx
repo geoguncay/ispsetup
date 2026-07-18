@@ -44,12 +44,6 @@ const gatewaySchema = z.object({
   speed_control: z.boolean().default(true),
   sync_logs: z.boolean().default(true),
   alert_notifications: z.boolean().default(true),
-  parent_queue: z.string().max(100).optional().nullable(),
-  address_list: z.string().max(100).optional().nullable(),
-  suspend_list: z.string().max(100).optional().nullable(),
-  config_mode: z.enum(['system', 'gateway']).default('system'),
-  bandwidth_up: z.coerce.number().min(0).default(0),
-  bandwidth_down: z.coerce.number().min(0).default(0),
   site_id: z.string().optional().nullable(),
 }).refine(
   (data) => {
@@ -91,12 +85,6 @@ interface GatewayFormDialogProps {
     speed_control?: boolean;
     sync_logs?: boolean;
     alert_notifications?: boolean;
-    parent_queue?: string | null;
-    address_list?: string | null;
-    suspend_list?: string | null;
-    config_mode?: string | null;
-    bandwidth_up?: number | null;
-    bandwidth_down?: number | null;
     site_id?: string | null;
     site_name?: string | null;
   } | null
@@ -158,11 +146,6 @@ export function GatewayFormDialog({ open, onClose, gateway, onSuccess, onDelete 
       speed_control: true,
       sync_logs: true,
       alert_notifications: true,
-      bandwidth_up: 0,
-      bandwidth_down: 0,
-      parent_queue: '',
-      address_list: '',
-      suspend_list: '',
     },
   })
 
@@ -201,7 +184,6 @@ export function GatewayFormDialog({ open, onClose, gateway, onSuccess, onDelete 
       setTestResult(null)
       setShowPassword(false)
       if (gateway) {
-        const mode = (gateway.config_mode === 'gateway' ? 'gateway' : 'system') as 'system' | 'gateway'
         reset({
           id: gateway.id,
           name: gateway.name,
@@ -217,12 +199,6 @@ export function GatewayFormDialog({ open, onClose, gateway, onSuccess, onDelete 
           speed_control: gateway.speed_control ?? true,
           sync_logs: gateway.sync_logs ?? true,
           alert_notifications: gateway.alert_notifications ?? true,
-          parent_queue: gateway.parent_queue ?? '',
-          address_list: gateway.address_list ?? '',
-          suspend_list: gateway.suspend_list ?? '',
-          config_mode: mode,
-          bandwidth_up: gateway.bandwidth_up ?? 0,
-          bandwidth_down: gateway.bandwidth_down ?? 0,
           site_id: gateway.site_id ?? null,
         })
         resetSiteState(gateway.site_id ?? '')
@@ -230,7 +206,6 @@ export function GatewayFormDialog({ open, onClose, gateway, onSuccess, onDelete 
         const savedPort = localStorage.getItem('isp_default_api_port')
         const savedUsername = localStorage.getItem('isp_default_api_username')
         const savedPassword = localStorage.getItem('isp_default_password_api')
-        const savedAddressList = localStorage.getItem('isp_default_address_list')
         const savedMonitoring = localStorage.getItem('isp_default_traffic_monitoring')
         const savedSpeedControl = localStorage.getItem('isp_default_speed_control')
 
@@ -247,11 +222,6 @@ export function GatewayFormDialog({ open, onClose, gateway, onSuccess, onDelete 
           speed_control: savedSpeedControl !== null ? savedSpeedControl === 'true' : true,
           sync_logs: true,
           alert_notifications: true,
-          bandwidth_up: 0,
-          bandwidth_down: 0,
-          parent_queue: '',
-          address_list: savedAddressList || '',
-          config_mode: 'system',
           site_id: null,
         })
         resetSiteState()
@@ -259,25 +229,6 @@ export function GatewayFormDialog({ open, onClose, gateway, onSuccess, onDelete 
       }
     }
   }, [open, gateway, reset, setValue, handleGetLocation])
-
-  // Preseleccionar la primera cola padre y address list disponible al crear un nuevo gateway
-  const nameVal = watch('name')
-
-  useEffect(() => {
-    if (!isEdit && nameVal) {
-      const savedParentQueues = localStorage.getItem('isp_parent_queues')
-      const parentQueues: string[] = savedParentQueues ? JSON.parse(savedParentQueues) : []
-      if (parentQueues.length > 0) {
-        setValue('parent_queue', parentQueues[0])
-      }
-
-      const savedAddressLists = localStorage.getItem('isp_address_lists')
-      const addressLists: string[] = savedAddressLists ? JSON.parse(savedAddressLists) : []
-      if (addressLists.length > 0) {
-        setValue('address_list', addressLists[0])
-      }
-    }
-  }, [nameVal, isEdit, setValue])
 
   // Site mutations
   const createSiteMutation = useMutation({
@@ -346,15 +297,6 @@ export function GatewayFormDialog({ open, onClose, gateway, onSuccess, onDelete 
       if (!payload.latitude || isNaN(Number(payload.latitude))) payload.latitude = null
       if (!payload.longitude || isNaN(Number(payload.longitude))) payload.longitude = null
       if (!payload.site_id) payload.site_id = null
-      if (!isEdit) {
-        payload.parent_queue = null
-        payload.address_list = null
-        payload.suspend_list = null
-        payload.config_mode = 'system'
-        payload.bandwidth_up = 0
-        payload.bandwidth_down = 0
-      }
-
       if (isEdit) {
         const { data: savedGateway } = await api.put(`/gateways/${gateway!.id}`, payload)
         return savedGateway as { id: string }

@@ -123,9 +123,6 @@ def _to_catalogs_read(cfg: SystemSettings) -> CatalogSettingsRead:
     return CatalogSettingsRead(
         payment_methods=cfg.payment_methods or [],
         cutoff_dates=cfg.cutoff_dates or [],
-        parent_queues=cfg.parent_queues or [],
-        address_lists=cfg.address_lists or [],
-        suspend_lists=cfg.suspend_lists or ["isp_suspendidos"],
     )
 
 

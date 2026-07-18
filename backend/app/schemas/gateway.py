@@ -5,11 +5,55 @@ import uuid
 from datetime import datetime
 from typing import Any, Literal
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 
 SecurityMode = Literal['none_api', 'ppp_api', 'hotspot_api', 'ppp_radius', 'hotspot_radius']
 TrafficAccounting = Literal['traffic_flow', 'accounting_v6', 'queue_accounting', 'none']
 SpeedControlType = Literal['pcq_addresslist', 'simple_queues', 'dhcp_lease_dynamic', 'none']
+
+
+class SecurityResourceConfig(BaseModel):
+    suspend_list: str = Field(default='isp_suspendidos', min_length=1, max_length=100)
+
+
+class TrafficResourceConfig(BaseModel):
+    # Reservado para modos de tráfico que incorporen recursos RouterOS con nombre.
+    model_config = {"extra": "forbid"}
+
+
+class SpeedControlResourceConfig(BaseModel):
+    simple_queue_structure: Literal['parented', 'standalone'] = 'parented'
+    parent_queue: str = Field(default='Clientes', min_length=1, max_length=100)
+    simple_queue_upload_type: str = Field(default='default-small', min_length=1, max_length=100)
+    simple_queue_download_type: str = Field(default='default-small', min_length=1, max_length=100)
+    client_address_list: str = Field(default='=clientes', min_length=1, max_length=100)
+    client_queue_name_template: str = Field(default='{client_name}', min_length=1, max_length=120)
+    dhcp_comment_template: str = Field(default='{client_name} - {plan_name}', min_length=1, max_length=160)
+    pcq_upload_type: str = Field(default='pcq_upload', min_length=1, max_length=100)
+    pcq_download_type: str = Field(default='pcq_download', min_length=1, max_length=100)
+    upload_packet_mark: str = Field(default='pcq_upload', min_length=1, max_length=100)
+    download_packet_mark: str = Field(default='pcq_download', min_length=1, max_length=100)
+    upload_queue_tree: str = Field(default='pcq_upload', min_length=1, max_length=100)
+    download_queue_tree: str = Field(default='pcq_download', min_length=1, max_length=100)
+    upload_mangle_comment: str = Field(default='ISP NMS PCQ upload', min_length=1, max_length=160)
+    download_mangle_comment: str = Field(default='ISP NMS PCQ download', min_length=1, max_length=160)
+
+    @field_validator('client_queue_name_template', 'dhcp_comment_template')
+    @classmethod
+    def validate_template(cls, value: str) -> str:
+        try:
+            rendered = value.format(client_name='Cliente', plan_name='Plan', ip='192.0.2.1')
+        except (KeyError, ValueError) as exc:
+            raise ValueError('Solo se permiten {client_name}, {plan_name} e {ip}') from exc
+        if not rendered.strip():
+            raise ValueError('La plantilla no puede quedar vacía')
+        return value
+
+
+class GatewayResourceConfig(BaseModel):
+    security: SecurityResourceConfig = Field(default_factory=SecurityResourceConfig)
+    traffic: TrafficResourceConfig = Field(default_factory=TrafficResourceConfig)
+    speed_control: SpeedControlResourceConfig = Field(default_factory=SpeedControlResourceConfig)
 
 
 class GatewayCreate(BaseModel):
@@ -85,6 +129,7 @@ class GatewaySettingsUpdate(BaseModel):
     security_mode: SecurityMode
     traffic_accounting: TrafficAccounting
     speed_control_type: SpeedControlType
+    resource_config: GatewayResourceConfig | None = None
 
 
 class GatewayRead(BaseModel):
@@ -108,6 +153,7 @@ class GatewayRead(BaseModel):
     traffic_accounting: TrafficAccounting
     speed_control_type: SpeedControlType
     settings_configured: bool
+    resource_config: GatewayResourceConfig | None = None
 
     # Nuevos campos de configuración de MikroTik y ancho de banda
     parent_queue: str | None

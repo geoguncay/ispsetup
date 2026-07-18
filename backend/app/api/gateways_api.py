@@ -104,6 +104,7 @@ def create_gateway(payload: GatewayCreate, db: DBSession, current_user: AdminOnl
         traffic_accounting=payload.traffic_accounting,
         speed_control_type=payload.speed_control_type,
         settings_configured=False,
+        resource_config=None,
         parent_queue=None,
         address_list=None,
         suspend_list=None,
@@ -292,7 +293,14 @@ def update_gateway_settings(
     if not gateway or not gateway.active:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Gateway no encontrado")
 
-    settings = payload.model_dump()
+    settings = payload.model_dump(exclude_none=True)
+    resource_config_supplied = "resource_config" in settings
+    old_parent_name = None
+    old_resource_config = None
+    if resource_config_supplied:
+        from app.services.mikrotik.gateway_resources import get_gateway_resource_config
+        old_resource_config = get_gateway_resource_config(gateway)
+        old_parent_name = old_resource_config['speed_control']['parent_queue']
     changes = {
         field
         for field, value in settings.items()
@@ -306,7 +314,17 @@ def update_gateway_settings(
     for field, value in settings.items():
         setattr(gateway, field, value)
 
+    # Mantener los campos anteriores sincronizados durante la transición.
+    if resource_config_supplied:
+        resources = settings["resource_config"]
+        gateway.suspend_list = resources["security"]["suspend_list"]
+        gateway.parent_queue = resources["speed_control"]["parent_queue"]
+        gateway.address_list = resources["speed_control"]["client_address_list"]
+
     try:
+        if resource_config_supplied and old_resource_config:
+            from app.services.mikrotik.gateway_configuration import migrate_gateway_resource_names
+            migrate_gateway_resource_names(gateway, old_resource_config)
         apply_gateway_configuration(gateway, changes)
     except GatewayConfigurationError as exc:
         db.rollback()
@@ -314,6 +332,23 @@ def update_gateway_settings(
             status_code=status.HTTP_502_BAD_GATEWAY,
             detail=f"No se pudo aplicar la configuración en MikroTik: {exc}",
         ) from exc
+
+    if resource_config_supplied and gateway.speed_control_type == 'simple_queues':
+        from app.services.mikrotik.queue import apply_simple_queue_structure, sync_gateway_parent_queue
+        try:
+            client_ips = [
+                row.ip
+                for row in db.query(StaticIP).filter(StaticIP.gateway_id == gateway.id).all()
+            ]
+            apply_simple_queue_structure(gateway, client_ips)
+            if resources['speed_control']['simple_queue_structure'] == 'parented':
+                sync_gateway_parent_queue(gateway, old_parent_name=old_parent_name)
+        except Exception as exc:
+            db.rollback()
+            raise HTTPException(
+                status_code=status.HTTP_502_BAD_GATEWAY,
+                detail=f"No se pudo aplicar la estructura de colas en MikroTik: {exc}",
+            ) from exc
 
     gateway.settings_configured = True
     db.commit()
@@ -675,6 +710,7 @@ def get_gateway_queues(gateway_id: uuid.UUID, db: DBSession, _: AdminOrTechnicia
             "rate": q.get("rate"),
             "rate_human": format_bps(q.get("rate", "0/0")),
             "parent": q.get("parent"),
+            "queue_type": q.get("queue_type"),
             "comment": q.get("comment"),
             "disabled": q.get("disabled"),
             "client_id": client_info["id"] if client_info else None,
@@ -694,6 +730,12 @@ def get_parent_queue(gateway_id: uuid.UUID, db: DBSession, _: AdminOrTechnician)
     r = db.get(Gateway, gateway_id)
     if not r or not r.active:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Gateway no encontrado")
+    from app.services.mikrotik.gateway_resources import get_gateway_resource_config
+    if get_gateway_resource_config(r)['speed_control']['simple_queue_structure'] != 'parented':
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="Este gateway utiliza colas simples independientes y no tiene cola padre",
+        )
 
     try:
         return get_parent_queue_limit(r)
@@ -718,6 +760,12 @@ def set_parent_queue_limit(
     r = db.get(Gateway, gateway_id)
     if not r or not r.active:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Gateway no encontrado")
+    from app.services.mikrotik.gateway_resources import get_gateway_resource_config
+    if get_gateway_resource_config(r)['speed_control']['simple_queue_structure'] != 'parented':
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="Este gateway utiliza colas simples independientes y no tiene cola padre",
+        )
 
     try:
         update_parent_queue_limit(r, limit_up_mbps, limit_down_mbps)

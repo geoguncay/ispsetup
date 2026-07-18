@@ -4,6 +4,7 @@ Servicio MikroTik para gestionar direcciones IP en el firewall address-list.
 import logging
 from app.models.gateway import Gateway
 from app.services.mikrotik.gateway_pool import gateway_pool
+from app.services.mikrotik.gateway_resources import resource_name
 from librouteros.query import Key
 
 logger = logging.getLogger(__name__)
@@ -14,7 +15,7 @@ def get_suspend_list_name(gateway) -> str:
     Retorna el nombre de la lista de suspendidos configurada en el gateway.
     Fallback: 'isp_suspendidos'.
     """
-    name = getattr(gateway, 'suspend_list', None)
+    name = resource_name(gateway, 'security', 'suspend_list')
     if not name or name.strip().lower() in ('none', ''):
         return 'isp_suspendidos'
     return name.strip()
@@ -22,19 +23,17 @@ def get_suspend_list_name(gateway) -> str:
 
 def get_clean_list_name(name: str | None) -> str:
     """
-    Sanea el nombre de una address-list en MikroTik aplicando el prefijo isp_.
+    Normaliza el nombre sin modificar el valor elegido para el gateway.
     """
     if not name:
         return "isp_clientes"
     name_clean = name.strip()
     if name_clean.lower() in ("none", ""):
         return "isp_clientes"
-    if name_clean.startswith("isp_"):
-        return name_clean
-    return f"isp_clientes_{name_clean}"
+    return name_clean
 
 
-def sync_ip_in_address_list(gateway: Gateway, ip: str, client_name: str, list_name: str = "isp_clientes") -> None:
+def sync_ip_in_address_list(gateway: Gateway, ip: str, client_name: str, list_name: str | None = None) -> None:
     """
     Sincroniza una IP estática en la lista de firewall especificada de MikroTik.
     Crea la entrada si no existe, o actualiza el comentario si difiere.
@@ -42,6 +41,7 @@ def sync_ip_in_address_list(gateway: Gateway, ip: str, client_name: str, list_na
     """
     if gateway.speed_control_type != 'pcq_addresslist':
         return
+    list_name = list_name or resource_name(gateway, 'speed_control', 'client_address_list')
 
     try:
         with gateway_pool.connect_to(gateway) as api:
@@ -96,7 +96,11 @@ def remove_ip_from_address_list(gateway: Gateway, ip: str) -> None:
             for entry in existing:
                 list_name = entry.get("list")
                 # Remover si empieza con "isp_" o coincide con los legados "clientes" o "suspendidos"
-                if list_name and (list_name.startswith("isp_") or list_name in ("clientes", "suspendidos")):
+                configured_lists = {
+                    resource_name(gateway, 'speed_control', 'client_address_list'),
+                    get_suspend_list_name(gateway),
+                }
+                if list_name and (list_name.startswith("isp_") or list_name in ("clientes", "suspendidos") or list_name in configured_lists):
                     entry_id = entry.get(".id")
                     list(api("/ip/firewall/address-list/remove", **{".id": entry_id}))
                     logger.info(f"IP {ip} removida de lista '{list_name}' en {gateway.name}")

@@ -593,6 +593,8 @@ export function GatewayProfilePage() {
   const usesPpp = gateway.security_mode === 'ppp_api' || gateway.security_mode === 'ppp_radius'
   const usesSimpleQueues = gateway.speed_control_type === 'simple_queues'
     || gateway.speed_control_type === 'dhcp_lease_dynamic'
+  const simpleQueueStructure = gateway.resource_config?.speed_control?.simple_queue_structure ?? 'parented'
+  const usesParentQueue = gateway.speed_control_type === 'simple_queues' && simpleQueueStructure === 'parented'
 
   const gatewayTabs: Array<{
     id: GatewayProfileTab
@@ -614,18 +616,19 @@ export function GatewayProfilePage() {
     const name = q.name?.toLowerCase() || ''
 
     // Filtrar dinámicamente la cola padre del gateway
-    const gatewayParent = gateway?.parent_queue?.toLowerCase() || ''
+    const gatewayParent = usesParentQueue ? (gateway?.parent_queue?.toLowerCase() || '') : ''
     if (gatewayParent && name === gatewayParent) return false
 
     // Filtros legados
-    if (name === 'isp_padre' || name === 'padre' || name === 'total') return false
-    if (name.startsWith('isp_padre_')) return false
+    if (usesParentQueue && (name === 'isp_padre' || name === 'padre' || name === 'total')) return false
+    if (usesParentQueue && name.startsWith('isp_padre_')) return false
     return true
   })
 
   // Encontrar la cola padre del gateway en las colas traídas de MikroTik
-  const gatewayParentName = gateway?.parent_queue?.toLowerCase() || ''
+  const gatewayParentName = usesParentQueue ? (gateway?.parent_queue?.toLowerCase() || '') : ''
   const parentQueue = queues.find((q: any) => {
+    if (!usesParentQueue) return false
     const qName = q.name?.toLowerCase() || ''
     if (gatewayParentName && qName === gatewayParentName) return true
     if (!gatewayParentName && (qName === 'isp_padre' || qName === 'padre' || qName === 'total')) return true

@@ -4,23 +4,36 @@ Servicio MikroTik para gestionar colas de ancho de banda (Simple Queues).
 import logging
 from app.models.gateway import Gateway
 from app.services.mikrotik.gateway_pool import gateway_pool
+from app.services.mikrotik.gateway_resources import get_gateway_resource_config, render_resource_template
 from librouteros.query import Key
 
 logger = logging.getLogger(__name__)
 
 
+def validate_simple_queue_types(api, resources: dict) -> None:
+    """Comprueba que los Queue Types elegidos existan antes de guardar la configuración."""
+    configured = {
+        resources['simple_queue_upload_type'],
+        resources['simple_queue_download_type'],
+    }
+    available = {entry.get('name') for entry in list(api.path('/queue/type'))}
+    missing = sorted(name for name in configured if name not in available)
+    if missing:
+        raise ValueError(
+            f"Los Queue Types no existen en RouterOS: {', '.join(missing)}"
+        )
+
+
 def get_clean_parent_name(name: str | None) -> str:
     """
-    Sanea el nombre de la cola simple padre en MikroTik aplicando el prefijo isp_.
+    Normaliza el nombre sin modificar el valor elegido para el gateway.
     """
     if not name:
         return "isp_padre"
     name_clean = name.strip()
     if name_clean.lower() in ("none", ""):
         return "isp_padre"
-    if name_clean.startswith("isp_"):
-        return name_clean
-    return f"isp_padre_{name_clean}"
+    return name_clean
 
 
 def get_or_create_parent_queue(api, name: str = "isp_padre") -> str:
@@ -86,13 +99,14 @@ def sync_client_queue(
     """
     target_ip = f"{ip}/32"
     max_limit = f"{speed_up}k/{speed_down}k"
+    resources = get_gateway_resource_config(gateway)['speed_control']
 
     if gateway.speed_control_type == 'pcq_addresslist':
         from app.services.mikrotik.address_list import get_clean_list_name
         from app.services.mikrotik.gateway_configuration import ensure_pcq_parent_rules
 
         with gateway_pool.connect_to(gateway) as api:
-            ensure_pcq_parent_rules(api, get_clean_list_name(gateway.address_list))
+            ensure_pcq_parent_rules(api, resources['client_address_list'], resources)
         return
     if gateway.speed_control_type == 'dhcp_lease_dynamic':
         try:
@@ -104,7 +118,9 @@ def sync_client_queue(
                     list(api('/ip/dhcp-server/lease/set', **{
                         '.id': leases[0]['.id'],
                         'rate-limit': max_limit,
-                        'comment': f'{client_name} - {plan_name}',
+                        'comment': render_resource_template(
+                            resources['dhcp_comment_template'], client_name=client_name, plan_name=plan_name
+                        ),
                     }))
                 else:
                     logger.warning(
@@ -121,9 +137,14 @@ def sync_client_queue(
 
     try:
         with gateway_pool.connect_to(gateway) as api:
-            # Sanear y resolver la cola padre
-            clean_parent = get_clean_parent_name(parent)
-            parent_name = get_or_create_parent_queue(api, clean_parent)
+            structure = resources['simple_queue_structure']
+            parent_name = None
+            if structure == 'parented':
+                parent_name = get_or_create_parent_queue(api, resources['parent_queue'])
+
+            queue_name = render_resource_template(
+                resources['client_queue_name_template'], client_name=client_name, plan_name=plan_name, ip=ip
+            )
 
             # Buscar por target IP
             query_target = api.path('/queue/simple').select().where(Key('target') == target_ip)
@@ -131,17 +152,17 @@ def sync_client_queue(
 
             # Si no se encuentra por IP, intentar por nombre
             if not existing:
-                query_name = api.path('/queue/simple').select().where(Key('name') == client_name)
+                query_name = api.path('/queue/simple').select().where(Key('name') == queue_name)
                 existing = list(query_name)
 
             params = {
-                "name": client_name,
+                "name": queue_name,
                 "target": target_ip,
                 "max-limit": max_limit,
+                "queue": f"{resources['simple_queue_upload_type']}/{resources['simple_queue_download_type']}",
                 "comment": plan_name,
                 "disabled": False
             }
-            # Solo añadir el parent si es válido y no es 'none'
             if parent_name and parent_name != 'none':
                 params["parent"] = parent_name
 
@@ -164,7 +185,10 @@ def sync_client_queue(
             if existing:
                 entry = existing[0]
                 entry_id = entry.get(".id")
-                list(api("/queue/simple/set", **{".id": entry_id, **params}))
+                update_params = {".id": entry_id, **params}
+                if structure == 'standalone':
+                    update_params['parent'] = 'none'
+                list(api("/queue/simple/set", **update_params))
                 logger.info(f"Cola simple actualizada en {gateway.name} para cliente {client_name} (IP: {ip}, Límite: {max_limit})")
             else:
                 list(api("/queue/simple/add", **params))
@@ -226,6 +250,7 @@ def fetch_queues(gateway: Gateway) -> list[dict]:
                     "max_limit": q.get("max-limit"),
                     "rate": q.get("rate", "0/0"),
                     "parent": q.get("parent"),
+                    "queue_type": q.get("queue"),
                     "comment": q.get("comment", ""),
                     "disabled": q.get("disabled") == "true" or q.get("disabled") is True,
                 }
@@ -242,9 +267,14 @@ def update_parent_queue_limit(gateway: Gateway, limit_up_mbps: int, limit_down_m
     Si no existe la cola padre, la crea.
     """
     max_limit = f"{limit_up_mbps}M/{limit_down_mbps}M"
+    resources = get_gateway_resource_config(gateway)['speed_control']
+    if resources['simple_queue_structure'] != 'parented':
+        raise ValueError('Este gateway utiliza colas simples independientes y no tiene cola padre')
     try:
         with gateway_pool.connect_to(gateway) as api:
-            parent_name = get_or_create_parent_queue(api, "isp_padre")
+            parent_name = get_or_create_parent_queue(
+                api, resources['parent_queue']
+            )
             # Buscar la cola padre para obtener su id
             query = api.path('/queue/simple').select().where(Key('name') == parent_name)
             existing = list(query)
@@ -265,10 +295,14 @@ def get_parent_queue_limit(gateway: Gateway) -> dict:
     Obtiene los límites actuales de subida y bajada de la cola simple padre ('isp_padre', 'PADRE' o 'total').
     Retorna un diccionario con limit_up y limit_down en Mbps, o None si no tiene límites o no existe.
     """
+    resources = get_gateway_resource_config(gateway)['speed_control']
+    if resources['simple_queue_structure'] != 'parented':
+        raise ValueError('Este gateway utiliza colas simples independientes y no tiene cola padre')
     try:
         with gateway_pool.connect_to(gateway) as api:
             # Buscar cola llamada 'isp_padre'
-            query = api.path('/queue/simple').select().where(Key('name') == 'isp_padre')
+            configured_parent = resources['parent_queue']
+            query = api.path('/queue/simple').select().where(Key('name') == configured_parent)
             existing = list(query)
             
             if not existing:
@@ -315,11 +349,16 @@ def sync_gateway_parent_queue(gateway: Gateway, old_parent_name: str | None = No
     Crea o actualiza la cola simple padre asociada a este router en MikroTik.
     Soporta el renombrado de la cola si cambia de nombre para evitar duplicar recursos.
     """
-    if not gateway.speed_control or gateway.speed_control_type != 'simple_queues':
+    resources = get_gateway_resource_config(gateway)['speed_control']
+    if (
+        not gateway.speed_control
+        or gateway.speed_control_type != 'simple_queues'
+        or resources['simple_queue_structure'] != 'parented'
+    ):
         return
 
     # Si parent_queue no está configurada, usar el default isp_padre
-    parent_name = get_clean_parent_name(gateway.parent_queue)
+    parent_name = resources['parent_queue']
     limit_up = gateway.bandwidth_up or 0
     limit_down = gateway.bandwidth_down or 0
     max_limit = f"{limit_up}M/{limit_down}M" if (limit_up > 0 or limit_down > 0) else "0/0"
@@ -353,3 +392,37 @@ def sync_gateway_parent_queue(gateway: Gateway, old_parent_name: str | None = No
     except Exception as e:
         logger.error(f"Error al sincronizar cola padre para el router {gateway.name}: {e}")
         raise e
+
+
+def apply_simple_queue_structure(gateway: Gateway, client_ips: list[str]) -> None:
+    """Valida Queue Types y aplica padre/independencia a las colas de clientes existentes."""
+    if gateway.speed_control_type != 'simple_queues':
+        return
+
+    resources = get_gateway_resource_config(gateway)['speed_control']
+    managed_targets = {f'{ip}/32' for ip in client_ips}
+    try:
+        with gateway_pool.connect_to(gateway) as api:
+            validate_simple_queue_types(api, resources)
+            parent_name = None
+            if resources['simple_queue_structure'] == 'parented':
+                parent_name = get_or_create_parent_queue(api, resources['parent_queue'])
+                if not parent_name or parent_name == 'none':
+                    raise ValueError('No se pudo crear o localizar la cola padre')
+
+            queue_value = (
+                f"{resources['simple_queue_upload_type']}/"
+                f"{resources['simple_queue_download_type']}"
+            )
+            for entry in list(api.path('/queue/simple')):
+                if entry.get('target') not in managed_targets or not entry.get('.id'):
+                    continue
+                params = {
+                    '.id': entry['.id'],
+                    'queue': queue_value,
+                    'parent': parent_name if parent_name else 'none',
+                }
+                list(api('/queue/simple/set', **params))
+    except Exception as exc:
+        logger.error('No se pudo aplicar la estructura de colas en %s: %s', gateway.name, exc)
+        raise

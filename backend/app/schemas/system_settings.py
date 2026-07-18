@@ -201,21 +201,15 @@ class SuspensionSettingsRead(BaseModel):
     suspension_reasons: list[str]
 
 
-# ── Catálogos (métodos de pago, fechas de corte, colas padre, address lists) ─
+# ── Catálogos generales ────────────────────────────────────────────────────
 class CatalogSettings(BaseModel):
     payment_methods: list[dict] | None = None
     cutoff_dates: list[int] | None = None
-    parent_queues: list[str] | None = None
-    address_lists: list[str] | None = None
-    suspend_lists: list[str] | None = None
 
 
 class CatalogSettingsRead(BaseModel):
     payment_methods: list[dict]
     cutoff_dates: list[int]
-    parent_queues: list[str]
-    address_lists: list[str]
-    suspend_lists: list[str]
 
 
 # ── Agregado para GET /settings/system ──────────────────────────────────────

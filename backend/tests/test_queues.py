@@ -255,6 +255,105 @@ def test_update_gateway_operating_settings(mock_apply, client: TestClient):
     }
 
 
+@patch("app.services.mikrotik.gateway_configuration.migrate_gateway_resource_names")
+@patch("app.api.gateways_api.apply_gateway_configuration")
+def test_update_gateway_accepts_custom_resource_names(mock_apply, mock_migrate, client: TestClient):
+    login = client.post(
+        "/api/auth/login",
+        json={"email": "admin@test.com", "password": "adminpass123"},
+    )
+    token = login.json()["access_token"]
+    db = TestingSessionLocal()
+    gateway_id = str(db.query(Gateway).first().id)
+    db.close()
+
+    resources = {
+        "security": {"suspend_list": "bloqueados_norte"},
+        "traffic": {},
+        "speed_control": {
+            "simple_queue_structure": "parented",
+            "parent_queue": "principal_norte",
+            "simple_queue_upload_type": "default-small",
+            "simple_queue_download_type": "default-small",
+            "client_address_list": "abonados_norte",
+            "client_queue_name_template": "NMS-{client_name}",
+            "dhcp_comment_template": "{client_name} / {plan_name}",
+            "pcq_upload_type": "pcq_up_norte",
+            "pcq_download_type": "pcq_down_norte",
+            "upload_packet_mark": "mark_up_norte",
+            "download_packet_mark": "mark_down_norte",
+            "upload_queue_tree": "tree_up_norte",
+            "download_queue_tree": "tree_down_norte",
+            "upload_mangle_comment": "NMS subida norte",
+            "download_mangle_comment": "NMS descarga norte",
+        },
+    }
+    response = client.put(
+        f"/api/gateways/{gateway_id}/settings",
+        headers={"Authorization": f"Bearer {token}"},
+        json={
+            "security_mode": "none_api",
+            "traffic_accounting": "traffic_flow",
+            "speed_control_type": "pcq_addresslist",
+            "resource_config": resources,
+        },
+    )
+
+    assert response.status_code == 200
+    assert response.json()["resource_config"] == resources
+    assert mock_apply.call_args.args[1] == {
+        "security_mode", "traffic_accounting", "speed_control_type", "resource_config"
+    }
+    mock_migrate.assert_called_once()
+    db = TestingSessionLocal()
+    gateway = db.query(Gateway).first()
+    assert gateway.parent_queue == "principal_norte"
+    assert gateway.address_list == "abonados_norte"
+    assert gateway.suspend_list == "bloqueados_norte"
+    db.close()
+
+
+@patch("app.services.mikrotik.queue.sync_gateway_parent_queue")
+@patch("app.services.mikrotik.queue.apply_simple_queue_structure")
+@patch("app.services.mikrotik.gateway_configuration.migrate_gateway_resource_names")
+@patch("app.api.gateways_api.apply_gateway_configuration")
+def test_standalone_settings_do_not_sync_parent_queue(
+    mock_apply, mock_migrate, mock_apply_structure, mock_sync_parent, client: TestClient
+):
+    login = client.post(
+        "/api/auth/login",
+        json={"email": "admin@test.com", "password": "adminpass123"},
+    )
+    token = login.json()["access_token"]
+    db = TestingSessionLocal()
+    gateway_id = str(db.query(Gateway).first().id)
+    db.close()
+
+    response = client.put(
+        f"/api/gateways/{gateway_id}/settings",
+        headers={"Authorization": f"Bearer {token}"},
+        json={
+            "security_mode": "none_api",
+            "traffic_accounting": "traffic_flow",
+            "speed_control_type": "simple_queues",
+            "resource_config": {
+                "speed_control": {
+                    "simple_queue_structure": "standalone",
+                    "simple_queue_upload_type": "cake",
+                    "simple_queue_download_type": "cake",
+                }
+            },
+        },
+    )
+
+    assert response.status_code == 200
+    assert response.json()["resource_config"]["speed_control"]["simple_queue_structure"] == "standalone"
+    mock_sync_parent.assert_not_called()
+    mock_apply_structure.assert_called_once()
+    mock_migrate.assert_called_once()
+    mock_apply.assert_called_once()
+
+
 @patch("app.api.gateways_api.apply_gateway_configuration")
 def test_update_gateway_operating_settings_accepts_none_accounting(mock_apply, client: TestClient):
     login = client.post(
@@ -643,6 +742,32 @@ def test_get_parent_queue(mock_get_limit, client: TestClient):
     assert data["limit_up"] == 50
     assert data["limit_down"] == 100
     mock_get_limit.assert_called_once()
+
+
+@patch("app.api.gateways_api.get_parent_queue_limit")
+def test_standalone_gateway_rejects_parent_queue_endpoint(mock_get_limit, client: TestClient):
+    login = client.post(
+        "/api/auth/login",
+        json={"email": "admin@test.com", "password": "adminpass123"},
+    )
+    token = login.json()["access_token"]
+    db = TestingSessionLocal()
+    gateway = db.query(Gateway).first()
+    gateway.resource_config = {
+        "speed_control": {"simple_queue_structure": "standalone"}
+    }
+    gateway_id = str(gateway.id)
+    db.commit()
+    db.close()
+
+    response = client.get(
+        f"/api/gateways/{gateway_id}/parent-queue",
+        headers={"Authorization": f"Bearer {token}"},
+    )
+
+    assert response.status_code == 409
+    assert "no tiene cola padre" in response.json()["detail"]
+    mock_get_limit.assert_not_called()
 
 
 @patch("app.api.gateways_api.update_parent_queue_limit")

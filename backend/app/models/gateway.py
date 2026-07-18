@@ -4,7 +4,7 @@ Modelo SQLAlchemy: Gateway (anteriormente Router)
 import uuid
 from datetime import datetime
 
-from sqlalchemy import Boolean, DateTime, Float, ForeignKey, Integer, String, Text, Uuid, func
+from sqlalchemy import JSON, Boolean, DateTime, Float, ForeignKey, Integer, String, Text, Uuid, func
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.core.database import Base
@@ -43,6 +43,7 @@ class Gateway(Base):
     settings_configured: Mapped[bool] = mapped_column(
         Boolean, nullable=False, default=False, server_default="false"
     )
+    resource_config: Mapped[dict | None] = mapped_column(JSON, nullable=True)
 
     # Campos de colas y firewall MikroTik
     parent_queue: Mapped[str | None] = mapped_column(String(100), nullable=True)

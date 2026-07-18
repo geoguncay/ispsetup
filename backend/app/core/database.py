@@ -86,6 +86,7 @@ def run_migrations(bind_engine) -> None:
             conn.execute(text("ALTER TABLE gateways ADD COLUMN IF NOT EXISTS security_mode VARCHAR(30) NOT NULL DEFAULT 'none_api';"))
             conn.execute(text("ALTER TABLE gateways ADD COLUMN IF NOT EXISTS traffic_accounting VARCHAR(30) NOT NULL DEFAULT 'traffic_flow';"))
             conn.execute(text("ALTER TABLE gateways ADD COLUMN IF NOT EXISTS speed_control_type VARCHAR(30) NOT NULL DEFAULT 'simple_queues';"))
+            conn.execute(text("ALTER TABLE gateways ADD COLUMN IF NOT EXISTS resource_config JSONB;"))
             conn.execute(text("""
             DO $$
             BEGIN
@@ -999,17 +1000,6 @@ def run_migrations(bind_engine) -> None:
                 END IF;
             END $$;
             """))
-            conn.execute(text("""
-            DO $$
-            BEGIN
-                IF EXISTS (
-                    SELECT 1 FROM information_schema.columns
-                    WHERE table_name = 'system_settings' AND column_name = 'colas_padre'
-                ) THEN
-                    ALTER TABLE system_settings RENAME COLUMN colas_padre TO parent_queues;
-                END IF;
-            END $$;
-            """))
             conn.execute(text("ALTER TABLE system_settings ADD COLUMN IF NOT EXISTS billing_generation_time VARCHAR(5) NOT NULL DEFAULT '08:00';"))
             conn.execute(text("ALTER TABLE system_settings ADD COLUMN IF NOT EXISTS billing_cycle VARCHAR(20) NOT NULL DEFAULT 'monthly';"))
             conn.execute(text("ALTER TABLE system_settings ADD COLUMN IF NOT EXISTS billing_price_mode VARCHAR(20) NOT NULL DEFAULT 'included';"))
@@ -1035,10 +1025,63 @@ def run_migrations(bind_engine) -> None:
             conn.execute(text("ALTER TABLE system_settings ADD COLUMN IF NOT EXISTS suspension_reasons JSONB;"))
             conn.execute(text("ALTER TABLE system_settings ADD COLUMN IF NOT EXISTS payment_methods JSONB;"))
             conn.execute(text("ALTER TABLE system_settings ADD COLUMN IF NOT EXISTS cutoff_dates JSONB;"))
-            conn.execute(text("ALTER TABLE system_settings ADD COLUMN IF NOT EXISTS parent_queues JSONB;"))
-            conn.execute(text("ALTER TABLE system_settings ADD COLUMN IF NOT EXISTS address_lists JSONB;"))
-            conn.execute(text("ALTER TABLE system_settings ADD COLUMN IF NOT EXISTS suspend_lists JSONB;"))
             conn.execute(text("ALTER TABLE gateways ADD COLUMN IF NOT EXISTS suspend_list VARCHAR(100);"))
+            conn.execute(text("""
+                UPDATE gateways
+                SET resource_config = jsonb_build_object(
+                    'security', jsonb_build_object(
+                        'suspend_list', COALESCE(NULLIF(TRIM(suspend_list), ''), 'isp_suspendidos')
+                    ),
+                    'traffic', '{}'::jsonb,
+                    'speed_control', jsonb_build_object(
+                        'simple_queue_structure', 'parented',
+                        'parent_queue', CASE
+                            WHEN NULLIF(TRIM(parent_queue), '') IS NULL THEN 'isp_padre'
+                            WHEN LEFT(TRIM(parent_queue), 4) = 'isp_' THEN TRIM(parent_queue)
+                            ELSE 'isp_padre_' || TRIM(parent_queue)
+                        END,
+                        'simple_queue_upload_type', 'default-small',
+                        'simple_queue_download_type', 'default-small',
+                        'client_address_list', CASE
+                            WHEN NULLIF(TRIM(address_list), '') IS NULL THEN 'isp_clientes'
+                            WHEN LEFT(TRIM(address_list), 4) = 'isp_' THEN TRIM(address_list)
+                            ELSE 'isp_clientes_' || TRIM(address_list)
+                        END,
+                        'client_queue_name_template', '{client_name}',
+                        'dhcp_comment_template', '{client_name} - {plan_name}',
+                        'pcq_upload_type', 'isp_pcq_upload',
+                        'pcq_download_type', 'isp_pcq_download',
+                        'upload_packet_mark', 'isp_pcq_upload',
+                        'download_packet_mark', 'isp_pcq_download',
+                        'upload_queue_tree', 'isp_pcq_upload',
+                        'download_queue_tree', 'isp_pcq_download',
+                        'upload_mangle_comment', 'ISP NMS PCQ upload',
+                        'download_mangle_comment', 'ISP NMS PCQ download'
+                    )
+                )
+                WHERE resource_config IS NULL;
+            """))
+            conn.execute(text("""
+                UPDATE gateways
+                SET resource_config = jsonb_set(
+                    resource_config,
+                    '{speed_control}',
+                    jsonb_build_object(
+                        'simple_queue_structure', 'parented',
+                        'simple_queue_upload_type', 'default-small',
+                        'simple_queue_download_type', 'default-small'
+                    ) || COALESCE(resource_config->'speed_control', '{}'::jsonb),
+                    true
+                )
+                WHERE resource_config IS NOT NULL;
+            """))
+            conn.execute(text("""
+                ALTER TABLE system_settings
+                    DROP COLUMN IF EXISTS parent_queues,
+                    DROP COLUMN IF EXISTS address_lists,
+                    DROP COLUMN IF EXISTS suspend_lists,
+                    DROP COLUMN IF EXISTS colas_padre;
+            """))
 
             # Renombrar columna router_id → gateway_id en cada tabla relacionada
             conn.execute(text("""
@@ -1935,5 +1978,3 @@ def run_migrations(bind_engine) -> None:
             """))
 
             conn.commit()
-
-

@@ -6,6 +6,7 @@ from librouteros.query import Key
 from app.core.config import settings
 from app.models.gateway import Gateway
 from app.services.mikrotik.address_list import get_clean_list_name, get_suspend_list_name
+from app.services.mikrotik.gateway_resources import get_gateway_resource_config
 from app.services.mikrotik.gateway_pool import gateway_pool
 from app.services.mikrotik.queue import get_clean_parent_name
 
@@ -198,45 +199,56 @@ def _ensure_mangle_rule(api, comment: str, params: dict) -> None:
         list(api('/ip/firewall/mangle/add', comment=comment, **params))
 
 
-def ensure_pcq_parent_rules(api, address_list: str) -> None:
+def ensure_pcq_parent_rules(api, address_list: str, names: dict | None = None) -> None:
     """Verifica tipos PCQ, marcado de paquetes y reglas parentales de Queue Tree."""
+    names = names or {
+        'pcq_upload_type': 'pcq_upload',
+        'pcq_download_type': 'pcq_download',
+        'upload_packet_mark': 'pcq_upload',
+        'download_packet_mark': 'pcq_download',
+        'upload_queue_tree': 'pcq_upload',
+        'download_queue_tree': 'pcq_download',
+        'upload_mangle_comment': 'ISP NMS PCQ upload',
+        'download_mangle_comment': 'ISP NMS PCQ download',
+    }
     _ensure_named_resource(
-        api, '/queue/type', '/queue/type/add', 'isp_pcq_upload',
+        api, '/queue/type', '/queue/type/add', names['pcq_upload_type'],
         {'kind': 'pcq', 'pcq-classifier': 'src-address'},
     )
     _ensure_named_resource(
-        api, '/queue/type', '/queue/type/add', 'isp_pcq_download',
+        api, '/queue/type', '/queue/type/add', names['pcq_download_type'],
         {'kind': 'pcq', 'pcq-classifier': 'dst-address'},
     )
-    _ensure_mangle_rule(api, 'ISP NMS PCQ upload', {
+    _ensure_mangle_rule(api, names['upload_mangle_comment'], {
         'chain': 'forward',
         'src-address-list': address_list,
         'action': 'mark-packet',
-        'new-packet-mark': 'isp_pcq_upload',
+        'new-packet-mark': names['upload_packet_mark'],
         'passthrough': 'no',
         'disabled': 'no',
     })
-    _ensure_mangle_rule(api, 'ISP NMS PCQ download', {
+    _ensure_mangle_rule(api, names['download_mangle_comment'], {
         'chain': 'forward',
         'dst-address-list': address_list,
         'action': 'mark-packet',
-        'new-packet-mark': 'isp_pcq_download',
+        'new-packet-mark': names['download_packet_mark'],
         'passthrough': 'no',
         'disabled': 'no',
     })
     _ensure_named_resource(
-        api, '/queue/tree', '/queue/tree/add', 'isp_pcq_upload',
-        {'parent': 'global', 'packet-mark': 'isp_pcq_upload', 'queue': 'isp_pcq_upload', 'disabled': 'no'},
+        api, '/queue/tree', '/queue/tree/add', names['upload_queue_tree'],
+        {'parent': 'global', 'packet-mark': names['upload_packet_mark'], 'queue': names['pcq_upload_type'], 'disabled': 'no'},
     )
     _ensure_named_resource(
-        api, '/queue/tree', '/queue/tree/add', 'isp_pcq_download',
-        {'parent': 'global', 'packet-mark': 'isp_pcq_download', 'queue': 'isp_pcq_download', 'disabled': 'no'},
+        api, '/queue/tree', '/queue/tree/add', names['download_queue_tree'],
+        {'parent': 'global', 'packet-mark': names['download_packet_mark'], 'queue': names['pcq_download_type'], 'disabled': 'no'},
     )
 
 
 def configure_speed_control(api, gateway: Gateway) -> None:
+    names = get_gateway_resource_config(gateway)['speed_control']
     if gateway.speed_control_type == 'pcq_addresslist':
-        ensure_pcq_parent_rules(api, get_clean_list_name(gateway.address_list))
+        ensure_pcq_parent_rules(api, names['client_address_list'], names)
         return
 
     for comment in ('ISP NMS PCQ upload', 'ISP NMS PCQ download'):
@@ -253,7 +265,7 @@ def configure_speed_control(api, gateway: Gateway) -> None:
 
 def apply_gateway_configuration(gateway: Gateway, changed_fields: set[str]) -> None:
     """Aplica únicamente los modos que cambiaron en la petición de actualización."""
-    configurable = {'security_mode', 'traffic_accounting', 'speed_control_type'}
+    configurable = {'security_mode', 'traffic_accounting', 'speed_control_type', 'resource_config'}
     changes = configurable.intersection(changed_fields)
     if not changes:
         return
@@ -264,12 +276,63 @@ def apply_gateway_configuration(gateway: Gateway, changed_fields: set[str]) -> N
                 configure_security(api, gateway.security_mode)
             if 'traffic_accounting' in changes:
                 configure_traffic_accounting(api, gateway.traffic_accounting)
-            if 'speed_control_type' in changes:
+            if {'speed_control_type', 'resource_config'}.intersection(changes):
                 configure_speed_control(api, gateway)
     except GatewayConfigurationError:
         raise
     except Exception as exc:
         logger.exception('No se pudo configurar el Gateway %s', gateway.name)
+        raise GatewayConfigurationError(str(exc)) from exc
+
+
+def migrate_gateway_resource_names(gateway: Gateway, old_config: dict) -> None:
+    """Renombra recursos administrados y conserva sus entradas al cambiar la configuración."""
+    new_config = get_gateway_resource_config(gateway)
+    old_security = old_config['security']
+    new_security = new_config['security']
+    old_speed = old_config['speed_control']
+    new_speed = new_config['speed_control']
+
+    try:
+        with gateway_pool.connect_to(gateway) as api:
+            list_key = Key('list')
+            for old_name, new_name in (
+                (old_security['suspend_list'], new_security['suspend_list']),
+                (old_speed['client_address_list'], new_speed['client_address_list']),
+            ):
+                if old_name == new_name:
+                    continue
+                for entry in list(api.path('/ip/firewall/address-list').select().where(list_key == old_name)):
+                    list(api('/ip/firewall/address-list/set', **{'.id': entry['.id'], 'list': new_name}))
+
+            for path, set_command, keys in (
+                ('/queue/type', '/queue/type/set', ('pcq_upload_type', 'pcq_download_type')),
+                ('/queue/tree', '/queue/tree/set', ('upload_queue_tree', 'download_queue_tree')),
+            ):
+                for key in keys:
+                    old_name, new_name = old_speed[key], new_speed[key]
+                    if old_name == new_name:
+                        continue
+                    entries = list(api.path(path).select().where(Key('name') == old_name))
+                    for entry in entries:
+                        list(api(set_command, **{'.id': entry['.id'], 'name': new_name}))
+
+            for comment_key, mark_key in (
+                ('upload_mangle_comment', 'upload_packet_mark'),
+                ('download_mangle_comment', 'download_packet_mark'),
+            ):
+                old_comment = old_speed[comment_key]
+                entries = list(
+                    api.path('/ip/firewall/mangle').select().where(Key('comment') == old_comment)
+                )
+                for entry in entries:
+                    list(api('/ip/firewall/mangle/set', **{
+                        '.id': entry['.id'],
+                        'comment': new_speed[comment_key],
+                        'new-packet-mark': new_speed[mark_key],
+                    }))
+    except Exception as exc:
+        logger.exception('No se pudieron migrar nombres de recursos en %s', gateway.name)
         raise GatewayConfigurationError(str(exc)) from exc
 
 
@@ -300,11 +363,15 @@ def cleanup_gateway_configuration(
         'radius_clients': 0,
     }
     targets = {f'{ip}/32' for ip in client_ips}
+    configured_resources = get_gateway_resource_config(gateway)
     managed_lists = {
-        get_clean_list_name(gateway.address_list),
-        get_suspend_list_name(gateway),
+        configured_resources['speed_control']['client_address_list'],
+        configured_resources['security']['suspend_list'],
     }
-    parent_name = get_clean_parent_name(gateway.parent_queue)
+    parent_name = configured_resources['speed_control']['parent_queue']
+    uses_parent_queue = (
+        configured_resources['speed_control']['simple_queue_structure'] == 'parented'
+    )
 
     try:
         with gateway_pool.connect_to(gateway) as api:
@@ -350,7 +417,8 @@ def cleanup_gateway_configuration(
                 api,
                 '/queue/simple',
                 '/queue/simple/remove',
-                lambda entry: entry.get('target') in targets or entry.get('name') == parent_name,
+                lambda entry: entry.get('target') in targets
+                or (uses_parent_queue and entry.get('name') == parent_name),
             )
             summary['address_list_entries'] = _remove_entries(
                 api,
@@ -370,19 +438,28 @@ def cleanup_gateway_configuration(
                 api,
                 '/queue/tree',
                 '/queue/tree/remove',
-                lambda entry: entry.get('name') in ('isp_pcq_upload', 'isp_pcq_download'),
+                lambda entry: entry.get('name') in {
+                    configured_resources['speed_control']['upload_queue_tree'],
+                    configured_resources['speed_control']['download_queue_tree'],
+                },
             )
             summary['pcq_rules'] += _remove_entries(
                 api,
                 '/ip/firewall/mangle',
                 '/ip/firewall/mangle/remove',
-                lambda entry: entry.get('comment') in ('ISP NMS PCQ upload', 'ISP NMS PCQ download'),
+                lambda entry: entry.get('comment') in {
+                    configured_resources['speed_control']['upload_mangle_comment'],
+                    configured_resources['speed_control']['download_mangle_comment'],
+                },
             )
             summary['pcq_rules'] += _remove_entries(
                 api,
                 '/queue/type',
                 '/queue/type/remove',
-                lambda entry: entry.get('name') in ('isp_pcq_upload', 'isp_pcq_download'),
+                lambda entry: entry.get('name') in {
+                    configured_resources['speed_control']['pcq_upload_type'],
+                    configured_resources['speed_control']['pcq_download_type'],
+                },
             )
 
             # Usuarios y perfiles PPPoE registrados desde el NMS.

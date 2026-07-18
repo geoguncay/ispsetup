@@ -87,9 +87,6 @@ export interface PaymentMethodItem {
 export interface CatalogSettings {
   payment_methods: PaymentMethodItem[]
   cutoff_dates: number[]
-  parent_queues: string[]
-  address_lists: string[]
-  suspend_lists: string[]
 }
 
 export interface SystemSettingsRead {
