@@ -18,7 +18,11 @@ from app.models.gateway import Gateway
 from app.models.client import Client
 from app.models.static_ip import StaticIP
 from app.models.traffic_sample import TrafficSample
-from app.workers.traffic import poll_traffic, ensure_partition_exists
+from app.workers.traffic import (
+    calculate_client_deltas,
+    poll_traffic,
+    ensure_partition_exists,
+)
 
 engine_test = create_engine(
     "sqlite://",
@@ -67,6 +71,8 @@ def setup_db(monkeypatch):
     monkeypatch.setattr("app.api.auth.redis_client", make_redis_mock())
     monkeypatch.setattr("app.api.traffic_api.redis_client", make_redis_mock())
     monkeypatch.setattr("app.workers.traffic.redis_client", make_redis_mock())
+    # poll_traffic crea un cliente Redis ligado a su propio event loop.
+    monkeypatch.setattr("redis.asyncio.from_url", lambda *args, **kwargs: make_redis_mock())
 
     Base.metadata.create_all(bind=engine_test)
 
@@ -183,6 +189,10 @@ def test_poll_traffic_task(mock_connect_to):
     assert client_sample.tx_rate == 128000
     assert client_sample.rx_bytes == 600000
     assert client_sample.tx_bytes == 500000
+    # La primera lectura establece la línea base y no atribuye todo el contador
+    # acumulado del MikroTik al período actual.
+    assert client_sample.rx_delta_bytes == 0
+    assert client_sample.tx_delta_bytes == 0
 
     # Debe haber una muestra de la interfaz ether1
     iface_sample = db.query(TrafficSample).filter(TrafficSample.interface_name == "ether1").first()
@@ -216,25 +226,29 @@ def test_get_client_traffic_history_api(client: TestClient):
     db.flush()
     client_id = c.id
 
-    # Sembrar muestras de tráfico para este cliente en diferentes minutos del pasado
+    # Sembrar muestras dentro de la hora calendario actual.
     now = datetime.now(timezone.utc)
     db.add(TrafficSample(
         gateway_id=gateway.id,
         client_id=client_id,
         rx_bytes=1000,
         tx_bytes=500,
+        rx_delta_bytes=1000,
+        tx_delta_bytes=500,
         rx_rate=500000,
         tx_rate=200000,
-        timestamp=now - timedelta(minutes=5)
+        timestamp=now - timedelta(seconds=10)
     ))
     db.add(TrafficSample(
         gateway_id=gateway.id,
         client_id=client_id,
         rx_bytes=2000,
         tx_bytes=1000,
+        rx_delta_bytes=1000,
+        tx_delta_bytes=500,
         rx_rate=600000,
         tx_rate=300000,
-        timestamp=now - timedelta(minutes=1)
+        timestamp=now - timedelta(seconds=5)
     ))
     db.commit()
     db.close()
@@ -249,10 +263,119 @@ def test_get_client_traffic_history_api(client: TestClient):
     data = response.json()
     assert data["client_id"] == str(client_id)
     assert data["range"] == "1h"
-    assert len(data["samples"]) == 2
-    # Orden cronológico
-    assert data["samples"][0]["rx_rate"] == 500000.0
-    assert data["samples"][1]["rx_rate"] == 600000.0
+    assert data["period_mode"] == "calendar"
+    assert len(data["samples"]) >= 1
+    assert data["totals"] == {
+        "download_bytes": 2000,
+        "upload_bytes": 1000,
+        "total_bytes": 3000,
+    }
+    assert data["gaps"]
+    period_start = datetime.fromisoformat(data["start"])
+    period_end = datetime.fromisoformat(data["end"])
+    assert period_start.minute == 0
+    assert period_start.second == 0
+    assert period_end - period_start == timedelta(hours=1)
+
+    rolling_response = client.get(
+        f"/api/traffic/client/{client_id}",
+        params={"range": "1h", "period_mode": "rolling"},
+        headers={"Authorization": f"Bearer {token}"}
+    )
+    assert rolling_response.status_code == 200
+    rolling = rolling_response.json()
+    rolling_start = datetime.fromisoformat(rolling["start"])
+    rolling_end = datetime.fromisoformat(rolling["end"])
+    assert rolling["period_mode"] == "rolling"
+    assert rolling_end - rolling_start == timedelta(hours=1)
+
+
+def test_get_client_traffic_custom_range(client: TestClient):
+    login = client.post(
+        "/api/auth/login",
+        json={"email": "admin@test.com", "password": "adminpass123"},
+    )
+    token = login.json()["access_token"]
+
+    db = TestingSessionLocal()
+    gateway = db.query(Gateway).first()
+    customer = Client(
+        full_name="Cliente Rango",
+        cedula="1724024999",
+        phone="0999999997",
+        address="Quito",
+        gateway_id=gateway.id,
+        connection_type="static",
+        active=True,
+    )
+    db.add(customer)
+    db.flush()
+    timestamp = datetime.now(timezone.utc) - timedelta(days=2)
+    db.add(TrafficSample(
+        gateway_id=gateway.id,
+        client_id=customer.id,
+        rx_bytes=5000,
+        tx_bytes=2000,
+        rx_delta_bytes=1500,
+        tx_delta_bytes=500,
+        rx_rate=1000,
+        tx_rate=500,
+        timestamp=timestamp,
+    ))
+    customer_id = customer.id
+    db.commit()
+    db.close()
+
+    response = client.get(
+        f"/api/traffic/client/{customer_id}",
+        params={
+            "range": "custom",
+            "start": (timestamp - timedelta(hours=1)).isoformat(),
+            "end": (timestamp + timedelta(hours=1)).isoformat(),
+        },
+        headers={"Authorization": f"Bearer {token}"},
+    )
+
+    assert response.status_code == 200
+    data = response.json()
+    assert data["range"] == "custom"
+    assert data["totals"]["total_bytes"] == 2000
+    assert len(data["samples"]) == 1
+
+
+def test_calculate_client_deltas_handles_counter_reset():
+    redis_mock = AsyncMock()
+    redis_mock.get = AsyncMock(side_effect=[
+        '{"rx_bytes": 1000, "tx_bytes": 800, "ts": 1}',
+        '{"rx_bytes": 2000, "tx_bytes": 1500, "ts": 2}',
+    ])
+    redis_mock.setex = AsyncMock(return_value=True)
+    gateway_id = uuid.uuid4()
+    client_id = uuid.uuid4()
+
+    samples = [
+        {
+            "client_id": client_id,
+            "rx_bytes": 1400,
+            "tx_bytes": 1000,
+        },
+        {
+            "client_id": uuid.uuid4(),
+            "rx_bytes": 250,
+            "tx_bytes": 100,
+        },
+    ]
+    enriched = __import__("asyncio").run(
+        calculate_client_deltas(
+            gateway_id, samples, datetime.now(timezone.utc), redis_mock
+        )
+    )
+
+    assert enriched[0]["rx_delta_bytes"] == 400
+    assert enriched[0]["tx_delta_bytes"] == 200
+    # Al reiniciarse el contador, el valor actual es el volumen desde el reinicio.
+    assert enriched[1]["rx_delta_bytes"] == 250
+    assert enriched[1]["tx_delta_bytes"] == 100
 
 
 def test_websocket_traffic_unauthorized(client: TestClient):

@@ -305,12 +305,12 @@ export function InvoiceCreateDialog({
                             type="button"
                             onClick={() => {
                               setClientId(c.id)
-                              setClientSearch(c.name)
+                              setClientSearch(c.full_name)
                               setShowDropdown(false)
                             }}
                             className="w-full text-left px-4 py-2.5 hover:bg-secondary-hover border-b border-border/30 last:border-b-0 flex flex-col text-xs"
                           >
-                            <span className="font-semibold text-foreground">{c.name}</span>
+                            <span className="font-semibold text-foreground">{c.full_name}</span>
                             <span className="text-[10px] text-muted-foreground font-mono">{c.cedula}</span>
                           </button>
                         ))

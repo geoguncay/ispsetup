@@ -54,7 +54,7 @@ export function GatewayDeleteDialog({
 
         <div className="space-y-4 overflow-y-auto p-5">
           <p className="text-sm leading-relaxed text-muted-foreground">
-            Elige por separado qué hacer con la configuración de RouterOS y con la información almacenada en el NMS.
+            Elige por separado qué hacer con la configuración de RouterOS y con la información almacenada en el ISPSETUP.
           </p>
 
           <label className={`block cursor-pointer rounded-xl border p-4 transition-colors ${choice === 'preserve_all' ? 'border-brand-500 bg-brand-500/10' : 'border-border hover:border-border/80'}`}>
@@ -70,7 +70,7 @@ export function GatewayDeleteDialog({
               <div>
                 <span className="block text-sm font-semibold text-foreground">1. Conservar configuración en RouterOS y datos históricos</span>
                 <span className="mt-1 block text-xs leading-relaxed text-muted-foreground">
-                  Solo desactiva el Gateway en el NMS. No modifica el MikroTik ni elimina información.
+                  Solo desactiva el Gateway en el ISPSETUP. No modifica el MikroTik ni elimina información.
                 </span>
               </div>
             </div>
@@ -89,7 +89,7 @@ export function GatewayDeleteDialog({
               <div>
                 <span className="block text-sm font-semibold text-foreground">2. Conservar datos históricos y eliminar configuración en RouterOS</span>
                 <span className="mt-1 block text-xs leading-relaxed text-muted-foreground">
-                  Conserva la información del NMS y limpia listas, colas, PCQ, PPPoE, Radius y Traffic Flow administrados por el sistema.
+                  Conserva la información del ISPSETUP y limpia listas, colas, PCQ, PPPoE, Radius y Traffic Flow administrados por el sistema.
                 </span>
               </div>
             </div>
@@ -115,7 +115,7 @@ export function GatewayDeleteDialog({
               <div>
                 <span className="block text-sm font-semibold text-foreground">4. Eliminar datos históricos y configuración en RouterOS</span>
                 <span className="mt-1 block text-xs leading-relaxed text-muted-foreground">
-                  Limpia el MikroTik y elimina definitivamente toda la información asociada en el NMS.
+                  Limpia el MikroTik y elimina definitivamente toda la información asociada en el ISPSETUP.
                 </span>
               </div>
             </div>

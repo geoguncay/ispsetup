@@ -284,8 +284,8 @@ def test_update_gateway_accepts_custom_resource_names(mock_apply, mock_migrate, 
             "download_packet_mark": "mark_down_norte",
             "upload_queue_tree": "tree_up_norte",
             "download_queue_tree": "tree_down_norte",
-            "upload_mangle_comment": "NMS subida norte",
-            "download_mangle_comment": "NMS descarga norte",
+            "upload_mangle_comment": "ISPSETUP subida norte",
+            "download_mangle_comment": "ISPSETUP descarga norte",
         },
     }
     response = client.put(

@@ -20,6 +20,8 @@ import { ClientFormDialog } from '@/components/ClientFormDialog'
 import { PaymentRegisterDialog } from '@/components/PaymentRegisterDialog'
 import { InvoiceCreateDialog } from '@/components/InvoiceCreateDialog'
 import TrafficChart from '@/components/TrafficChart'
+import TrafficVolumeChart from '@/components/TrafficVolumeChart'
+import { formatVolume } from '@/lib/traffic'
 import { useDateFormat, useTimeFormat } from '@/hooks/useDateFormat'
 import { formatDate, formatTime, toDatetimeLocalValue } from '@/lib/utils'
 
@@ -57,6 +59,13 @@ const TICKET_STATUS_LABELS: Record<string, string> = {
   in_progress: 'En proceso',
   resolved: 'Resuelto',
   closed: 'Cerrado',
+}
+
+const toDateInputValue = (date: Date) => {
+  const year = date.getFullYear()
+  const month = String(date.getMonth() + 1).padStart(2, '0')
+  const day = String(date.getDate()).padStart(2, '0')
+  return `${year}-${month}-${day}`
 }
 
 export function ClientProfilePage() {
@@ -164,7 +173,7 @@ export function ClientProfilePage() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['clients'] })
       navigate('/clients', {
-        state: { toast: { type: 'success', message: `Cliente "${client?.name}" eliminado correctamente.` } }
+        state: { toast: { type: 'success', message: `Cliente "${client?.full_name}" eliminado correctamente.` } }
       })
     },
     onError: (err: any) => {
@@ -280,18 +289,43 @@ export function ClientProfilePage() {
   })
 
   // Estados y Consultas para Tráfico (En vivo / Histórico)
-  const [trafficRange, setTrafficRange] = useState<'live' | '1h' | '24h' | '7d' | '30d'>('live')
+  const [trafficRange, setTrafficRange] = useState<'live' | '1h' | '24h' | '7d' | '30d' | 'custom'>('live')
+  const [trafficPeriodMode, setTrafficPeriodMode] = useState<'calendar' | 'rolling'>('calendar')
   const [liveTraffic, setLiveTraffic] = useState<any[]>([])
+  const [customTrafficStart, setCustomTrafficStart] = useState(() => {
+    const date = new Date()
+    date.setDate(date.getDate() - 7)
+    return toDateInputValue(date)
+  })
+  const [customTrafficEnd, setCustomTrafficEnd] = useState(() => toDateInputValue(new Date()))
 
   const { data: historicalTraffic = null, isLoading: isLoadingHistorical } = useQuery({
-    queryKey: ['client-traffic-historical', id, trafficRange],
+    queryKey: [
+      'client-traffic-historical', id, trafficRange, trafficPeriodMode,
+      customTrafficStart, customTrafficEnd,
+    ],
     queryFn: async () => {
+      const params: Record<string, string> = {
+        range: trafficRange,
+        period_mode: trafficPeriodMode,
+      }
+      if (trafficRange === 'custom') {
+        const start = new Date(`${customTrafficStart}T00:00:00`)
+        const endInclusive = new Date(`${customTrafficEnd}T00:00:00`)
+        endInclusive.setDate(endInclusive.getDate() + 1)
+        params.start = start.toISOString()
+        params.end = endInclusive.toISOString()
+      }
       const { data } = await api.get(`/traffic/client/${id}`, {
-        params: { range: trafficRange }
+        params
       })
       return data
     },
-    enabled: trafficRange !== 'live'
+    enabled: trafficRange !== 'live' && (
+      trafficRange !== 'custom' ||
+      Boolean(customTrafficStart && customTrafficEnd && customTrafficStart <= customTrafficEnd)
+    ),
+    refetchInterval: trafficRange === 'live' ? false : 30_000,
   })
 
   useEffect(() => {
@@ -995,20 +1029,48 @@ export function ClientProfilePage() {
                 <div className="space-y-6 font-sans animate-fade-in">
                   <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 border-b border-border/40 pb-4">
                     <div>
-                      <h3 className="text-sm font-semibold text-foreground">Consumo de Ancho de Banda</h3>
+                      <h3 className="text-sm font-semibold text-foreground">
+                        {trafficRange === 'live' ? 'Tráfico en vivo' : 'Volumen consumido'}
+                      </h3>
                       <p className="text-xs text-muted-foreground mt-0.5">
-                        Monitoreo en tiempo real del tráfico de subida y bajada del cliente.
+                        {trafficRange === 'live'
+                          ? 'Velocidad actual de subida y descarga del cliente.'
+                          : 'Datos descargados y subidos durante el período seleccionado.'}
                       </p>
                     </div>
 
-                    {/* Selector de Rango */}
-                    <div className="flex bg-secondary/30 p-0.5 rounded-lg border border-border/40">
+                    <div className="flex flex-col items-end gap-2">
+                      {trafficRange !== 'live' && trafficRange !== 'custom' && (
+                        <div className="flex bg-secondary/30 p-0.5 rounded-lg border border-border/40">
+                          {[
+                            { id: 'calendar', label: 'Calendario' },
+                            { id: 'rolling', label: 'Ventana móvil' },
+                          ].map((mode) => (
+                            <button
+                              key={mode.id}
+                              type="button"
+                              onClick={() => setTrafficPeriodMode(mode.id as 'calendar' | 'rolling')}
+                              className={`text-[10px] px-2.5 py-1 rounded-md font-semibold transition-all ${
+                                trafficPeriodMode === mode.id
+                                  ? 'bg-primary text-primary-foreground shadow'
+                                  : 'text-muted-foreground hover:text-foreground'
+                              }`}
+                            >
+                              {mode.label}
+                            </button>
+                          ))}
+                        </div>
+                      )}
+
+                      {/* Selector de Rango */}
+                      <div className="flex flex-wrap justify-end bg-secondary/30 p-0.5 rounded-lg border border-border/40">
                       {[
                         { id: 'live', label: 'En Vivo' },
-                        { id: '1h', label: '1 Hora' },
-                        { id: '24h', label: '24 Horas' },
-                        { id: '7d', label: '7 Días' },
-                        { id: '30d', label: '30 Días' },
+                        { id: '1h', label: trafficPeriodMode === 'calendar' ? 'Hora' : 'Última hora' },
+                        { id: '24h', label: trafficPeriodMode === 'calendar' ? 'Día' : '24 Horas' },
+                        { id: '7d', label: trafficPeriodMode === 'calendar' ? 'Semana' : '7 Días' },
+                        { id: '30d', label: trafficPeriodMode === 'calendar' ? 'Mes' : '30 Días' },
+                        { id: 'custom', label: 'Personalizado' },
                       ].map((r) => (
                         <button
                           key={r.id}
@@ -1027,8 +1089,35 @@ export function ClientProfilePage() {
                           {r.label}
                         </button>
                       ))}
+                      </div>
                     </div>
                   </div>
+
+                  {trafficRange === 'custom' && (
+                    <div className="flex flex-wrap items-end gap-3 rounded-xl border border-border/40 bg-secondary/10 p-4">
+                      <label className="space-y-1">
+                        <span className="block text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">Desde</span>
+                        <input
+                          type="date"
+                          value={customTrafficStart}
+                          max={customTrafficEnd}
+                          onChange={(event) => setCustomTrafficStart(event.target.value)}
+                          className="input-field h-9 py-1.5 text-xs"
+                        />
+                      </label>
+                      <label className="space-y-1">
+                        <span className="block text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">Hasta</span>
+                        <input
+                          type="date"
+                          value={customTrafficEnd}
+                          min={customTrafficStart}
+                          onChange={(event) => setCustomTrafficEnd(event.target.value)}
+                          className="input-field h-9 py-1.5 text-xs"
+                        />
+                      </label>
+                      <p className="pb-2 text-[10px] text-muted-foreground">Máximo 366 días. La fecha final se incluye completa.</p>
+                    </div>
+                  )}
 
                   {trafficRange === 'live' ? (
                     <div className="bg-secondary/10 p-5 rounded-xl border border-border/40 min-h-[300px]">
@@ -1046,15 +1135,53 @@ export function ClientProfilePage() {
                       <RefreshCw className="w-5 h-5 animate-spin text-primary" />
                       <p className="text-xs font-medium">Cargando datos históricos...</p>
                     </div>
-                  ) : !historicalTraffic || !historicalTraffic.samples || historicalTraffic.samples.length === 0 ? (
+                  ) : !historicalTraffic || !historicalTraffic.samples || (
+                    historicalTraffic.samples.length === 0 &&
+                    (!historicalTraffic.gaps || historicalTraffic.gaps.length === 0)
+                  ) ? (
                     <div className="bg-secondary/10 p-5 rounded-xl border border-border/40 h-[340px] flex flex-col items-center justify-center text-muted-foreground text-center">
                       <p className="text-sm font-medium">No se encontraron estadísticas de tráfico para el rango seleccionado.</p>
                       <p className="text-xs text-muted-foreground mt-1">El colector podría no tener suficientes datos almacenados.</p>
                     </div>
                   ) : (
-                    <div className="bg-secondary/10 p-5 rounded-xl border border-border/40 min-h-[300px]">
-                      <TrafficChart data={historicalTraffic.samples} range={trafficRange} height={300} />
-                    </div>
+                    <>
+                      <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+                        <div className="rounded-xl border border-cyan-500/20 bg-cyan-500/5 p-4">
+                          <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">Descargado</p>
+                          <p className="mt-1 font-mono text-lg font-bold text-cyan-400">
+                            {formatVolume(historicalTraffic.totals.download_bytes)}
+                          </p>
+                        </div>
+                        <div className="rounded-xl border border-violet-500/20 bg-violet-500/5 p-4">
+                          <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">Subido</p>
+                          <p className="mt-1 font-mono text-lg font-bold text-violet-400">
+                            {formatVolume(historicalTraffic.totals.upload_bytes)}
+                          </p>
+                        </div>
+                        <div className="rounded-xl border border-border/40 bg-secondary/10 p-4">
+                          <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">Consumo total</p>
+                          <p className="mt-1 font-mono text-lg font-bold text-foreground">
+                            {formatVolume(historicalTraffic.totals.total_bytes)}
+                          </p>
+                        </div>
+                      </div>
+                      <div className="bg-secondary/10 p-5 rounded-xl border border-border/40 min-h-[300px]">
+                        <TrafficVolumeChart
+                          data={historicalTraffic.samples}
+                          gaps={historicalTraffic.gaps}
+                          range={trafficRange}
+                          periodStart={historicalTraffic.start}
+                          periodEnd={historicalTraffic.end}
+                          height={300}
+                        />
+                        {historicalTraffic.gaps?.length > 0 && (
+                          <div className="mt-2 flex items-center justify-end gap-1.5 text-[10px] text-amber-400">
+                            <span className="h-2.5 w-4 rounded-sm border border-amber-500/30 bg-amber-500/10" />
+                            Sin datos
+                          </div>
+                        )}
+                      </div>
+                    </>
                   )}
                 </div>
               )}
@@ -1114,7 +1241,7 @@ export function ClientProfilePage() {
                                     <button
                                       onClick={() => setSelectedInvoice({
                                         ...inv,
-                                        client_name: client?.name ?? 'Cliente',
+                                        client_name: client?.full_name ?? 'Cliente',
                                         client_cedula: client?.cedula ?? 'N/A'
                                       })}
                                       className="bg-emerald-600 hover:bg-emerald-700 text-white font-semibold text-[10px] px-2 py-1 rounded cursor-pointer transition-all flex items-center gap-1 w-fit ml-auto"
@@ -1810,7 +1937,7 @@ export function ClientProfilePage() {
               <h3 className="text-lg font-semibold">¿Eliminar cliente definitivamente?</h3>
             </div>
             <p className="text-muted-foreground text-sm mb-4 leading-relaxed">
-              Esta acción es <strong>irreversible</strong> y eliminará al cliente <strong>{client.name}</strong> de la base de datos de manera permanente, junto con todo su historial.
+              Esta acción es <strong>irreversible</strong> y eliminará al cliente <strong>{client.full_name}</strong> de la base de datos de manera permanente, junto con todo su historial.
             </p>
             {deleteError && (
               <div className="flex items-start gap-2 bg-destructive/10 border border-destructive/30 rounded-lg px-3 py-2.5 mb-4">
@@ -1849,7 +1976,7 @@ export function ClientProfilePage() {
               <h3 className="text-lg font-semibold">¿Cancelar la suspensión programada?</h3>
             </div>
             <p className="text-muted-foreground text-sm mb-4 leading-relaxed">
-              El cliente <strong>{client.name}</strong> permanecerá activo, sin una fecha de suspensión pendiente.
+              El cliente <strong>{client.full_name}</strong> permanecerá activo, sin una fecha de suspensión pendiente.
             </p>
             <div className="flex gap-3">
               <button
@@ -1885,7 +2012,7 @@ export function ClientProfilePage() {
               <h3 className="text-lg font-semibold">¿Cancelar la reactivación programada?</h3>
             </div>
             <p className="text-muted-foreground text-sm mb-4 leading-relaxed">
-              El cliente <strong>{client.name}</strong> permanecerá suspendido indefinidamente, sin una fecha de reactivación pendiente.
+              El cliente <strong>{client.full_name}</strong> permanecerá suspendido indefinidamente, sin una fecha de reactivación pendiente.
             </p>
             <div className="flex gap-3">
               <button
@@ -2009,8 +2136,8 @@ export function ClientProfilePage() {
             >
               <p className="text-muted-foreground text-xs leading-relaxed">
                 {suspendUntilMode === 'hasta'
-                  ? <>El servicio de <strong>{client.name}</strong> será suspendido inmediatamente y se reactivará automáticamente en la fecha indicada.</>
-                  : <>El servicio de <strong>{client.name}</strong> será suspendido inmediatamente.</>
+                  ? <>El servicio de <strong>{client.full_name}</strong> será suspendido inmediatamente y se reactivará automáticamente en la fecha indicada.</>
+                  : <>El servicio de <strong>{client.full_name}</strong> será suspendido inmediatamente.</>
                 }
               </p>
 
@@ -2114,7 +2241,7 @@ export function ClientProfilePage() {
               className="p-5 space-y-4"
             >
               <p className="text-muted-foreground text-xs leading-relaxed">
-                El servicio de <strong>{client.name}</strong> permanecerá activo hasta la fecha seleccionada, momento en que se suspenderá automáticamente.
+                El servicio de <strong>{client.full_name}</strong> permanecerá activo hasta la fecha seleccionada, momento en que se suspenderá automáticamente.
               </p>
 
               {/* Fecha de aplazamiento */}
@@ -2208,7 +2335,7 @@ export function ClientProfilePage() {
               className="p-5 space-y-4"
             >
               <p className="text-muted-foreground text-xs leading-relaxed">
-                El servicio de <strong>{client.name}</strong> permanecerá suspendido y se reactivará automáticamente en la fecha indicada.
+                El servicio de <strong>{client.full_name}</strong> permanecerá suspendido y se reactivará automáticamente en la fecha indicada.
               </p>
 
               {/* Fecha de reactivación */}
@@ -2269,7 +2396,7 @@ export function ClientProfilePage() {
         isOpen={manualInvoiceOpen}
         onClose={() => setManualInvoiceOpen(false)}
         preselectedClientId={client.id}
-        preselectedClientName={client.name}
+        preselectedClientName={client.full_name}
         preselectedClientCedula={client.cedula}
         onSuccess={() => {
           refetch()

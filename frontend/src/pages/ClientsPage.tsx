@@ -21,7 +21,7 @@ import { formatDate, formatDateTime } from '@/lib/utils'
 
 interface Client {
   id: string
-  name: string
+  full_name: string
   last_name: string | null
   first_name: string | null
   cedula: string
@@ -441,7 +441,7 @@ export function ClientsPage() {
                       >
                         <Popup>
                           <div className="p-1 space-y-2 text-foreground font-sans min-w-[200px]">
-                            <h4 className="font-bold text-sm text-foreground m-0">{client.name}</h4>
+                            <h4 className="font-bold text-sm text-foreground m-0">{client.full_name}</h4>
                             <p className="text-xs text-muted-foreground m-0">Cédula: {client.cedula}</p>
                             <p className="text-xs text-muted-foreground m-0">Tel: {client.phone}</p>
                             <div className="flex items-center gap-1.5 text-xs mt-1">
@@ -592,7 +592,7 @@ export function ClientsPage() {
                               <Users className="w-4 h-4 text-brand-400" />
                             </div>
                             <span className="font-semibold text-foreground text-sm">
-                              {client.last_name || client.name}
+                              {client.last_name || client.full_name}
                             </span>
                           </div>
                         </td>

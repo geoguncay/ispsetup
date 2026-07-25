@@ -122,7 +122,7 @@ def test_suspend_client_flow(mock_send_notif, mock_toggle_queue, mock_suspend_fw
 
     # Crear cliente activo con plan e IP estática
     c = Client(
-        name="Juan Suspendido",
+        full_name="Juan Suspendido",
         cedula="1724024888",
         phone="0999999999",
         address="Quito",
@@ -187,7 +187,7 @@ def test_reactivate_client_flow(mock_send_notif, mock_toggle_queue, mock_unsuspe
 
     # Crear cliente suspendido con plan suspendido e IP estática y log de suspensión activo
     c = Client(
-        name="Pedro Reactivado",
+        full_name="Pedro Reactivado",
         cedula="1724024888",
         phone="0999999999",
         address="Quito",
@@ -249,7 +249,7 @@ def test_daily_suspension_check_task(mock_send_notif, mock_toggle_queue, mock_su
     plan = db.query(Plan).first()
 
     # 1. Cliente al día (factura pagada) -> No suspender
-    c1 = Client(name="Cliente Al Dia", cedula="1724024888", phone="0991111111", address="Direccion", gateway_id=gateway.id, connection_type="static", active=True)
+    c1 = Client(full_name="Cliente Al Dia", cedula="1724024888", phone="0991111111", address="Direccion", gateway_id=gateway.id, connection_type="static", active=True)
     db.add(c1)
     db.flush()
     db.add(StaticIP(client_id=c1.id, ip="192.168.10.101", gateway_id=gateway.id))
@@ -257,7 +257,7 @@ def test_daily_suspension_check_task(mock_send_notif, mock_toggle_queue, mock_su
     db.add(Invoice(client_id=c1.id, period="06/2026", amount=22.40, due_date=datetime.now() - timedelta(days=10), status="paid"))
 
     # 2. Cliente en mora (factura vencida hace 35 días) -> Suspender
-    c2 = Client(name="Cliente En Mora", cedula="0926079971", phone="0992222222", address="Direccion", gateway_id=gateway.id, connection_type="static", active=True)
+    c2 = Client(full_name="Cliente En Mora", cedula="0926079971", phone="0992222222", address="Direccion", gateway_id=gateway.id, connection_type="static", active=True)
     db.add(c2)
     db.flush()
     db.add(StaticIP(client_id=c2.id, ip="192.168.10.102", gateway_id=gateway.id))
@@ -265,14 +265,14 @@ def test_daily_suspension_check_task(mock_send_notif, mock_toggle_queue, mock_su
     db.add(Invoice(client_id=c2.id, period="05/2026", amount=22.40, due_date=datetime.now() - timedelta(days=35), status="overdue"))
 
     # 3. Cliente sin facturas -> No suspender
-    c3 = Client(name="Cliente Sin Facturas", cedula="1790011674001", phone="0993333333", address="Direccion", gateway_id=gateway.id, connection_type="static", active=True)
+    c3 = Client(full_name="Cliente Sin Facturas", cedula="1790011674001", phone="0993333333", address="Direccion", gateway_id=gateway.id, connection_type="static", active=True)
     db.add(c3)
     db.flush()
     db.add(StaticIP(client_id=c3.id, ip="192.168.10.103", gateway_id=gateway.id))
     db.add(ClientPlan(cliente_id=c3.id, plan_id=plan.id, estado="activo"))
 
     # 4. Cliente con factura pendiente vencida hoy (sin días de gracia configurados) -> Suspender
-    c4 = Client(name="Cliente Nuevo Mora", cedula="1760001550001", phone="0994444444", address="Direccion", gateway_id=gateway.id, connection_type="static", active=True)
+    c4 = Client(full_name="Cliente Nuevo Mora", cedula="1760001550001", phone="0994444444", address="Direccion", gateway_id=gateway.id, connection_type="static", active=True)
     db.add(c4)
     db.flush()
     db.add(StaticIP(client_id=c4.id, ip="192.168.10.104", gateway_id=gateway.id))

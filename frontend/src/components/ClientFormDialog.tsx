@@ -92,7 +92,7 @@ const clientSchema = z.object({
   id: z.string().optional(),
   last_name: z.string().min(2, 'Mínimo 2 caracteres').max(60),
   first_name: z.string().min(2, 'Mínimo 2 caracteres').max(60),
-  name: z.string().optional(),
+  full_name: z.string().optional(),
   document_type: z.enum(['cedula', 'ruc']),
   cedula: z.string(),
   phone: z.string().max(40).optional().or(z.literal('')),
@@ -208,7 +208,7 @@ type ClientFormData = z.infer<typeof clientSchema>
 
 interface FormClient {
   id: string
-  name: string
+  full_name: string
   last_name?: string | null
   first_name?: string | null
   cedula: string
@@ -668,7 +668,7 @@ export function ClientFormDialog({ open, onClose, client, onSuccess }: ClientFor
           id: client.id,
           last_name: client.last_name ?? '',
           first_name: client.first_name ?? '',
-          name: client.name,
+          full_name: client.full_name,
           document_type: client.cedula?.length === 13 ? 'ruc' : 'cedula',
           cedula: client.cedula,
           phone: client.phone,
@@ -725,7 +725,7 @@ export function ClientFormDialog({ open, onClose, client, onSuccess }: ClientFor
           id: undefined,
           last_name: '',
           first_name: '',
-          name: '',
+          full_name: '',
           document_type: 'cedula',
           cedula: '',
           phone: '',
@@ -768,7 +768,7 @@ export function ClientFormDialog({ open, onClose, client, onSuccess }: ClientFor
   const saveMutation = useMutation({
     mutationFn: async (data: ClientFormData) => {
       const payload = { ...data } as any
-      payload.name = `${payload.last_name || ''} ${payload.first_name || ''}`.trim()
+      payload.full_name = `${payload.last_name || ''} ${payload.first_name || ''}`.trim()
       if (!payload.custom_service_ids) {
         payload.custom_service_ids = []
       }

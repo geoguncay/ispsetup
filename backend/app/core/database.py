@@ -86,6 +86,15 @@ def run_migrations(bind_engine) -> None:
             conn.execute(text("ALTER TABLE gateways ADD COLUMN IF NOT EXISTS traffic_accounting VARCHAR(30) NOT NULL DEFAULT 'traffic_flow';"))
             conn.execute(text("ALTER TABLE gateways ADD COLUMN IF NOT EXISTS speed_control_type VARCHAR(30) NOT NULL DEFAULT 'simple_queues';"))
             conn.execute(text("ALTER TABLE gateways ADD COLUMN IF NOT EXISTS resource_config JSONB;"))
+            # Volumen incremental por muestra para reportar consumo real por período.
+            conn.execute(text(
+                "ALTER TABLE traffic_samples "
+                "ADD COLUMN IF NOT EXISTS rx_delta_bytes BIGINT NOT NULL DEFAULT 0;"
+            ))
+            conn.execute(text(
+                "ALTER TABLE traffic_samples "
+                "ADD COLUMN IF NOT EXISTS tx_delta_bytes BIGINT NOT NULL DEFAULT 0;"
+            ))
             conn.execute(text("""
             DO $$
             BEGIN
@@ -1120,7 +1129,9 @@ def run_migrations(bind_engine) -> None:
             conn.execute(text("ALTER TABLE system_settings ADD COLUMN IF NOT EXISTS suspension_reasons JSONB;"))
             conn.execute(text("ALTER TABLE system_settings ADD COLUMN IF NOT EXISTS payment_methods JSONB;"))
             conn.execute(text("ALTER TABLE system_settings ADD COLUMN IF NOT EXISTS cutoff_dates JSONB;"))
+            conn.execute(text("ALTER TABLE system_settings ADD COLUMN IF NOT EXISTS ispsetup_server_ip VARCHAR(255);"))
             conn.execute(text("ALTER TABLE gateways ADD COLUMN IF NOT EXISTS suspend_list VARCHAR(100);"))
+            conn.execute(text("ALTER TABLE gateways ADD COLUMN IF NOT EXISTS radius_secret_encrypted TEXT;"))
             # Corrige bases donde resource_config quedó como `json` (creado por
             # Base.metadata.create_all antes de que este ADD COLUMN JSONB pudiera aplicarse);
             # las UPDATE de abajo usan jsonb_set/jsonb_build_object y requieren jsonb real.

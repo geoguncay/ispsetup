@@ -22,7 +22,30 @@ class TrafficDataPoint(BaseModel):
     tx_bytes: int
 
 
+class TrafficVolumePoint(BaseModel):
+    timestamp: datetime
+    download_bytes: int
+    upload_bytes: int
+    total_bytes: int
+
+
+class TrafficVolumeTotals(BaseModel):
+    download_bytes: int
+    upload_bytes: int
+    total_bytes: int
+
+
+class TrafficGap(BaseModel):
+    start: datetime
+    end: datetime
+
+
 class ClientTrafficHistory(BaseModel):
     client_id: uuid.UUID
     range: str
-    samples: list[TrafficDataPoint]
+    period_mode: str
+    start: datetime
+    end: datetime
+    totals: TrafficVolumeTotals
+    samples: list[TrafficVolumePoint]
+    gaps: list[TrafficGap]

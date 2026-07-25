@@ -50,6 +50,10 @@ export interface IntegrationSettingsRead {
   pg_api_secret_set: boolean
 }
 
+export interface NmsSettingsRead {
+  ispsetup_server_ip: string | null
+}
+
 export interface BillingSettings {
   billing_generation_time: string
   billing_cycle: string
@@ -97,6 +101,7 @@ export interface SystemSettingsRead {
   security: SecuritySettings
   maintenance: MaintenanceSettings
   integrations: IntegrationSettingsRead
+  ispsetup: NmsSettingsRead
   billing: BillingSettings
   suspension: SuspensionSettings
   catalogs: CatalogSettings
@@ -182,6 +187,11 @@ export interface IntegrationSettingsWrite {
 export async function updateIntegrations(payload: IntegrationSettingsWrite) {
   const { data } = await api.put('/settings/system/integrations', payload)
   return data as IntegrationSettingsRead
+}
+
+export async function updateNms(payload: Partial<NmsSettingsRead>) {
+  const { data } = await api.put('/settings/system/ispsetup', payload)
+  return data as NmsSettingsRead
 }
 
 export async function updateBilling(payload: Partial<BillingSettings>) {

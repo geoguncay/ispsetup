@@ -133,6 +133,17 @@ class IntegrationSettingsRead(BaseModel):
     pg_api_secret_set: bool
 
 
+# ── ISPSETUP / RADIUS ─────────────────────────────────────────────────────────────
+class NmsSettings(BaseModel):
+    ispsetup_server_ip: str | None = Field(default=None, max_length=255)
+
+
+class NmsSettingsRead(BaseModel):
+    model_config = {"from_attributes": True}
+
+    ispsetup_server_ip: str | None
+
+
 # ── Facturación (migrado desde localStorage isp_billing_*) ────────────────
 class BillingSettings(BaseModel):
     billing_generation_time: str | None = Field(default=None, max_length=5)
@@ -222,6 +233,7 @@ class SystemSettingsRead(BaseModel):
     security: SecuritySettingsRead
     maintenance: MaintenanceSettingsRead
     integrations: IntegrationSettingsRead
+    ispsetup: NmsSettingsRead
     billing: BillingSettingsRead
     suspension: SuspensionSettingsRead
     catalogs: CatalogSettingsRead

@@ -10,14 +10,14 @@ from app.services.mikrotik.gateway_configuration import (
 )
 
 
-def test_accounting_v6_uses_only_nms_ip(monkeypatch):
+def test_accounting_v6_uses_only_ip(monkeypatch):
     api = MagicMock()
     api.side_effect = lambda command, **_: (
         [{"version": "6.49.17"}] if command == "/system/resource/print" else []
     )
     monkeypatch.setattr(
-        "app.services.mikrotik.gateway_configuration.settings.NMS_SERVER_IP",
-        "10.20.30.40",
+        "app.services.mikrotik.gateway_configuration._get_ispsetup_ip",
+        lambda: "10.20.30.40",
     )
 
     configure_traffic_accounting(api, "accounting_v6")
@@ -37,8 +37,8 @@ def test_traffic_flow_does_not_call_removed_accounting_menu_on_routeros_7(monkey
     )
     api.path.return_value.select.return_value.where.return_value = []
     monkeypatch.setattr(
-        "app.services.mikrotik.gateway_configuration.settings.NMS_SERVER_IP",
-        "10.20.30.40",
+        "app.services.mikrotik.gateway_configuration._get_ispsetup_ip",
+        lambda: "10.20.30.40",
     )
 
     configure_traffic_accounting(api, "traffic_flow")
@@ -49,7 +49,7 @@ def test_traffic_flow_does_not_call_removed_accounting_menu_on_routeros_7(monkey
     api.assert_any_call("/ip/traffic-flow/set", enabled="yes")
 
 
-def test_queue_accounting_disables_traffic_flow_without_nms_ip(monkeypatch):
+def test_queue_accounting_disables_traffic_flow_without_ip(monkeypatch):
     api = MagicMock()
     api.side_effect = lambda command, **_: (
         [{"version": "7.20.1"}] if command == "/system/resource/print" else []
@@ -61,7 +61,7 @@ def test_queue_accounting_disables_traffic_flow_without_nms_ip(monkeypatch):
     assert "/ip/traffic-flow/target/set" not in [call.args[0] for call in api.call_args_list]
 
 
-def test_none_disables_traffic_flow_without_nms_ip(monkeypatch):
+def test_none_disables_traffic_flow_without_ip(monkeypatch):
     api = MagicMock()
     api.side_effect = lambda command, **_: (
         [{"version": "6.49.17"}] if command == "/system/resource/print" else []
@@ -79,15 +79,15 @@ def test_accounting_v6_is_rejected_on_routeros_7(monkeypatch):
         [{"version": "7.20.1"}] if command == "/system/resource/print" else []
     )
     monkeypatch.setattr(
-        "app.services.mikrotik.gateway_configuration.settings.NMS_SERVER_IP",
-        "10.20.30.40",
+        "app.services.mikrotik.gateway_configuration._get_ispsetup_ip",
+        lambda: "10.20.30.40",
     )
 
     with pytest.raises(GatewayConfigurationError, match="RouterOS 6"):
         configure_traffic_accounting(api, "accounting_v6")
 
 
-def test_cleanup_removes_only_identified_nms_resources(monkeypatch):
+def test_cleanup_removes_only_identified_resources(monkeypatch):
     api = MagicMock()
     path_entries = {
         "/ip/hotspot/profile": [],
@@ -121,8 +121,8 @@ def test_cleanup_removes_only_identified_nms_resources(monkeypatch):
         MagicMock(return_value=connection),
     )
     monkeypatch.setattr(
-        "app.services.mikrotik.gateway_configuration.settings.NMS_SERVER_IP",
-        "10.20.30.40",
+        "app.services.mikrotik.gateway_configuration._get_ispsetup_ip",
+        lambda: "10.20.30.40",
     )
     gateway = SimpleNamespace(
         name="Gateway Test",

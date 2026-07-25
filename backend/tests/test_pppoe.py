@@ -300,7 +300,7 @@ def test_client_pppoe_flow_in_api(mock_connect_to, client: TestClient):
         "/api/clients",
         headers={"Authorization": f"Bearer {token}"},
         json={
-            "name": "Esteban Quito",
+            "full_name": "Esteban Quito",
             "cedula": "1724024888",
             "phone": "0999999999",
             "address": "Quito",
@@ -313,7 +313,7 @@ def test_client_pppoe_flow_in_api(mock_connect_to, client: TestClient):
     )
     assert response.status_code == 201
     data = response.json()
-    assert data["name"] == "Esteban Quito"
+    assert data["full_name"] == "Esteban Quito"
     assert data["pppoe_secret"]["ppp_username"] == "esteban_ppp"
     assert data["pppoe_secret"]["ppp_password"] == "estebanpass"
 

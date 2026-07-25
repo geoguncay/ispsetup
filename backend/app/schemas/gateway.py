@@ -135,6 +135,7 @@ class GatewaySettingsUpdate(BaseModel):
     traffic_accounting: TrafficAccounting
     speed_control_type: SpeedControlType
     resource_config: GatewayResourceConfig | None = None
+    radius_secret: str | None = Field(default=None, max_length=255, description="Deje vacío para conservar el secreto actual")
 
 
 class GatewayRead(BaseModel):
@@ -159,6 +160,7 @@ class GatewayRead(BaseModel):
     speed_control_type: SpeedControlType
     settings_configured: bool
     resource_config: GatewayResourceConfig | None = None
+    radius_secret_set: bool = False
 
     # Nuevos campos de configuración de MikroTik y ancho de banda
     parent_queue: str | None

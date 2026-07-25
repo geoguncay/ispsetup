@@ -3,7 +3,7 @@ import { createPortal } from 'react-dom'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
-import { Loader2, Settings2, X } from 'lucide-react'
+import { Loader2, Settings2, X, AlertTriangle } from 'lucide-react'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 
 import api from '@/services/api'
@@ -22,6 +22,7 @@ const resourceTemplate = namedResource.refine((value) => {
 }, 'Solo se permiten {client_name}, {plan_name} e {ip}')
 const settingsSchema = z.object({
   security_mode: z.enum(['none_api', 'ppp_api', 'hotspot_api', 'ppp_radius', 'hotspot_radius']),
+  radius_secret: z.string().trim().max(255).optional(),
   traffic_accounting: z.enum(['traffic_flow', 'accounting_v6', 'queue_accounting', 'none']),
   speed_control_type: z.enum(['pcq_addresslist', 'simple_queues', 'dhcp_lease_dynamic', 'none']),
   resource_config: z.object({
@@ -78,6 +79,7 @@ interface GatewayServicesDialogProps {
     id: string
     name: string
     security_mode?: GatewaySettingsForm['security_mode']
+    radius_secret_set?: boolean
     traffic_accounting?: GatewaySettingsForm['traffic_accounting']
     speed_control_type?: GatewaySettingsForm['speed_control_type']
     resource_config?: GatewaySettingsForm['resource_config'] | null
@@ -114,6 +116,7 @@ export function GatewayServicesDialog({ open, onClose, gateway, onSuccess }: Gat
     resolver: zodResolver(settingsSchema),
     defaultValues: {
       security_mode: 'none_api',
+      radius_secret: '',
       traffic_accounting: 'traffic_flow',
       speed_control_type: 'simple_queues',
       resource_config: DEFAULT_RESOURCES,
@@ -124,6 +127,7 @@ export function GatewayServicesDialog({ open, onClose, gateway, onSuccess }: Gat
     if (open) {
       reset({
         security_mode: gateway.security_mode ?? 'none_api',
+        radius_secret: '',
         traffic_accounting: gateway.traffic_accounting ?? 'traffic_flow',
         speed_control_type: gateway.speed_control_type ?? 'simple_queues',
         resource_config: resourcesFor(gateway),
@@ -143,6 +147,8 @@ export function GatewayServicesDialog({ open, onClose, gateway, onSuccess }: Gat
 
   if (!open) return null
 
+  const securityMode = watch('security_mode')
+  const usesRadius = securityMode === 'ppp_radius' || securityMode === 'hotspot_radius'
   const speedMode = watch('speed_control_type')
   const simpleQueueStructure = watch('resource_config.speed_control.simple_queue_structure')
   const errorDetail = (saveMutation.error as { response?: { data?: { detail?: string } } } | null)
@@ -182,6 +188,35 @@ export function GatewayServicesDialog({ open, onClose, gateway, onSuccess }: Gat
                   <option value="hotspot_radius">Hotspot / Accounting Radius</option>
                 </select>
               </div>
+
+              {usesRadius && (
+                <div>
+                  <label className="mb-1.5 block text-xs font-medium text-foreground">
+                    Secreto RADIUS {gateway.radius_secret_set && <span className="text-emerald-400 normal-case">(configurado)</span>}
+                  </label>
+                  <input
+                    {...register('radius_secret')}
+                    type="password"
+                    className="input-field font-mono"
+                    placeholder={gateway.radius_secret_set ? '••••••••' : ''}
+                  />
+                  <p className="mt-1 text-[11px] text-muted-foreground">
+                    Propio de este Gateway; deje en blanco para mantener el secreto actual. Debe coincidir
+                    con el configurado en el servidor RADIUS (contenedor freeradius).
+                  </p>
+                </div>
+              )}
+              {securityMode === 'hotspot_radius' && (
+                <div className="flex items-start gap-2 rounded-lg border border-amber-500/30 bg-amber-500/10 p-3 text-xs text-amber-400">
+                  <AlertTriangle className="h-4 w-4 flex-shrink-0 mt-0.5" />
+                  <span>
+                    El servidor RADIUS de esta plataforma solo procesa Accounting. Hotspot no tiene
+                    autenticación local gestionada aquí, así que este modo requiere que la autenticación
+                    de usuarios Hotspot ya esté resuelta por otro medio, o los clientes no podrán conectarse.
+                  </span>
+                </div>
+              )}
+
               {input('resource_config.security.suspend_list', 'Lista de clientes suspendidos')}
               {fieldError(errors.resource_config?.security?.suspend_list?.message)}
             </section>

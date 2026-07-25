@@ -1,9 +1,11 @@
 """Aplica los modos operativos de un Gateway en RouterOS de forma idempotente."""
 import logging
+import time
 
 from librouteros.query import Key
 
 from app.core.config import settings
+from app.core.security import decrypt_secret
 from app.models.gateway import Gateway
 from app.services.mikrotik.address_list import get_clean_list_name, get_suspend_list_name
 from app.services.mikrotik.gateway_resources import get_gateway_resource_config
@@ -12,17 +14,51 @@ from app.services.mikrotik.queue import get_clean_parent_name
 
 logger = logging.getLogger(__name__)
 
+_ISPSETUP_IP_TTL = 60  # segundos de vida del caché de ispsetup_server_ip
+_ispsetup_ip_cache: dict = {"value": None, "loaded_at": 0.0}
+
 
 class GatewayConfigurationError(RuntimeError):
     """La configuración solicitada no pudo aplicarse de forma segura."""
 
 
-def _nms_ip() -> str:
-    if not settings.NMS_SERVER_IP:
+def _load_ispsetup_ip_from_db() -> str | None:
+    """Lee SystemSettings.ispsetup_server_ip de la DB. Devuelve None si no está configurado."""
+    from app.core.database import SessionLocal
+    from app.models.system_settings import SystemSettings
+
+    db = SessionLocal()
+    try:
+        cfg = db.query(SystemSettings).first()
+        return cfg.ispsetup_server_ip if cfg else None
+    except Exception:
+        logger.warning("No se pudo leer SystemSettings.ispsetup_server_ip", exc_info=True)
+        return None
+    finally:
+        db.close()
+
+
+def invalidate_ispsetup_cache() -> None:
+    """Fuerza a releer ispsetup_server_ip de la DB en la próxima llamada."""
+    _ispsetup_ip_cache["loaded_at"] = 0.0
+
+
+def _get_ispsetup_ip() -> str | None:
+    """IP del ISPSETUP configurada en Ajustes ▸ Integraciones, o None si no está definida."""
+    now = time.monotonic()
+    if now - _ispsetup_ip_cache["loaded_at"] > _ISPSETUP_IP_TTL:
+        _ispsetup_ip_cache["value"] = _load_ispsetup_ip_from_db()
+        _ispsetup_ip_cache["loaded_at"] = now
+    return _ispsetup_ip_cache["value"]
+
+
+def _ispsetup_ip() -> str:
+    ip = _get_ispsetup_ip()
+    if not ip:
         raise GatewayConfigurationError(
-            "Configure NMS_SERVER_IP en el backend antes de habilitar Accounting, Traffic Flow o Radius."
+            "Configure la IP del ISPSETUP en Ajustes ▸ Integraciones antes de habilitar Accounting, Traffic Flow o Radius."
         )
-    return settings.NMS_SERVER_IP
+    return ip
 
 
 def _set_hotspot_radius(api, enabled: bool) -> None:
@@ -36,19 +72,19 @@ def _set_hotspot_radius(api, enabled: bool) -> None:
             }))
 
 
-def _set_radius_entry(api, service: str) -> None:
-    nms_ip = _nms_ip()
-    if not settings.RADIUS_SECRET:
+def _set_radius_entry(api, service: str, secret: str | None) -> None:
+    ip = _ispsetup_ip()
+    if not secret:
         raise GatewayConfigurationError(
-            "Configure RADIUS_SECRET en el backend antes de seleccionar un modo Radius."
+            "Configure un secreto RADIUS para este Gateway antes de seleccionar un modo Radius."
         )
 
     existing = list(
-        api.path('/radius').select().where(Key('address') == nms_ip)
+        api.path('/radius').select().where(Key('address') == ip)
     )
     params = {
-        'address': nms_ip,
-        'secret': settings.RADIUS_SECRET,
+        'address': ip,
+        'secret': secret,
         'service': service,
         'disabled': 'no',
     }
@@ -59,17 +95,19 @@ def _set_radius_entry(api, service: str) -> None:
 
 
 def _disable_managed_radius(api) -> None:
-    if not settings.NMS_SERVER_IP:
+    ip = _get_ispsetup_ip()
+    if not ip:
         return
     existing = list(
-        api.path('/radius').select().where(Key('address') == settings.NMS_SERVER_IP)
+        api.path('/radius').select().where(Key('address') == ip)
     )
     for entry in existing:
         list(api('/radius/set', **{'.id': entry['.id'], 'disabled': 'yes'}))
 
 
-def configure_security(api, security_mode: str) -> None:
+def configure_security(api, gateway: Gateway) -> None:
     """Configura autenticación local/API o Radius para PPP y Hotspot."""
+    security_mode = gateway.security_mode
     radius_service = None
     if security_mode == 'ppp_radius':
         radius_service = 'ppp'
@@ -77,7 +115,8 @@ def configure_security(api, security_mode: str) -> None:
         radius_service = 'hotspot'
 
     if radius_service:
-        _set_radius_entry(api, radius_service)
+        secret = decrypt_secret(gateway.radius_secret_encrypted) if gateway.radius_secret_encrypted else None
+        _set_radius_entry(api, radius_service, secret)
     else:
         _disable_managed_radius(api)
 
@@ -91,12 +130,12 @@ def configure_security(api, security_mode: str) -> None:
 
 
 def _ensure_traffic_flow_target(api) -> None:
-    nms_ip = _nms_ip()
+    ip = _ispsetup_ip()
     existing = list(
-        api.path('/ip/traffic-flow/target').select().where(Key('dst-address') == nms_ip)
+        api.path('/ip/traffic-flow/target').select().where(Key('dst-address') == ip)
     )
     params = {
-        'dst-address': nms_ip,
+        'dst-address': ip,
         'port': str(settings.TRAFFIC_FLOW_PORT),
         'version': '9',
         'disabled': 'no',
@@ -108,11 +147,11 @@ def _ensure_traffic_flow_target(api) -> None:
 
 
 def _disable_traffic_flow_target(api) -> None:
-    nms_ip = settings.NMS_SERVER_IP
-    if not nms_ip:
+    ip = _get_ispsetup_ip()
+    if not ip:
         return
     existing = list(
-        api.path('/ip/traffic-flow/target').select().where(Key('dst-address') == nms_ip)
+        api.path('/ip/traffic-flow/target').select().where(Key('dst-address') == ip)
     )
     for entry in existing:
         list(api('/ip/traffic-flow/target/set', **{'.id': entry['.id'], 'disabled': 'yes'}))
@@ -135,7 +174,7 @@ def configure_traffic_accounting(api, traffic_accounting: str) -> None:
     """Activa el modo de accounting seleccionado y desactiva los mecanismos alternativos."""
     routeros_major = _routeros_major_version(api)
     if traffic_accounting == 'accounting_v6':
-        nms_ip = _nms_ip()
+        ip = _ispsetup_ip()
         if routeros_major is not None and routeros_major >= 7:
             raise GatewayConfigurationError(
                 'Accounting solamente está disponible en RouterOS 6.x. Seleccione Traffic Flow para RouterOS 7.x.'
@@ -145,7 +184,7 @@ def configure_traffic_accounting(api, traffic_accounting: str) -> None:
             list(api('/ip/accounting/set', enabled='yes'))
             list(api('/ip/accounting/web-access/set', **{
                 'accessible-via-web': 'yes',
-                'address': f'{nms_ip}/32',
+                'address': f'{ip}/32',
             }))
         except Exception as exc:
             if _missing_accounting_menu(exc):
@@ -169,7 +208,7 @@ def configure_traffic_accounting(api, traffic_accounting: str) -> None:
 
     # /ip/accounting fue retirado de RouterOS 7. Solo intentamos desactivarlo
     # en V6 o cuando el Gateway no informa una versión reconocible.
-    _nms_ip()
+    _ispsetup_ip()
     if routeros_major is None or routeros_major < 7:
         try:
             list(api('/ip/accounting/set', enabled='no'))
@@ -273,7 +312,7 @@ def apply_gateway_configuration(gateway: Gateway, changed_fields: set[str]) -> N
     try:
         with gateway_pool.connect_to(gateway) as api:
             if 'security_mode' in changes:
-                configure_security(api, gateway.security_mode)
+                configure_security(api, gateway)
             if 'traffic_accounting' in changes:
                 configure_traffic_accounting(api, gateway.traffic_accounting)
             if {'speed_control_type', 'resource_config'}.intersection(changes):
@@ -352,7 +391,7 @@ def cleanup_gateway_configuration(
     ppp_usernames: list[str],
     ppp_profile_names: list[str],
 ) -> dict[str, int]:
-    """Elimina de RouterOS únicamente recursos identificables administrados por el NMS."""
+    """Elimina de RouterOS únicamente recursos identificables administrados por el ISPSETUP."""
     summary = {
         'address_list_entries': 0,
         'simple_queues': 0,
@@ -373,33 +412,34 @@ def cleanup_gateway_configuration(
         configured_resources['speed_control']['simple_queue_structure'] == 'parented'
     )
 
+    ispsetup_ip = _get_ispsetup_ip()
     try:
         with gateway_pool.connect_to(gateway) as api:
-            # Autenticación creada por el NMS.
+            # Autenticación creada por el ISPSETUP.
             list(api('/ppp/aaa/set', **{'use-radius': 'no', 'accounting': 'no'}))
             _set_hotspot_radius(api, False)
-            if settings.NMS_SERVER_IP:
+            if ispsetup_ip:
                 summary['radius_clients'] = _remove_entries(
                     api,
                     '/radius',
                     '/radius/remove',
-                    lambda entry: entry.get('address') == settings.NMS_SERVER_IP,
+                    lambda entry: entry.get('address') == ispsetup_ip,
                 )
 
-            # Exportadores de tráfico del NMS. Accounting no existe en RouterOS 7.
+            # Exportadores de tráfico del ISPSETUP. Accounting no existe en RouterOS 7.
             remaining_traffic_targets = list(api.path('/ip/traffic-flow/target'))
-            if settings.NMS_SERVER_IP:
+            if ispsetup_ip:
                 summary['traffic_targets'] = _remove_entries(
                     api,
                     '/ip/traffic-flow/target',
                     '/ip/traffic-flow/target/remove',
-                    lambda entry: entry.get('dst-address') == settings.NMS_SERVER_IP
+                    lambda entry: entry.get('dst-address') == ispsetup_ip
                     and str(entry.get('port', settings.TRAFFIC_FLOW_PORT)) == str(settings.TRAFFIC_FLOW_PORT),
                 )
                 remaining_traffic_targets = [
                     entry for entry in remaining_traffic_targets
                     if not (
-                        entry.get('dst-address') == settings.NMS_SERVER_IP
+                        entry.get('dst-address') == ispsetup_ip
                         and str(entry.get('port', settings.TRAFFIC_FLOW_PORT)) == str(settings.TRAFFIC_FLOW_PORT)
                     )
                 ]
@@ -462,7 +502,7 @@ def cleanup_gateway_configuration(
                 },
             )
 
-            # Usuarios y perfiles PPPoE registrados desde el NMS.
+            # Usuarios y perfiles PPPoE registrados desde el ISPSETUP.
             usernames = set(ppp_usernames)
             profile_names = set(ppp_profile_names)
             _remove_entries(

@@ -44,6 +44,9 @@ class Gateway(Base):
     settings_configured: Mapped[bool] = mapped_column(
         Boolean, nullable=False, default=False, server_default="false"
     )
+    # Secreto RADIUS propio de este gateway (cifrado con Fernet); usado por los
+    # modos ppp_radius/hotspot_radius en lugar de un secreto global compartido.
+    radius_secret_encrypted: Mapped[str | None] = mapped_column(Text, nullable=True)
     # En Postgres se guarda como JSONB (las migraciones en database.py operan sobre
     # resource_config con jsonb_set/jsonb_build_object); JSON simple en otros dialectos (tests SQLite).
     # none_as_null=True es necesario porque SQLAlchemy por defecto serializa Python None
@@ -80,6 +83,10 @@ class Gateway(Base):
         Uuid(native_uuid=False), ForeignKey("sites.id"), nullable=True
     )
     site = relationship("Site", back_populates="gateways")
+
+    @property
+    def radius_secret_set(self) -> bool:
+        return bool(self.radius_secret_encrypted)
 
     # Nodo ZeroTier vinculado (autoriza/consulta estado vía ZeroTier Central).
     zerotier_node_id: Mapped[str | None] = mapped_column(String(20), nullable=True)

@@ -112,7 +112,7 @@ function formatBytes(bytes: number): string {
 
 interface Client {
   id: string
-  name: string
+  full_name: string
   cedula: string
   phone: string
   connection_type: 'static' | 'pppoe'
@@ -809,7 +809,7 @@ export function GatewayProfilePage() {
                           >
                             <Popup>
                               <div className="p-1 space-y-1.5 text-foreground font-sans min-w-[140px]">
-                                <h4 className="font-bold text-xs text-foreground m-0">{client.name}</h4>
+                                <h4 className="font-bold text-xs text-foreground m-0">{client.full_name}</h4>
                                 <p className="text-[10px] text-muted-foreground m-0 font-mono">IP: {client.static_ip?.ip ?? 'PPPoE'}</p>
                                 <div className="flex items-center justify-between border-t border-border/40 pt-1 mt-1">
                                   <span className={`text-[9px] uppercase font-bold px-1.5 py-0.2 rounded-full ${client.active
@@ -1111,7 +1111,7 @@ export function GatewayProfilePage() {
                             className="hover:bg-secondary/40 cursor-pointer transition-colors"
                           >
                             <td>
-                              <div className="font-semibold text-sm text-foreground">{client.name}</div>
+                              <div className="font-semibold text-sm text-foreground">{client.full_name}</div>
                               <div className="text-xs text-muted-foreground capitalize sm:hidden">
                                 {client.connection_type === 'static' ? 'IP Estática' : 'PPPoE'}
                               </div>

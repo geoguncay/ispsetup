@@ -29,6 +29,8 @@ from app.schemas.system_settings import (
     MaintenanceSettingsRead,
     MikrotikApiConfig,
     MikrotikApiConfigRead,
+    NmsSettings,
+    NmsSettingsRead,
     SecuritySettings,
     SecuritySettingsRead,
     SmtpSettings,
@@ -116,6 +118,10 @@ def _to_integrations_read(cfg: SystemSettings) -> IntegrationSettingsRead:
     )
 
 
+def _to_ispsetup_read(cfg: SystemSettings) -> NmsSettingsRead:
+    return NmsSettingsRead(ispsetup_server_ip=cfg.ispsetup_server_ip)
+
+
 def _to_suspension_read(cfg: SystemSettings) -> SuspensionSettingsRead:
     return SuspensionSettingsRead(
         suspension_automatic=cfg.suspension_automatic,
@@ -166,6 +172,7 @@ def get_system_settings(db: DBSession, _: AdminOnly) -> SystemSettingsRead:
         security=_to_security_read(cfg),
         maintenance=MaintenanceSettingsRead.model_validate(cfg),
         integrations=_to_integrations_read(cfg),
+        ispsetup=_to_ispsetup_read(cfg),
         billing=BillingSettingsRead.model_validate(cfg),
         suspension=_to_suspension_read(cfg),
         catalogs=_to_catalogs_read(cfg),
@@ -288,6 +295,26 @@ def update_integration_settings(
         detail=audit_detail("Ajustes de integraciones actualizados", fields_changed=sorted(payload.model_fields_set)),
     )
     return _to_integrations_read(cfg)
+
+
+@router.put("/system/ispsetup", response_model=NmsSettingsRead)
+def update_ispsetup_settings(
+    payload: NmsSettings, db: DBSession, current_user: AdminOnly
+) -> NmsSettingsRead:
+    cfg = _get_or_create(db)
+    for field, value in payload.model_dump(exclude_unset=True).items():
+        setattr(cfg, field, value)
+    db.commit()
+    db.refresh(cfg)
+    from app.services.mikrotik.gateway_configuration import invalidate_ispsetup_cache
+    invalidate_ispsetup_cache()
+    log_event(
+        db, AuditAction.UPDATE_ISPSETUP_SETTINGS,
+        entity_type="SystemSettings",
+        user_id=current_user.id, user_name=current_user.name,
+        detail=audit_detail("Ajustes de ISPSETUP/RADIUS actualizados", fields_changed=sorted(payload.model_fields_set)),
+    )
+    return _to_ispsetup_read(cfg)
 
 
 @router.put("/system/billing", response_model=BillingSettingsRead)

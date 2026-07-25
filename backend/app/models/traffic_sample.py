@@ -27,6 +27,10 @@ class TrafficSample(Base):
     )
     rx_bytes: Mapped[int] = mapped_column(BigInteger, default=0, nullable=False)
     tx_bytes: Mapped[int] = mapped_column(BigInteger, default=0, nullable=False)
+    # Volumen transferido desde la muestra anterior. A diferencia de rx_bytes/tx_bytes,
+    # estos valores no son contadores acumulados del MikroTik y se pueden sumar.
+    rx_delta_bytes: Mapped[int] = mapped_column(BigInteger, default=0, nullable=False)
+    tx_delta_bytes: Mapped[int] = mapped_column(BigInteger, default=0, nullable=False)
     rx_rate: Mapped[int] = mapped_column(BigInteger, default=0, nullable=False)  # bps
     tx_rate: Mapped[int] = mapped_column(BigInteger, default=0, nullable=False)  # bps
     timestamp: Mapped[datetime] = mapped_column(

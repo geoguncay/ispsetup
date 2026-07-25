@@ -106,7 +106,7 @@ def test_generate_monthly_invoices_task():
 
     # Crear cliente activo con plan activo
     c = Client(
-        name="Cliente Activo",
+        full_name="Cliente Activo",
         cedula="1724024888",
         phone="0999999999",
         address="Quito",
@@ -143,7 +143,7 @@ def test_check_overdue_invoices_task():
     plan = db.query(Plan).first()
 
     c = Client(
-        name="Cliente Con Mora",
+        full_name="Cliente Con Mora",
         cedula="1724024888",
         phone="0999999999",
         address="Quito",
@@ -197,7 +197,7 @@ def test_register_payment_and_reactivation_flow(mock_send_notif, mock_toggle_que
 
     # Crear cliente suspendido
     c = Client(
-        name="Cliente Suspendido",
+        full_name="Cliente Suspendido",
         cedula="1724024888",
         phone="0999999999",
         address="Quito",
@@ -288,7 +288,7 @@ def test_get_daily_cash(client: TestClient):
     plan = db.query(Plan).first()
 
     c = Client(
-        name="Cliente Transaccion",
+        full_name="Cliente Transaccion",
         cedula="1724024888",
         phone="0999999999",
         address="Quito",
@@ -352,7 +352,7 @@ def test_generate_monthly_invoices_with_custom_services():
 
     # Crear cliente activo con plan activo y servicio personalizado
     c = Client(
-        name="Cliente Premium",
+        full_name="Cliente Premium",
         cedula="1724024888",
         phone="0999999999",
         address="Quito",
@@ -394,7 +394,7 @@ def test_create_manual_invoice_endpoint(client: TestClient):
     plan = db.query(Plan).first()
 
     c = Client(
-        name="Cliente Facturacion Manual",
+        full_name="Cliente Facturacion Manual",
         cedula="1724024888",
         phone="0999999999",
         address="Quito",
@@ -459,7 +459,7 @@ def test_generate_monthly_invoices_with_non_recurring_custom_services(client: Te
 
     # 3. Crear cliente con plan y ambos servicios personalizados
     c = Client(
-        name="Cliente Con Recurrencia Mix",
+        full_name="Cliente Con Recurrencia Mix",
         cedula="0999888777",
         phone="0987654321",
         address="Guayaquil",

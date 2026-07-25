@@ -69,6 +69,9 @@ class SystemSettings(Base):
     zt_api_token_encrypted: Mapped[str | None] = mapped_column(Text, nullable=True)
     zt_enabled: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False, server_default="false")
 
+    # ISPSETUP / RADIUS (IP alcanzable desde los Gateways para Traffic Flow y Accounting Radius)
+    ispsetup_server_ip: Mapped[str | None] = mapped_column(String(255), nullable=True)
+
     # Facturación 
     billing_generation_time: Mapped[str] = mapped_column(String(5), nullable=False, default="08:00")
     billing_cycle: Mapped[str] = mapped_column(String(20), nullable=False, default="monthly")

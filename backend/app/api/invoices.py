@@ -61,10 +61,10 @@ def create_invoice(
     log_event(
         db, AuditAction.CREATE_INVOICE,
         entity_type="Invoice", entity_id=new_invoice.id,
-        entity_name=f"Factura {new_invoice.period} · {client.name}",
+        entity_name=f"Factura {new_invoice.period} · {client.full_name}",
         user_id=current_user.id, user_name=current_user.name,
         detail=audit_detail(
-            "Factura manual creada", client=client.name, period=new_invoice.period,
+            "Factura manual creada", client=client.full_name, period=new_invoice.period,
             amount=new_invoice.amount, due_date=new_invoice.due_date,
         ),
     )

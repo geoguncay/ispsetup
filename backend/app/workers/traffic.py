@@ -194,6 +194,58 @@ async def calculate_interface_rates(gateway_id: uuid.UUID, interface_samples: li
     return enriched_samples
 
 
+async def calculate_client_deltas(
+    gateway_id: uuid.UUID,
+    client_samples: list[dict],
+    now: datetime,
+    redis_conn,
+) -> list[dict]:
+    """Calcula bytes transferidos desde el tick anterior para cada cliente."""
+    now_ts = now.timestamp()
+
+    for sample in client_samples:
+        cache_key = f"gateway:client_bytes:{gateway_id}:{sample['client_id']}"
+        previous_raw = await redis_conn.get(cache_key)
+        rx_delta = 0
+        tx_delta = 0
+
+        if previous_raw:
+            try:
+                previous = json.loads(previous_raw)
+                # Si el contador disminuye, la cola fue reiniciada o recreada:
+                # el contador actual representa lo transferido desde ese reinicio.
+                rx_delta = (
+                    sample["rx_bytes"] - previous["rx_bytes"]
+                    if sample["rx_bytes"] >= previous["rx_bytes"]
+                    else sample["rx_bytes"]
+                )
+                tx_delta = (
+                    sample["tx_bytes"] - previous["tx_bytes"]
+                    if sample["tx_bytes"] >= previous["tx_bytes"]
+                    else sample["tx_bytes"]
+                )
+            except (KeyError, TypeError, ValueError, json.JSONDecodeError) as exc:
+                logger.warning(
+                    "No se pudo calcular delta de tráfico para cliente %s: %s",
+                    sample["client_id"],
+                    exc,
+                )
+
+        await redis_conn.setex(
+            cache_key,
+            86400,
+            json.dumps({
+                "rx_bytes": sample["rx_bytes"],
+                "tx_bytes": sample["tx_bytes"],
+                "ts": now_ts,
+            }),
+        )
+        sample["rx_delta_bytes"] = max(0, int(rx_delta))
+        sample["tx_delta_bytes"] = max(0, int(tx_delta))
+
+    return client_samples
+
+
 @celery_app.task(name="app.workers.traffic.poll_traffic")
 def poll_traffic():
     """
@@ -272,6 +324,12 @@ def poll_traffic():
                     client_samples, interface_samples = result
                     published_clients += len(client_samples)
 
+                    # Convertir los contadores acumulados de las colas en volumen
+                    # transferido durante este tick.
+                    client_samples = await calculate_client_deltas(
+                        r.id, client_samples, now, local_redis
+                    )
+
                     # Enriquecer interfaces con tasas bps calculadas
                     enriched_ifaces = await calculate_interface_rates(r.id, interface_samples, now, local_redis)
                     published_interfaces += len(enriched_ifaces)
@@ -284,6 +342,8 @@ def poll_traffic():
                             client_id=cs["client_id"],
                             rx_bytes=cs["rx_bytes"],
                             tx_bytes=cs["tx_bytes"],
+                            rx_delta_bytes=cs["rx_delta_bytes"],
+                            tx_delta_bytes=cs["tx_delta_bytes"],
                             rx_rate=cs["rx_rate"],
                             tx_rate=cs["tx_rate"],
                             timestamp=now,
@@ -311,6 +371,8 @@ def poll_traffic():
                                 "name": cs["name"],
                                 "rx_bytes": cs["rx_bytes"],
                                 "tx_bytes": cs["tx_bytes"],
+                                "rx_delta_bytes": cs["rx_delta_bytes"],
+                                "tx_delta_bytes": cs["tx_delta_bytes"],
                                 "rx_rate": cs["rx_rate"],
                                 "tx_rate": cs["tx_rate"],
                             }

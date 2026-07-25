@@ -1657,7 +1657,7 @@ def validate_import_data(
                 seen_cedulas.add(cedula)
                 exists_cedula = db.query(Client).filter(Client.cedula == cedula).first()
                 if exists_cedula:
-                    errors.append(f"La cédula '{cedula}' ya está registrada en el sistema (pertenece a {exists_cedula.name}).")
+                    errors.append(f"La cédula '{cedula}' ya está registrada en el sistema (pertenece a {exists_cedula.full_name}).")
 
         gateway_raw = row.get("gateway", "").strip() if row.get("gateway") else ""
         plan_raw = row.get("plan", "").strip() if row.get("plan") else ""

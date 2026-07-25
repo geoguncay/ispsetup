@@ -286,7 +286,7 @@ export function ClientImportDialog({ isOpen, onClose, onSuccess }: ClientImportD
               ? randomCoordNear(selectedGateway.latitude, selectedGateway.longitude)
               : { latitude: row.latitude ?? null, longitude: row.longitude ?? null }
           return {
-            name: row.nombre || null,
+            full_name: row.nombre || null,
             last_name: row.apellidos,
             first_name: row.nombres,
             cedula: row.cedula,

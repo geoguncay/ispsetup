@@ -94,6 +94,7 @@ class AuditAction:
     UPDATE_CATALOG_SETTINGS = "UPDATE_CATALOG_SETTINGS"
     SYSTEM_BACKUP = "SYSTEM_BACKUP"
     UPDATE_MIKROTIK_API_SETTINGS = "UPDATE_MIKROTIK_API_SETTINGS"
+    UPDATE_ISPSETUP_SETTINGS = "UPDATE_ISPSETUP_SETTINGS"
 
     # ZeroTier
     UPDATE_ZEROTIER_SETTINGS = "UPDATE_ZEROTIER_SETTINGS"
@@ -168,6 +169,7 @@ ACTION_DEFAULTS: dict[str, tuple[str, str, str]] = {
     AuditAction.UPDATE_CATALOG_SETTINGS: ("SystemSettings", "Ajustes de catálogos", "Ajustes de catálogos actualizados"),
     AuditAction.SYSTEM_BACKUP: ("SystemSettings", "Respaldo del sistema", "Respaldo generado"),
     AuditAction.UPDATE_MIKROTIK_API_SETTINGS: ("SystemSettings", "API MikroTik", "Credenciales API MikroTik actualizadas"),
+    AuditAction.UPDATE_ISPSETUP_SETTINGS: ("SystemSettings", "Ajustes de ISPSETUP/RADIUS", "Ajustes de ISPSETUP/RADIUS actualizados"),
     AuditAction.UPDATE_ZEROTIER_SETTINGS: ("SystemSettings", "Ajustes de ZeroTier", "Ajustes de ZeroTier actualizados"),
     AuditAction.AUTHORIZE_ZT_MEMBER: ("ZeroTierMember", "Miembro de ZeroTier", "Miembro de ZeroTier autorizado"),
 }
