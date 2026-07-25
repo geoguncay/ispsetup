@@ -624,7 +624,7 @@ export function GatewayProfilePage() {
 
     // Filtros legados
     if (usesParentQueue && (name === 'isp_padre' || name === 'padre' || name === 'total')) return false
-    if (usesParentQueue && name.startsWith('isp_padre_')) return false
+    if (usesParentQueue && name.startsWith('Clients')) return false
     return true
   })
 

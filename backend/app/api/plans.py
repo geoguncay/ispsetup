@@ -120,14 +120,14 @@ def update_plan(
                 sync_ip_in_address_list(
                     client.gateway,
                     client.static_ip.ip,
-                    client.name,
+                    client.full_name,
                     list_name=addr_list_name
                 )
 
                 # Sincronizar cola en MikroTik con los datos actualizados del plan
                 sync_client_queue(
                     gateway=client.gateway,
-                    client_name=client.name,
+                    client_name=client.full_name,
                     ip=client.static_ip.ip,
                     speed_up=p.speed_up_kbps,
                     speed_down=p.speed_down_kbps,

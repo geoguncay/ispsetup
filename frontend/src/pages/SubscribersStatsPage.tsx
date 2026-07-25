@@ -144,9 +144,13 @@ export function SubscribersStatsPage() {
   return (
     <div className="space-y-6 animate-fade-in">
       {/* Header */}
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 ">
         <div>
-          <h1 className="text-2xl font-bold text-foreground">Estadísticas de Suscriptores</h1>
+          <h1 className="sm:text-2xl font-bold text-foreground flex items-center gap-2">
+            {/* graphing chart */}
+            <BarChart2 className="w-6 h-6 text-cyan-400 animate-pulse" />
+            Estadísticas de Suscriptores
+          </h1>
         </div>
         <button
           onClick={handleRefresh}

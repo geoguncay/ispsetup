@@ -154,7 +154,7 @@ def test_poll_traffic_task(mock_connect_to):
 
     # Crear cliente activo con IP estática en este router
     c = Client(
-        name="Juan Perez",
+        full_name="Juan Perez",
         cedula="1724024888",
         phone="0999999999",
         address="Quito",
@@ -204,7 +204,7 @@ def test_get_client_traffic_history_api(client: TestClient):
     gateway = db.query(Gateway).first()
 
     c = Client(
-        name="Juan Perez",
+        full_name="Juan Perez",
         cedula="1724024888",
         phone="0999999999",
         address="Quito",
@@ -293,7 +293,7 @@ def test_get_router_traffic_history_api(client: TestClient):
 
     # Crear dos clientes
     c1 = Client(
-        name="Juan Perez",
+        full_name="Juan Perez",
         cedula="1724024888",
         phone="0999999999",
         address="Quito",
@@ -302,7 +302,7 @@ def test_get_router_traffic_history_api(client: TestClient):
         active=True
     )
     c2 = Client(
-        name="Maria Gomez",
+        full_name="Maria Gomez",
         cedula="1724024889",
         phone="0999999998",
         address="Quito",

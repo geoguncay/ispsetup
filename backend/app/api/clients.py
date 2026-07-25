@@ -189,7 +189,7 @@ def list_clients(
     if search:
         search_filter = f"%{search}%"
         query = query.filter(
-            (Client.name.ilike(search_filter))
+            (Client.full_name.ilike(search_filter))
             | (Client.cedula.ilike(search_filter))
             | (Client.phone.ilike(search_filter))
         )
@@ -200,8 +200,8 @@ def list_clients(
         sort_column = Client.last_name
     elif sort_by == "first_name":
         sort_column = Client.first_name
-    elif sort_by == "name":
-        sort_column = Client.name
+    elif sort_by == "full_name":
+        sort_column = Client.full_name
     elif sort_by == "cedula":
         sort_column = Client.cedula
     elif sort_by == "email":
@@ -265,7 +265,7 @@ def create_client(payload: ClientCreate, db: DBSession, current_user: AdminOrTec
 
     last_name = (payload.last_name or "").strip()
     first_name = (payload.first_name or "").strip()
-    name = (payload.name or f"{last_name} {first_name}".strip()).strip()
+    name = (payload.full_name or f"{last_name} {first_name}".strip()).strip()
     if not name:
         name = f"{last_name} {first_name}".strip()
 
@@ -360,7 +360,7 @@ def create_client(payload: ClientCreate, db: DBSession, current_user: AdminOrTec
             )
 
     client = Client(
-        name=name,
+        full_name=name,
         last_name=last_name,
         first_name=first_name,
         cedula=payload.cedula,
@@ -432,11 +432,11 @@ def create_client(payload: ClientCreate, db: DBSession, current_user: AdminOrTec
         try:
             p = db.get(Plan, payload.plan_id) if payload.plan_id else None
             addr_list_name = get_clean_list_name(r.address_list or (p.address_list if p else None))
-            sync_ip_in_address_list(r, payload.ip, client.name, list_name=addr_list_name)
+            sync_ip_in_address_list(r, payload.ip, client.full_name, list_name=addr_list_name)
             if p:
                 sync_client_queue(
                     gateway=r,
-                    client_name=client.name,
+                    client_name=client.full_name,
                     ip=payload.ip,
                     speed_up=p.speed_up_kbps,
                     speed_down=p.speed_down_kbps,
@@ -473,7 +473,7 @@ def create_client(payload: ClientCreate, db: DBSession, current_user: AdminOrTec
                 username=payload.ppp_username,
                 password=payload.ppp_password,
                 profile_name=profile.name,
-                client_name=client.name,
+                client_name=client.full_name,
                 disabled=False
             )
         except Exception as e:
@@ -488,7 +488,7 @@ def create_client(payload: ClientCreate, db: DBSession, current_user: AdminOrTec
 
     log_event(
         db, AuditAction.CREATE_CLIENT,
-        entity_type="Client", entity_id=str(client.id), entity_name=client.name,
+        entity_type="Client", entity_id=str(client.id), entity_name=client.full_name,
         user_id=current_user.id, user_name=current_user.name,
         detail=audit_detail(
             "Cliente creado", connection_type=client.connection_type,
@@ -520,12 +520,12 @@ def update_client(
 
     update_data = payload.model_dump(exclude_unset=True)
 
-    if "name" in update_data:
-        client.name = update_data.pop("name")
+    if "full_name" in update_data:
+        client.full_name = update_data.pop("full_name")
     elif "last_name" in update_data or "first_name" in update_data:
         last_name = update_data.get("last_name", client.last_name) or ""
         first_name = update_data.get("first_name", client.first_name) or ""
-        client.name = f"{last_name} {first_name}".strip()
+        client.full_name = f"{last_name} {first_name}".strip()
 
     # Validar cédula única si cambia
     if "cedula" in update_data and update_data["cedula"] != client.cedula:
@@ -632,11 +632,11 @@ def update_client(
                 )
                 p = active_client_plan.plan if active_client_plan else None
                 addr_list_name = get_clean_list_name(new_gateway.address_list or (p.address_list if p else None))
-                sync_ip_in_address_list(new_gateway, ip_val, update_data.get("name", client.name), list_name=addr_list_name)
+                sync_ip_in_address_list(new_gateway, ip_val, update_data.get("full_name", client.full_name), list_name=addr_list_name)
                 if p:
                     sync_client_queue(
                         gateway=new_gateway,
-                        client_name=update_data.get("name", client.name),
+                        client_name=update_data.get("full_name", client.full_name),
                         ip=ip_val,
                         speed_up=p.speed_up_kbps,
                         speed_down=p.speed_down_kbps,
@@ -771,7 +771,7 @@ def update_client(
                     username=user_val,
                     password=pass_val,
                     profile_name=profile.name,
-                    client_name=update_data.get("name", client.name),
+                    client_name=update_data.get("full_name", client.full_name),
                     disabled=False
                 )
             except Exception as e:
@@ -787,7 +787,7 @@ def update_client(
                     username=user_val,
                     password=pass_val,
                     profile_name=profile.name,
-                    client_name=update_data.get("name", client.name),
+                    client_name=update_data.get("full_name", client.full_name),
                     disabled=True
                 )
                 disconnect_pppoe_session(new_gateway, user_val)
@@ -800,7 +800,7 @@ def update_client(
             setattr(client, field, value)
 
     if "last_name" in update_data or "first_name" in update_data:
-        client.name = f"{client.last_name} {client.first_name}".strip()
+        client.full_name = f"{client.last_name} {client.first_name}".strip()
 
     if "custom_service_ids" in update_data:
         if update_data["custom_service_ids"]:
@@ -836,7 +836,7 @@ def update_client(
 
     log_event(
         db, AuditAction.UPDATE_CLIENT,
-        entity_type="Client", entity_id=client.id, entity_name=client.name,
+        entity_type="Client", entity_id=client.id, entity_name=client.full_name,
         user_id=current_user.id, user_name=current_user.name,
         detail=audit_detail(
             "Cliente actualizado",
@@ -875,7 +875,7 @@ def delete_client(client_id: uuid.UUID, db: DBSession, current_user: AdminOrTech
         except Exception as e:
             logger.warning(f"No se pudo remover el secreto PPPoE en MikroTik al borrar cliente: {e}")
 
-    client_name = client.name
+    client_name = client.full_name
     client_detail = {
         "cedula": client.cedula,
         "connection_type": client.connection_type,
@@ -942,10 +942,10 @@ def assign_client_plan(
     if client.connection_type == "static" and client.static_ip:
         try:
             addr_list_name = get_clean_list_name(client.gateway.address_list or plan.address_list)
-            sync_ip_in_address_list(client.gateway, client.static_ip.ip, client.name, list_name=addr_list_name)
+            sync_ip_in_address_list(client.gateway, client.static_ip.ip, client.full_name, list_name=addr_list_name)
             sync_client_queue(
                 gateway=client.gateway,
-                client_name=client.name,
+                client_name=client.full_name,
                 ip=client.static_ip.ip,
                 speed_up=plan.speed_up_kbps,
                 speed_down=plan.speed_down_kbps,
@@ -995,7 +995,7 @@ def assign_client_plan(
                 username=client.pppoe_secret.ppp_username,
                 password=password_dec,
                 profile_name=profile.name,
-                client_name=client.name,
+                client_name=client.full_name,
                 disabled=not client.active
             )
         except Exception as e:
@@ -1017,7 +1017,7 @@ def assign_client_plan(
 
     log_event(
         db, AuditAction.ASSIGN_PLAN,
-        entity_type="Client", entity_id=str(client_id), entity_name=client.name,
+        entity_type="Client", entity_id=str(client_id), entity_name=client.full_name,
         user_id=current_user.id, user_name=current_user.name,
         detail={"plan_name": plan.name, "plan_id": str(plan_id)},
     )
@@ -1045,11 +1045,11 @@ def sync_client_gateway(client_id: uuid.UUID, db: DBSession, current_user: Admin
     try:
         p = active_client_plan.plan if active_client_plan else None
         addr_list_name = get_clean_list_name(client.gateway.address_list or (p.address_list if p else None))
-        sync_ip_in_address_list(client.gateway, client.static_ip.ip, client.name, list_name=addr_list_name)
+        sync_ip_in_address_list(client.gateway, client.static_ip.ip, client.full_name, list_name=addr_list_name)
         if p:
             sync_client_queue(
                 gateway=client.gateway,
-                client_name=client.name,
+                client_name=client.full_name,
                 ip=client.static_ip.ip,
                 speed_up=p.speed_up_kbps,
                 speed_down=p.speed_down_kbps,
@@ -1063,7 +1063,7 @@ def sync_client_gateway(client_id: uuid.UUID, db: DBSession, current_user: Admin
             )
         log_event(
             db, AuditAction.SYNC_CLIENT,
-            entity_type="Client", entity_id=client.id, entity_name=client.name,
+            entity_type="Client", entity_id=client.id, entity_name=client.full_name,
             user_id=current_user.id, user_name=current_user.name,
             detail=audit_detail(
                 "Cliente sincronizado con el gateway",
@@ -1100,7 +1100,7 @@ def toggle_client_queue_endpoint(
         toggle_client_queue(client.gateway, client.static_ip.ip, disabled)
         log_event(
             db, AuditAction.TOGGLE_QUEUE,
-            entity_type="Client", entity_id=str(client_id), entity_name=client.name,
+            entity_type="Client", entity_id=str(client_id), entity_name=client.full_name,
             user_id=current_user.id, user_name=current_user.name,
             detail={"disabled": disabled, "ip": client.static_ip.ip},
         )
@@ -1156,7 +1156,7 @@ def suspend_client(
     # 2. Lógica de MikroTik (si es static y tiene IP, o pppoe con secret)
     if client.connection_type == "static" and client.static_ip:
         try:
-            suspend_ip_in_firewall(client.gateway, client.static_ip.ip, client.name)
+            suspend_ip_in_firewall(client.gateway, client.static_ip.ip, client.full_name)
             toggle_client_queue(client.gateway, client.static_ip.ip, disabled=True)
         except Exception as e:
             db.rollback()
@@ -1173,7 +1173,7 @@ def suspend_client(
                 username=client.pppoe_secret.ppp_username,
                 password=password_dec,
                 profile_name=profile_name,
-                client_name=client.name,
+                client_name=client.full_name,
                 disabled=True
             )
             disconnect_pppoe_session(client.gateway, client.pppoe_secret.ppp_username)
@@ -1197,13 +1197,13 @@ def suspend_client(
 
     # 4. Enviar notificación (no bloqueante en caso de error de red/config de Twilio)
     try:
-        send_suspension_notification(client.name, client.phone, is_suspension=True)
+        send_suspension_notification(client.full_name, client.phone, is_suspension=True)
     except Exception as e:
         logger.warning(f"Error al disparar notificación de suspensión: {e}")
 
     log_event(
         db, AuditAction.SUSPEND_CLIENT,
-        entity_type="Client", entity_id=str(client.id), entity_name=client.name,
+        entity_type="Client", entity_id=str(client.id), entity_name=client.full_name,
         user_id=current_user.id, user_name=current_user.name,
         detail={"reason": reason, "reactivate_at": reactivate_at.isoformat() if reactivate_at else None},
     )
@@ -1264,7 +1264,7 @@ def reactivate_client(
                 username=client.pppoe_secret.ppp_username,
                 password=password_dec,
                 profile_name=profile_name,
-                client_name=client.name,
+                client_name=client.full_name,
                 disabled=False
             )
         except Exception as e:
@@ -1297,13 +1297,13 @@ def reactivate_client(
 
     # 4. Enviar notificación
     try:
-        send_suspension_notification(client.name, client.phone, is_suspension=False)
+        send_suspension_notification(client.full_name, client.phone, is_suspension=False)
     except Exception as e:
         logger.warning(f"Error al disparar notificación de reactivación: {e}")
 
     log_event(
         db, AuditAction.ACTIVATE_CLIENT,
-        entity_type="Client", entity_id=str(client.id), entity_name=client.name,
+        entity_type="Client", entity_id=str(client.id), entity_name=client.full_name,
         user_id=current_user.id, user_name=current_user.name,
     )
 
@@ -1338,7 +1338,7 @@ def defer_client_suspension(
 
     log_event(
         db, AuditAction.SUSPEND_CLIENT,
-        entity_type="Client", entity_id=str(client.id), entity_name=client.name,
+        entity_type="Client", entity_id=str(client.id), entity_name=client.full_name,
         user_id=current_user.id, user_name=current_user.name,
         detail={"reason": reason, "deferred_until": defer_until.isoformat(), "type": "deferral"},
     )
@@ -1365,7 +1365,7 @@ def cancel_deferred_suspension(
 
     log_event(
         db, AuditAction.ACTIVATE_CLIENT,
-        entity_type="Client", entity_id=str(client.id), entity_name=client.name,
+        entity_type="Client", entity_id=str(client.id), entity_name=client.full_name,
         user_id=current_user.id, user_name=current_user.name,
         detail={"type": "cancel_deferral"},
     )
@@ -1399,7 +1399,7 @@ def schedule_reactivation(
 
     log_event(
         db, AuditAction.ACTIVATE_CLIENT,
-        entity_type="Client", entity_id=str(client.id), entity_name=client.name,
+        entity_type="Client", entity_id=str(client.id), entity_name=client.full_name,
         user_id=current_user.id, user_name=current_user.name,
         detail={"type": "schedule_reactivation", "reactivate_at": reactivate_at.isoformat()},
     )
@@ -1425,7 +1425,7 @@ def cancel_scheduled_reactivation(
 
     log_event(
         db, AuditAction.SUSPEND_CLIENT,
-        entity_type="Client", entity_id=str(client.id), entity_name=client.name,
+        entity_type="Client", entity_id=str(client.id), entity_name=client.full_name,
         user_id=current_user.id, user_name=current_user.name,
         detail={"type": "cancel_scheduled_reactivation"},
     )
@@ -1534,7 +1534,7 @@ def create_client_ticket(client_id: uuid.UUID, payload: TicketCreate, db: DBSess
         entity_name=ticket.title,
         user_id=current_user.id, user_name=current_user.name,
         detail=audit_detail(
-            "Ticket de soporte creado", client=client.name,
+            "Ticket de soporte creado", client=client.full_name,
             priority=ticket.priority, status=ticket.status,
         ),
     )
@@ -1854,7 +1854,7 @@ def commit_import_clients(
                         db.flush()
                     
                 client = Client(
-                    name=f"{client_data.last_name} {client_data.first_name}".strip(),
+                    full_name=f"{client_data.last_name} {client_data.first_name}".strip(),
                     last_name=client_data.last_name,
                     first_name=client_data.first_name,
                     cedula=client_data.cedula,
@@ -1922,11 +1922,11 @@ def commit_import_clients(
 
             if client_data.connection_type == "static" and client_data.ip:
                 try:
-                    sync_ip_in_address_list(r, client_data.ip, client.name, list_name=addr_list_name)
+                    sync_ip_in_address_list(r, client_data.ip, client.full_name, list_name=addr_list_name)
                 except Exception as _e:
                     enqueue_sync(db, client.gateway_id, client.id, "add_to_address_list", {
                         "ip": client_data.ip,
-                        "client_name": client.name,
+                        "client_name": client.full_name,
                         "list_name": addr_list_name or "isp_clientes",
                     })
                     _sync_pending = True
@@ -1935,7 +1935,7 @@ def commit_import_clients(
                     try:
                         sync_client_queue(
                             gateway=r,
-                            client_name=client.name,
+                            client_name=client.full_name,
                             ip=client_data.ip,
                             speed_up=p.speed_up_kbps,
                             speed_down=p.speed_down_kbps,
@@ -1949,7 +1949,7 @@ def commit_import_clients(
                         )
                     except Exception as _e:
                         enqueue_sync(db, client.gateway_id, client.id, "add_queue", {
-                            "client_name": client.name,
+                            "client_name": client.full_name,
                             "ip": client_data.ip,
                             "speed_up": p.speed_up_kbps,
                             "speed_down": p.speed_down_kbps,
@@ -1979,14 +1979,14 @@ def commit_import_clients(
                         username=client_data.ppp_username,
                         password=client_data.ppp_password,
                         profile_name=profile.name,
-                        client_name=client.name,
+                        client_name=client.full_name,
                         disabled=False,
                     )
                 except Exception as _e:
                     enqueue_sync(db, client.gateway_id, client.id, "add_pppoe_secret", {
                         "pppoe_secret_id": str(pppoe_sec.id),
                         "profile_name": profile.name,
-                        "client_name": client.name,
+                        "client_name": client.full_name,
                         "disabled": False,
                     })
                     _sync_pending = True
@@ -1996,14 +1996,14 @@ def commit_import_clients(
                 db.commit()
 
             successes.append({
-                "name": client_data.name,
+                "name": client_data.full_name,
                 "cedula": client_data.cedula,
                 "sync_pending": _sync_pending,
             })
         except Exception as e:
             db.rollback()
             failures.append({
-                "name": client_data.name,
+                "name": client_data.full_name,
                 "cedula": client_data.cedula,
                 "error": str(e)
             })

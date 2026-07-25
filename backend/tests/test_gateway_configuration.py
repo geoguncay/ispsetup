@@ -98,17 +98,17 @@ def test_cleanup_removes_only_identified_nms_resources(monkeypatch):
         ],
         "/queue/simple": [
             {".id": "*q1", "target": "192.168.1.10/32", "name": "Cliente"},
-            {".id": "*q2", "target": "0.0.0.0/0", "name": "isp_padre_test"},
+            {".id": "*q2", "target": "0.0.0.0/0", "name": "Clientstest"},
             {".id": "*q3", "target": "192.168.9.9/32", "name": "Ajena"},
         ],
         "/ip/firewall/address-list": [
-            {".id": "*a1", "list": "isp_clientes_test", "address": "192.168.1.10"},
+            {".id": "*a1", "list": "clientstest", "address": "192.168.1.10"},
             {".id": "*a2", "list": "lista_ajena", "address": "192.168.9.9"},
         ],
         "/ip/dhcp-server/lease": [],
-        "/queue/tree": [{".id": "*qt1", "name": "isp_pcq_upload"}],
-        "/ip/firewall/mangle": [{".id": "*m1", "comment": "ISP NMS PCQ upload"}],
-        "/queue/type": [{".id": "*ty1", "name": "isp_pcq_upload"}],
+        "/queue/tree": [{".id": "*qt1", "name": "pcq_upload"}],
+        "/ip/firewall/mangle": [{".id": "*m1", "comment": "PCQ upload"}],
+        "/queue/type": [{".id": "*ty1", "name": "pcq_upload"}],
         "/ppp/active": [{".id": "*pa1", "name": "cliente_ppp"}],
         "/ppp/secret": [{".id": "*ps1", "name": "cliente_ppp"}],
         "/ppp/profile": [{".id": "*pp1", "name": "Plan 20M"}],
@@ -127,7 +127,7 @@ def test_cleanup_removes_only_identified_nms_resources(monkeypatch):
     gateway = SimpleNamespace(
         name="Gateway Test",
         address_list="test",
-        suspend_list="isp_suspendidos_test",
+        suspend_list="suspendidos_test",
         parent_queue="test",
     )
 

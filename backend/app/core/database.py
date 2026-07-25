@@ -1145,7 +1145,7 @@ def run_migrations(bind_engine) -> None:
                 UPDATE gateways
                 SET resource_config = jsonb_build_object(
                     'security', jsonb_build_object(
-                        'suspend_list', COALESCE(NULLIF(TRIM(suspend_list), ''), 'isp_suspendidos')
+                        'suspend_list', COALESCE(NULLIF(TRIM(suspend_list), ''), 'suspendidos')
                     ),
                     'traffic', '{}'::jsonb,
                     'speed_control', jsonb_build_object(
@@ -1153,25 +1153,25 @@ def run_migrations(bind_engine) -> None:
                         'parent_queue', CASE
                             WHEN NULLIF(TRIM(parent_queue), '') IS NULL THEN 'isp_padre'
                             WHEN LEFT(TRIM(parent_queue), 4) = 'isp_' THEN TRIM(parent_queue)
-                            ELSE 'isp_padre_' || TRIM(parent_queue)
+                            ELSE 'Clients' || TRIM(parent_queue)
                         END,
                         'simple_queue_upload_type', 'default-small',
                         'simple_queue_download_type', 'default-small',
                         'client_address_list', CASE
                             WHEN NULLIF(TRIM(address_list), '') IS NULL THEN 'isp_clientes'
                             WHEN LEFT(TRIM(address_list), 4) = 'isp_' THEN TRIM(address_list)
-                            ELSE 'isp_clientes_' || TRIM(address_list)
+                            ELSE 'clients' || TRIM(address_list)
                         END,
                         'client_queue_name_template', '{client_name}',
-                        'dhcp_comment_template', '{client_name} - {plan_name}',
-                        'pcq_upload_type', 'isp_pcq_upload',
-                        'pcq_download_type', 'isp_pcq_download',
-                        'upload_packet_mark', 'isp_pcq_upload',
-                        'download_packet_mark', 'isp_pcq_download',
-                        'upload_queue_tree', 'isp_pcq_upload',
-                        'download_queue_tree', 'isp_pcq_download',
-                        'upload_mangle_comment', 'ISP NMS PCQ upload',
-                        'download_mangle_comment', 'ISP NMS PCQ download'
+                        'dhcp_comment_template', '{plan_name} | {client_name}',
+                        'pcq_upload_type', 'pcq_upload',
+                        'pcq_download_type', 'pcq_download',
+                        'upload_packet_mark', 'pcq_upload',
+                        'download_packet_mark', 'pcq_download',
+                        'upload_queue_tree', 'pcq_upload',
+                        'download_queue_tree', 'pcq_download',
+                        'upload_mangle_comment', 'PCQ upload',
+                        'download_mangle_comment', 'PCQ download'
                     )
                 )
                 WHERE resource_config IS NULL;
@@ -2088,6 +2088,23 @@ def run_migrations(bind_engine) -> None:
                     WHERE table_name = 'clients' AND column_name = 'activo'
                 ) THEN
                     ALTER TABLE clients RENAME COLUMN activo TO active;
+                END IF;
+            END $$;
+            """))
+
+            # Renombra clients.name -> clients.full_name: es el nombre completo derivado
+            # de last_name + first_name; el nombre viejo generaba confusión con esos dos campos.
+            conn.execute(text("""
+            DO $$
+            BEGIN
+                IF EXISTS (
+                    SELECT 1 FROM information_schema.columns
+                    WHERE table_name = 'clients' AND column_name = 'name'
+                ) AND NOT EXISTS (
+                    SELECT 1 FROM information_schema.columns
+                    WHERE table_name = 'clients' AND column_name = 'full_name'
+                ) THEN
+                    ALTER TABLE clients RENAME COLUMN name TO full_name;
                 END IF;
             END $$;
             """))

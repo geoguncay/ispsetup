@@ -4,7 +4,7 @@ from copy import deepcopy
 
 DEFAULT_RESOURCE_CONFIG = {
     "security": {
-        "suspend_list": "isp_suspendidos",
+        "suspend_list": "suspendidos",
     },
     "traffic": {},
     "speed_control": {
@@ -13,16 +13,16 @@ DEFAULT_RESOURCE_CONFIG = {
         "simple_queue_upload_type": "default-small",
         "simple_queue_download_type": "default-small",
         "client_address_list": "isp_clientes",
-        "client_queue_name_template": "{client_name}",
-        "dhcp_comment_template": "{client_name} - {plan_name}",
-        "pcq_upload_type": "isp_pcq_upload",
-        "pcq_download_type": "isp_pcq_download",
-        "upload_packet_mark": "isp_pcq_upload",
-        "download_packet_mark": "isp_pcq_download",
-        "upload_queue_tree": "isp_pcq_upload",
-        "download_queue_tree": "isp_pcq_download",
-        "upload_mangle_comment": "ISP NMS PCQ upload",
-        "download_mangle_comment": "ISP NMS PCQ download",
+        "client_queue_name_template": "{plan_name} |{client_name}",
+        "dhcp_comment_template": "{plan_name} | {client_name}",
+        "pcq_upload_type": "pcq_upload",
+        "pcq_download_type": "pcq_download",
+        "upload_packet_mark": "pcq_upload",
+        "download_packet_mark": "pcq_download",
+        "upload_queue_tree": "pcq_upload",
+        "download_queue_tree": "pcq_download",
+        "upload_mangle_comment": "PCQ upload",
+        "download_mangle_comment": "PCQ download",
     },
 }
 
@@ -43,12 +43,12 @@ def get_gateway_resource_config(gateway) -> dict:
         if getattr(gateway, "parent_queue", None):
             legacy_parent = gateway.parent_queue.strip()
             resolved["speed_control"]["parent_queue"] = (
-                legacy_parent if legacy_parent.startswith("isp_") else f"isp_padre_{legacy_parent}"
+                legacy_parent if legacy_parent.startswith("isp_") else f"Clients{legacy_parent}"
             )
         if getattr(gateway, "address_list", None):
             legacy_list = gateway.address_list.strip()
             resolved["speed_control"]["client_address_list"] = (
-                legacy_list if legacy_list.startswith("isp_") else f"isp_clientes_{legacy_list}"
+                legacy_list if legacy_list.startswith("isp_") else f"clients{legacy_list}"
             )
     return resolved
 

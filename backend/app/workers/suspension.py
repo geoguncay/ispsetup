@@ -81,7 +81,7 @@ def daily_suspension_check():
                 f"vencida el {due.strftime('%Y-%m-%d')} (gracia de {cfg.suspension_delay_days} días cumplida)"
             )
 
-            logger.info(f"Cliente {client.name} ({client.id}) califica para suspensión. Razón: {reason}")
+            logger.info(f"Cliente {client.full_name} ({client.id}) califica para suspensión. Razón: {reason}")
             try:
                 # 1. Desactivar cliente
                 client.active = False
@@ -97,7 +97,7 @@ def daily_suspension_check():
 
                 # 3. Aplicar suspensión en MikroTik (según tipo de conexión)
                 if client.connection_type == "static" and client.static_ip:
-                    suspend_ip_in_firewall(client.gateway, client.static_ip.ip, client.name)
+                    suspend_ip_in_firewall(client.gateway, client.static_ip.ip, client.full_name)
                     toggle_client_queue(client.gateway, client.static_ip.ip, disabled=True)
                 elif client.connection_type == "pppoe" and client.pppoe_secret:
                     password_dec = decrypt_secret(client.pppoe_secret.ppp_password)
@@ -107,7 +107,7 @@ def daily_suspension_check():
                         username=client.pppoe_secret.ppp_username,
                         password=password_dec,
                         profile_name=profile_name,
-                        client_name=client.name,
+                        client_name=client.full_name,
                         disabled=True
                     )
                     disconnect_pppoe_session(client.gateway, client.pppoe_secret.ppp_username)
@@ -125,7 +125,7 @@ def daily_suspension_check():
                 db.commit()
                 log_event(
                     db, AuditAction.SUSPEND_CLIENT,
-                    entity_type="Client", entity_id=client.id, entity_name=client.name,
+                    entity_type="Client", entity_id=client.id, entity_name=client.full_name,
                     detail=audit_detail(
                         "Cliente suspendido automáticamente por mora",
                         reason=reason, source="daily_suspension_check",
@@ -133,18 +133,18 @@ def daily_suspension_check():
                     ),
                 )
                 suspended_count += 1
-                logger.info(f"Cliente {client.name} suspendido exitosamente por el sistema.")
+                logger.info(f"Cliente {client.full_name} suspendido exitosamente por el sistema.")
 
                 # 5. Enviar notificación por Twilio (no bloqueante, respeta el ajuste de notificaciones)
                 if cfg.suspension_notify_suspended:
                     try:
-                        send_suspension_notification(client.name, client.phone, is_suspension=True)
+                        send_suspension_notification(client.full_name, client.phone, is_suspension=True)
                     except Exception as e:
-                        logger.warning(f"Error al enviar notificación de suspensión automática a {client.name}: {e}")
+                        logger.warning(f"Error al enviar notificación de suspensión automática a {client.full_name}: {e}")
 
             except Exception as e:
                 db.rollback()
-                logger.error(f"Error al intentar suspender automáticamente al cliente {client.name}: {e}", exc_info=True)
+                logger.error(f"Error al intentar suspender automáticamente al cliente {client.full_name}: {e}", exc_info=True)
 
         logger.info(f"Tarea de verificación completada. Clientes suspendidos en esta ejecución: {suspended_count}")
 
@@ -190,7 +190,7 @@ def process_scheduled_suspensions():
                     active_plan.estado = "suspendido"
 
                 if client.connection_type == "static" and client.static_ip:
-                    suspend_ip_in_firewall(client.gateway, client.static_ip.ip, client.name)
+                    suspend_ip_in_firewall(client.gateway, client.static_ip.ip, client.full_name)
                     toggle_client_queue(client.gateway, client.static_ip.ip, disabled=True)
                 elif client.connection_type == "pppoe" and client.pppoe_secret:
                     password_dec = decrypt_secret(client.pppoe_secret.ppp_password)
@@ -200,7 +200,7 @@ def process_scheduled_suspensions():
                         username=client.pppoe_secret.ppp_username,
                         password=password_dec,
                         profile_name=profile_name,
-                        client_name=client.name,
+                        client_name=client.full_name,
                         disabled=True
                     )
                     disconnect_pppoe_session(client.gateway, client.pppoe_secret.ppp_username)
@@ -216,23 +216,23 @@ def process_scheduled_suspensions():
                 db.commit()
                 log_event(
                     db, AuditAction.SUSPEND_CLIENT,
-                    entity_type="Client", entity_id=client.id, entity_name=client.name,
+                    entity_type="Client", entity_id=client.id, entity_name=client.full_name,
                     detail=audit_detail(
                         "Suspensión aplazada ejecutada automáticamente",
                         reason=reason, source="scheduled_suspension",
                     ),
                 )
                 suspended_count += 1
-                logger.info(f"Cliente {client.name} suspendido automáticamente por aplazamiento vencido.")
+                logger.info(f"Cliente {client.full_name} suspendido automáticamente por aplazamiento vencido.")
 
                 try:
-                    send_suspension_notification(client.name, client.phone, is_suspension=True)
+                    send_suspension_notification(client.full_name, client.phone, is_suspension=True)
                 except Exception as e:
-                    logger.warning(f"Error al enviar notificación de suspensión aplazada a {client.name}: {e}")
+                    logger.warning(f"Error al enviar notificación de suspensión aplazada a {client.full_name}: {e}")
 
             except Exception as e:
                 db.rollback()
-                logger.error(f"Error al intentar suspender automáticamente al cliente {client.name} (aplazamiento): {e}", exc_info=True)
+                logger.error(f"Error al intentar suspender automáticamente al cliente {client.full_name} (aplazamiento): {e}", exc_info=True)
 
         logger.info(f"Tarea de suspensiones aplazadas completada. Clientes suspendidos: {suspended_count}")
 
@@ -286,7 +286,7 @@ def process_scheduled_reactivations():
                         username=client.pppoe_secret.ppp_username,
                         password=password_dec,
                         profile_name=profile_name,
-                        client_name=client.name,
+                        client_name=client.full_name,
                         disabled=False
                     )
 
@@ -302,23 +302,23 @@ def process_scheduled_reactivations():
                 db.commit()
                 log_event(
                     db, AuditAction.ACTIVATE_CLIENT,
-                    entity_type="Client", entity_id=client.id, entity_name=client.name,
+                    entity_type="Client", entity_id=client.id, entity_name=client.full_name,
                     detail=audit_detail(
                         "Cliente reactivado automáticamente",
                         source="scheduled_reactivation",
                     ),
                 )
                 reactivated_count += 1
-                logger.info(f"Cliente {client.name} reactivado automáticamente por reactivación programada.")
+                logger.info(f"Cliente {client.full_name} reactivado automáticamente por reactivación programada.")
 
                 try:
-                    send_suspension_notification(client.name, client.phone, is_suspension=False)
+                    send_suspension_notification(client.full_name, client.phone, is_suspension=False)
                 except Exception as e:
-                    logger.warning(f"Error al enviar notificación de reactivación automática a {client.name}: {e}")
+                    logger.warning(f"Error al enviar notificación de reactivación automática a {client.full_name}: {e}")
 
             except Exception as e:
                 db.rollback()
-                logger.error(f"Error al intentar reactivar automáticamente al cliente {client.name}: {e}", exc_info=True)
+                logger.error(f"Error al intentar reactivar automáticamente al cliente {client.full_name}: {e}", exc_info=True)
 
         logger.info(f"Tarea de reactivaciones programadas completada. Clientes reactivados: {reactivated_count}")
 

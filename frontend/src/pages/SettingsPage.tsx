@@ -11,7 +11,7 @@ import { CompanySettingsTab } from '@/pages/settings/CompanySettingsTab'
 import { GatewaySettingsTab } from '@/pages/settings/GatewaySettingsTab'
 import { BillingAndCollectionsTab } from '@/pages/settings/BillingAndCollectionsTab'
 import { SecurityAndAccessTab } from '@/pages/settings/SecurityAndAccessTab'
-import { NotificationsAndAlertsTab } from '@/pages/settings/NotificationsAndAlertsTab'
+import { Notifications } from '@/pages/settings/Notifications'
 import { IntegrationsTab } from '@/pages/settings/IntegrationsTab'
 import { SystemSettingsTab } from '@/pages/settings/SystemSettingsTab'
 import { LogsSettingsTab } from '@/pages/settings/LogsSettingsTab'
@@ -22,10 +22,10 @@ type StatusMessage = { type: 'success' | 'error'; text: string } | null
 
 const NAV_ITEMS: NavItem[] = [
   { id: 'company', icon: Building, label: 'Datos de la Empresa' },
-  { id: 'billing_collections', icon: Receipt, label: 'Facturación y Cobros' },
   { id: 'gateway', icon: Router, label: 'Gateway' },
-  { id: 'security_access', icon: Shield, label: 'Seguridad y Accesos' },
-  { id: 'notifications_alerts', icon: Bell, label: 'Notificaciones y Alertas' },
+  { id: 'billing_collections', icon: Receipt, label: 'Facturación' },
+  { id: 'security_access', icon: Shield, label: 'Seguridad' },
+  { id: 'notifications_alerts', icon: Bell, label: 'Notificaciones' },
   { id: 'integrations', icon: Plug, label: 'Integraciones' },
   { id: 'system', icon: Cog, label: 'Sistema' },
   { id: 'logs', icon: ClipboardList, label: 'Logs' },
@@ -132,12 +132,12 @@ export function SettingsPage() {
             <CompanySettingsTab setStatusMessage={setStatusMessage} />
           )}
 
-          {activeTab === 'billing_collections' && (
-            <BillingAndCollectionsTab isAdmin={isAdmin} setStatusMessage={setStatusMessage} />
-          )}
-
           {activeTab === 'gateway' && (
             <GatewaySettingsTab isAdmin={isAdmin} setStatusMessage={setStatusMessage} />
+          )}
+
+          {activeTab === 'billing_collections' && (
+            <BillingAndCollectionsTab isAdmin={isAdmin} setStatusMessage={setStatusMessage} />
           )}
 
           {activeTab === 'security_access' && (
@@ -145,7 +145,7 @@ export function SettingsPage() {
           )}
 
           {activeTab === 'notifications_alerts' && (
-            <NotificationsAndAlertsTab isAdmin={isAdmin} setStatusMessage={setStatusMessage} />
+            <Notifications isAdmin={isAdmin} setStatusMessage={setStatusMessage} />
           )}
 
           {activeTab === 'integrations' && (

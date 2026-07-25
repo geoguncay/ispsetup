@@ -6,7 +6,7 @@ import { createPortal } from 'react-dom'
 import { useForm, Resolver } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
-import { X, Loader2, MapPin, User, CreditCard, Bell, Wifi, Layers, Package, Plus, Search } from 'lucide-react'
+import { X, Loader2, MapPin, User, CreditCard, Bell, Wifi, Layers, Package, Plus, Search, Trash2 } from 'lucide-react'
 import { useQuery, useMutation } from '@tanstack/react-query'
 import { MapContainer, TileLayer, Marker, useMapEvents, useMap } from 'react-leaflet'
 import L from 'leaflet'
@@ -74,31 +74,6 @@ interface SelectedInventoryItem {
   serial_number: string
   mac: string
   notes: string
-}
-
-const splitClientName = (fullName: string) => {
-  const trimmed = (fullName || '').trim()
-  if (trimmed.includes(',')) {
-    const parts = trimmed.split(',')
-    return {
-      last_name: parts[0].trim(),
-      first_name: parts.slice(1).join(',').trim()
-    }
-  }
-  const words = trimmed.split(/\s+/)
-  if (words.length <= 1) {
-    return { last_name: '', first_name: trimmed }
-  } else if (words.length === 2) {
-    return { last_name: words[1], first_name: words[0] }
-  } else if (words.length === 3) {
-    return { last_name: words.slice(1).join(' '), first_name: words[0] }
-  } else {
-    const middle = Math.ceil(words.length / 2)
-    return {
-      first_name: words.slice(0, middle).join(' '),
-      last_name: words.slice(middle).join(' ')
-    }
-  }
 }
 
 // Centrado por defecto en Quito, Ecuador
@@ -374,7 +349,6 @@ export function ClientFormDialog({ open, onClose, client, onSuccess }: ClientFor
     staleTime: 5 * 60 * 1000,
   })
 
-  const selectedGatewayId = watch('gateway_id')
   const selectedPlanId = watch('plan_id')
   const selectedCustomServiceIds = watch('custom_service_ids') || []
 
@@ -398,9 +372,6 @@ export function ClientFormDialog({ open, onClose, client, onSuccess }: ClientFor
     const cs = customServices.find((s) => s.id === csId)
     return sum + (cs && !cs.recurring ? Number(cs.price) : 0)
   }, 0)
-
-  const nextInvoiceTotal = Number(activePlanPrice) + recurringCustomServicesPrice + oneTimeCustomServicesPrice
-  const futureMonthlyTotal = Number(activePlanPrice) + recurringCustomServicesPrice
 
   const watchDiaPago = watch('dia_pago')
   const watchCreatedAt = watch('created_at')
@@ -798,8 +769,6 @@ export function ClientFormDialog({ open, onClose, client, onSuccess }: ClientFor
     mutationFn: async (data: ClientFormData) => {
       const payload = { ...data } as any
       payload.name = `${payload.last_name || ''} ${payload.first_name || ''}`.trim()
-      delete payload.last_name
-      delete payload.first_name
       if (!payload.custom_service_ids) {
         payload.custom_service_ids = []
       }
@@ -945,7 +914,7 @@ export function ClientFormDialog({ open, onClose, client, onSuccess }: ClientFor
         {/* Header */}
         <div className="flex items-center justify-between p-5 border-b border-border shrink-0">
           <h2 className="text-lg font-semibold text-foreground">
-            {isEdit ? `Editar: ${client.name}` : 'Registrar Nuevo Cliente'}
+            {isEdit ? `Editar: ${client.full_name}` : 'Registrar Nuevo Cliente'}
           </h2>
           <button
             onClick={onClose}
@@ -1415,7 +1384,11 @@ export function ClientFormDialog({ open, onClose, client, onSuccess }: ClientFor
                                     key={cs.id}
                                     type="button"
                                     onClick={() => {
-                                      setValue('custom_service_ids', [...selectedCustomServiceIds, cs.id])
+                                      setValue(
+                                        'custom_service_ids',
+                                        [...selectedCustomServiceIds, cs.id],
+                                        { shouldDirty: true },
+                                      )
                                       setServiceSearch('')
                                       setShowServiceDropdown(false)
                                     }}
@@ -1479,7 +1452,11 @@ export function ClientFormDialog({ open, onClose, client, onSuccess }: ClientFor
                                 <button
                                   type="button"
                                   onClick={() => {
-                                    setValue('custom_service_ids', selectedCustomServiceIds.filter((id) => id !== cs.id))
+                                    setValue(
+                                      'custom_service_ids',
+                                      selectedCustomServiceIds.filter((id) => id !== cs.id),
+                                      { shouldDirty: true },
+                                    )
                                   }}
                                   className="p-1 text-muted-foreground hover:text-destructive transition-colors cursor-pointer shrink-0"
                                 >
@@ -1995,7 +1972,14 @@ export function ClientFormDialog({ open, onClose, client, onSuccess }: ClientFor
             >
               Cancelar
             </button>
-
+              {/* Botón Eliminar Cliente */}
+              {/* <button
+                onClick={() => setConfirmDeleteOpen(true)}
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-lg bg-rose-500/10 hover:bg-rose-500/20 border border-rose-500/25 text-rose-400 transition-all duration-200"
+              >
+                <Trash2 className="w-3.5 h-3.5" />
+                <span>Eliminar Cliente</span>
+              </button> */}
             <div className="flex gap-3">
               <button
                 type="submit"

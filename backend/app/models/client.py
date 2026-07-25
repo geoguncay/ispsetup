@@ -24,7 +24,7 @@ class Client(Base):
     id: Mapped[uuid.UUID] = mapped_column(
         Uuid(native_uuid=False), primary_key=True, default=uuid.uuid4
     )
-    name: Mapped[str] = mapped_column(String(120), nullable=False)
+    full_name: Mapped[str] = mapped_column(String(120), nullable=False)
     last_name: Mapped[str] = mapped_column(String(60), nullable=False, default="")
     first_name: Mapped[str] = mapped_column(String(60), nullable=False, default="")
     cedula: Mapped[str] = mapped_column(String(20), unique=True, index=True, nullable=False)
@@ -78,5 +78,5 @@ class Client(Base):
         return self.gateway.site.name if (self.gateway and self.gateway.site) else None
 
     def __repr__(self) -> str:
-        return f"<Client id={self.id} name={self.name} cedula={self.cedula}>"
+        return f"<Client id={self.id} name={self.full_name} cedula={self.cedula}>"
 

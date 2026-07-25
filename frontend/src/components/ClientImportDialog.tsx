@@ -383,9 +383,8 @@ export function ClientImportDialog({ isOpen, onClose, onSuccess }: ClientImportD
   if (!isOpen) return null
 
   return createPortal(
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 overflow-y-auto">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">
       <div className="glass-card w-full max-w-4xl shadow-2xl relative flex flex-col max-h-[90vh]">
-
         {/* Header */}
         <div className="flex items-center justify-between p-5 border-b border-border">
           <h3 className="text-lg font-bold text-foreground flex items-center gap-2">

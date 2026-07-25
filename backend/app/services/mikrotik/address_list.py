@@ -13,11 +13,11 @@ logger = logging.getLogger(__name__)
 def get_suspend_list_name(gateway) -> str:
     """
     Retorna el nombre de la lista de suspendidos configurada en el gateway.
-    Fallback: 'isp_suspendidos'.
+    Fallback: 'suspendidos'.
     """
     name = resource_name(gateway, 'security', 'suspend_list')
     if not name or name.strip().lower() in ('none', ''):
-        return 'isp_suspendidos'
+        return 'suspendidos'
     return name.strip()
 
 
@@ -37,7 +37,7 @@ def sync_ip_in_address_list(gateway: Gateway, ip: str, client_name: str, list_na
     """
     Sincroniza una IP estática en la lista de firewall especificada de MikroTik.
     Crea la entrada si no existe, o actualiza el comentario si difiere.
-    Remueve la IP de otras listas (excepto suspendidos/isp_suspendidos) si cambió de lista.
+    Remueve la IP de otras listas (excepto suspendidos/suspendidos) si cambió de lista.
     """
     if gateway.speed_control_type != 'pcq_addresslist':
         return
@@ -55,7 +55,7 @@ def sync_ip_in_address_list(gateway: Gateway, ip: str, client_name: str, list_na
             suspend_list = get_suspend_list_name(gateway)
             for entry in list(query_all):
                 current_list = entry.get("list")
-                if current_list not in ("suspendidos", "isp_suspendidos", suspend_list) and current_list != list_name:
+                if current_list not in ("suspendidos", "suspendidos", suspend_list) and current_list != list_name:
                     # Solo limpiar si empieza con "isp_" o es el legado "clientes"
                     if current_list == "clientes" or (current_list and current_list.startswith("isp_")):
                         entry_id = entry.get(".id")
@@ -138,7 +138,7 @@ def fetch_clients_from_address_list(gateway: Gateway, list_name: str = "isp_clie
 def suspend_ip_in_firewall(gateway: Gateway, ip: str, client_name: str) -> None:
     """
     Agrega una dirección IP a la lista de suspendidos configurada del gateway.
-    Usa gateway.suspend_list si está configurado, de lo contrario 'isp_suspendidos'.
+    Usa gateway.suspend_list si está configurado, de lo contrario 'suspendidos'.
     """
     suspend_list = get_suspend_list_name(gateway)
     try:
@@ -167,7 +167,7 @@ def suspend_ip_in_firewall(gateway: Gateway, ip: str, client_name: str) -> None:
 def unsuspend_ip_in_firewall(gateway: Gateway, ip: str) -> None:
     """
     Remueve una IP de la lista de suspendidos del gateway y de las listas legadas.
-    Busca en gateway.suspend_list, 'isp_suspendidos' y 'suspendidos' para cubrir migraciones.
+    Busca en gateway.suspend_list, 'suspendidos' y 'suspendidos' para cubrir migraciones.
     """
     suspend_list = get_suspend_list_name(gateway)
     try:
@@ -175,7 +175,7 @@ def unsuspend_ip_in_firewall(gateway: Gateway, ip: str) -> None:
             list_key = Key('list')
             address_key = Key('address')
 
-            lists_to_check = {suspend_list, 'isp_suspendidos', 'suspendidos'}
+            lists_to_check = {suspend_list, 'suspendidos', 'suspendidos'}
             existing = []
             for list_name in lists_to_check:
                 query = api.path('/ip/firewall/address-list').select().where(

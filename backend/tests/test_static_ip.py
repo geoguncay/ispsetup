@@ -108,7 +108,7 @@ def test_create_client_static_ip_success(mock_sync, client: TestClient):
         "/api/clients",
         headers={"Authorization": f"Bearer {token}"},
         json={
-            "name": "Alex Guncay",
+            "full_name": "Alex Guncay",
             "cedula": "1724024888",
             "phone": "0999999999",
             "address": "Av. Amazonas, Quito",
@@ -145,7 +145,7 @@ def test_static_ip_duplication_validation(mock_sync, client: TestClient):
         "/api/clients",
         headers={"Authorization": f"Bearer {token}"},
         json={
-            "name": "Cliente A",
+            "full_name": "Cliente A",
             "cedula": "1724024888",
             "phone": "0999999999",
             "address": "Sector A",
@@ -161,7 +161,7 @@ def test_static_ip_duplication_validation(mock_sync, client: TestClient):
         "/api/clients",
         headers={"Authorization": f"Bearer {token}"},
         json={
-            "name": "Cliente B",
+            "full_name": "Cliente B",
             "cedula": "0926079971",
             "phone": "0988888888",
             "address": "Sector B",
@@ -178,7 +178,7 @@ def test_static_ip_duplication_validation(mock_sync, client: TestClient):
         "/api/clients",
         headers={"Authorization": f"Bearer {token}"},
         json={
-            "name": "Cliente C",
+            "full_name": "Cliente C",
             "cedula": "0926079971",
             "phone": "0988888888",
             "address": "Sector B",
@@ -209,7 +209,7 @@ def test_update_client_ip_sync(mock_sync, mock_remove, client: TestClient):
         "/api/clients",
         headers={"Authorization": f"Bearer {token}"},
         json={
-            "name": "Carlos Perez",
+            "full_name": "Carlos Perez",
             "cedula": "1724024888",
             "phone": "0999999999",
             "address": "Dir A",
@@ -270,8 +270,8 @@ def test_import_clients_from_router(mock_fetch, client: TestClient):
     db = TestingSessionLocal()
     clients = db.query(Client).filter(Client.gateway_id == gateway_uuid).all()
     assert len(clients) == 3
-    assert clients[0].name == "Imported User A"
-    assert clients[2].name == "Importado IP 192.168.50.12"
+    assert clients[0].full_name == "Imported User A"
+    assert clients[2].full_name == "Importado IP 192.168.50.12"
     # Cédulas generadas deben empezar con 30
     assert clients[0].cedula.startswith("3099999")
     db.close()

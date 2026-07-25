@@ -110,12 +110,12 @@ export function LoginPage() {
             )}
           </div>
           <div>
-            <p className="text-xs text-white text-muted-foreground">ISP<span className="font-bold text-red-500">SETUP</span></p>
             <p className="font-bold text-foreground">{companyName}</p>
+            <p className="text-xs text-white text-muted-foreground">ISP<span className="font-bold text-red-500">SETUP</span></p>
           </div>
         </div>
 
-        {/*  */}
+        {/* Contenido principal */}
         <div className="relative z-10 space-y-6">
           <div>
             <h1 className="text-4xl font-bold text-foreground leading-tight">
@@ -145,9 +145,11 @@ export function LoginPage() {
                 <Wifi className="w-4 h-4 text-white" />
               )}
             </div>
+          <div>
             <p className="font-bold text-foreground">{companyName}</p>
+            <p className="text-xs text-white text-muted-foreground">ISP<span className="font-bold text-red-500">SETUP</span></p>
           </div>
-
+          </div>
           <h2 className="text-2xl font-bold text-foreground mb-1">Iniciar sesión</h2>
           <p className="text-muted-foreground text-sm mb-8">
             Ingresa tus credenciales para acceder al panel

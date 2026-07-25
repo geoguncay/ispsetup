@@ -7,9 +7,8 @@ import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useNavigate, useLocation } from 'react-router-dom'
 import { ToastContainer } from '@/components/Toast'
 import { useToast } from '@/hooks/useToast'
-import {
-  Plus, RefreshCw, Search, Users, Wifi, UserCheck, UserX, SlidersHorizontal, MapPin, ArrowUpDown, ChevronUp, ChevronDown,
-  Upload, Clock, RotateCcw
+import { RefreshCw, Search, Users, Wifi, UserCheck, UserX, SlidersHorizontal, MapPin, ArrowUpDown, ChevronUp, ChevronDown,
+  Upload, Clock, RotateCcw, PlusCircle
 } from 'lucide-react'
 import { MapContainer, TileLayer, Marker, Popup, useMap } from 'react-leaflet'
 import L from 'leaflet'
@@ -230,9 +229,12 @@ export function ClientsPage() {
   return (
     <div className="space-y-6 animate-fade-in">
       {/* Header */}
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
-          <h1 className="sm:text-2xl font-bold text-foreground">Clientes</h1>
+          <h1 className="sm:text-2xl font-bold text-foreground flex items-center gap-2">
+            <Users className="w-6 h-6 text-cyan-400 animate-pulse" />
+            Clientes
+          </h1>
         </div>
         <div className="flex items-center gap-3">
           <div className="flex bg-secondary/50 rounded-lg p-0.5 border border-border/60">
@@ -258,16 +260,17 @@ export function ClientsPage() {
           </div>
           <button
             onClick={() => setImportOpen(true)}
-            className="btn-secondary hidden sm:flex items-center gap-1"
+            className="bg-secondary hidden sm:flex items-center hover:bg-secondary-hover text-secondary-foreground font-semibold px-4 py-2.5 rounded-lg justify-center gap-1 transition-all shadow-lg shadow-secondary/20 cursor-pointer"
+
           >
             <Upload className="w-4 h-4" />
             Importar
           </button>
           <button
             onClick={handleCreate}
-            className="btn-primary"
+            className="w-full sm:w-auto bg-primary hover:bg-primary-hover text-primary-foreground font-semibold px-4 py-2.5 rounded-lg flex items-center justify-center gap-2 transition-all shadow-lg shadow-primary/20 cursor-pointer"
           >
-            <Plus className="w-4 h-4" />
+            <PlusCircle className="w-4 h-4" />
             Nuevo cliente
           </button>
         </div>
@@ -280,7 +283,7 @@ export function ClientsPage() {
           Filtros de búsqueda
         </div>
         
-        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-5 gap-3">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
           {/* Búsqueda */}
           <div className="relative col-span-1 sm:col-span-2 md:col-span-1">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
@@ -292,7 +295,7 @@ export function ClientsPage() {
               className="input-field pl-9"
             />
           </div>
-          
+          <div className="hidden sm:grid  md:grid-cols-4 gap-3">
           {/* Gateway */}
           <select
             value={gatewayId}
@@ -340,6 +343,7 @@ export function ClientsPage() {
             <option value="true">Activos</option>
             <option value="false">Inactivos / Suspendidos</option>
           </select>
+          </div>
         </div>
       </div>
 
@@ -359,7 +363,7 @@ export function ClientsPage() {
             Intenta cambiar los filtros o registra un nuevo cliente en el sistema.
           </p>
           <button onClick={handleCreate} className="btn-primary mx-auto">
-            <Plus className="w-4 h-4" />
+            <PlusCircle className="w-4 h-4" />
             Nuevo cliente
           </button>
         </div>
@@ -490,7 +494,7 @@ export function ClientsPage() {
                           )}
                         </div>
                       </th>
-                      <th onClick={() => handleSort('first_name')} className="hidden sm:table-cell cursor-pointer select-none hover:bg-secondary/20 transition-colors">
+                      <th onClick={() => handleSort('first_name')} className="cursor-pointer select-none hover:bg-secondary/20 transition-colors">
                         <div className="flex items-center gap-1">
                           <span>Nombres</span>
                           {sortField === 'first_name' ? (
@@ -500,7 +504,7 @@ export function ClientsPage() {
                           )}
                         </div>
                       </th>
-                      <th onClick={() => handleSort('cedula')} className="hidden md:table-cell cursor-pointer select-none hover:bg-secondary/20 transition-colors">
+                      <th onClick={() => handleSort('cedula')} className="hidden sm:table-cell cursor-pointer select-none hover:bg-secondary/20 transition-colors">
                         <div className="flex items-center gap-1">
                           <span>Cédula</span>
                           {sortField === 'cedula' ? (
@@ -510,7 +514,7 @@ export function ClientsPage() {
                           )}
                         </div>
                       </th>
-                      <th onClick={() => handleSort('email')} className="cursor-pointer select-none hover:bg-secondary/20 transition-colors">
+                      <th onClick={() => handleSort('email')} className=" hidden sm:table-cell cursor-pointer select-none hover:bg-secondary/20 transition-colors">
                         <div className="flex items-center gap-1">
                           <span>Correo Electrónico</span>
                           {sortField === 'email' ? (
@@ -520,7 +524,7 @@ export function ClientsPage() {
                           )}
                         </div>
                       </th>
-                      <th onClick={() => handleSort('created_at')} className="hidden md:table-cell cursor-pointer select-none hover:bg-secondary/20 transition-colors">
+                      <th onClick={() => handleSort('created_at')} className="hidden sm:table-cell cursor-pointer select-none hover:bg-secondary/20 transition-colors">
                         <div className="flex items-center gap-1">
                           <span>Fecha Reg.</span>
                           {sortField === 'created_at' ? (
@@ -530,7 +534,7 @@ export function ClientsPage() {
                           )}
                         </div>
                       </th>
-                      <th onClick={() => handleSort('ip')} className="cursor-pointer select-none hover:bg-secondary/20 transition-colors">
+                      <th onClick={() => handleSort('ip')} className="hidden sm:table-cell cursor-pointer select-none hover:bg-secondary/20 transition-colors">
                         <div className="flex items-center gap-1">
                           <span>IP</span>
                           {sortField === 'ip' ? (
@@ -543,7 +547,7 @@ export function ClientsPage() {
                       <th className="hidden lg:table-cell">
                         Sitio
                       </th>
-                      <th onClick={() => handleSort('gateway')} className="hidden lg:table-cell cursor-pointer select-none hover:bg-secondary/20 transition-colors">
+                      <th onClick={() => handleSort('gateway')} className="hidden sm:table-cell cursor-pointer select-none hover:bg-secondary/20 transition-colors">
                         <div className="flex items-center gap-1">
                           <span>Gateway</span>
                           {sortField === 'gateway' ? (
@@ -553,7 +557,7 @@ export function ClientsPage() {
                           )}
                         </div>
                       </th>
-                      <th onClick={() => handleSort('plan')} className="hidden lg:table-cell cursor-pointer select-none hover:bg-secondary/20 transition-colors">
+                      <th onClick={() => handleSort('plan')} className="hidden sm:table-cell cursor-pointer select-none hover:bg-secondary/20 transition-colors">
                         <div className="flex items-center gap-1">
                           <span>Plan Activo</span>
                           {sortField === 'plan' ? (
@@ -592,28 +596,26 @@ export function ClientsPage() {
                             </span>
                           </div>
                         </td>
-                        <td className="hidden sm:table-cell text-sm text-muted-foreground">
+                        <td className="sm:table-cell font-semibold text-foreground text-sm">
                           {client.first_name || <span className="italic opacity-40">—</span>}
                         </td>
-                        <td className="hidden md:table-cell font-mono text-xs text-muted-foreground">
+                        <td className="hidden sm:table-cell font-mono text-xs text-muted-foreground">
                           {client.cedula}
                         </td>
-                        <td>
-                          <span className="text-xs text-muted-foreground font-medium">
-                            {client.email || <span className="italic opacity-50">—</span>}
-                          </span>
+                        <td className="hidden sm:table-cell text-xs text-muted-foreground font-medium">
+                          {client.email || <span className="italic opacity-50">—</span>}
                         </td>
-                        <td className="hidden md:table-cell text-xs text-muted-foreground font-medium">
+                        <td className="hidden sm:table-cell text-xs text-muted-foreground font-medium">
                           {formatDate(client.created_at, dateFormat)}
                         </td>
-                        <td className="font-mono text-xs text-foreground font-semibold">
+                        <td className="hidden sm:table-cell font-mono text-xs text-foreground font-semibold">
                           {client.static_ip?.ip ? (
                             client.static_ip.ip
                           ) : (
                             <span className="text-muted-foreground font-normal italic">—</span>
                           )}
                         </td>
-                        <td className="hidden lg:table-cell">
+                        <td className="hidden sm:table-cell">
                           {client.site_name ? (
                             <span className="inline-flex items-center text-xs font-semibold px-2 py-0.5 rounded bg-brand-500/10 text-brand-400 border border-brand-500/20">
                               {client.site_name}
@@ -622,12 +624,12 @@ export function ClientsPage() {
                             <span className="text-xs text-muted-foreground italic">Sin Sitio</span>
                           )}
                         </td>
-                        <td className="hidden lg:table-cell">
+                        <td className="hidden sm:table-cell">
                           <span className="text-xs text-muted-foreground font-medium">
                             {client.gateway_name ?? '—'}
                           </span>
                         </td>
-                        <td className="hidden lg:table-cell">
+                        <td className="hidden sm:table-cell">
                           {client.plan_activo ? (
                             <div className="flex items-center gap-1.5">
                               <Wifi className="w-3.5 h-3.5 text-brand-400" />

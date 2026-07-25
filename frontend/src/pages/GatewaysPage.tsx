@@ -4,13 +4,13 @@
 import { useState } from 'react'
 import { createPortal } from 'react-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { Plus, RefreshCw, Wifi, Server, Clock, Download, X, Loader2, SlidersHorizontal } from 'lucide-react'
+import { RefreshCw, Wifi, Server, Clock, Download, X, Loader2, PlusCircle } from 'lucide-react'
 import api from '@/services/api'
 import { GatewayStatusBadge } from '@/components/GatewayStatusBadge'
 import { GatewayFormDialog } from '@/components/GatewayFormDialog'
 import { GatewayDeleteDialog, type GatewayDeletionOptions } from '@/components/GatewayDeleteDialog'
 import { useAuthStore } from '@/stores/authStore'
-import { useNavigate } from 'react-router-dom'
+import { Router, useNavigate } from 'react-router-dom'
 import { formatUptime } from '@/lib/utils'
 
 interface Gateway {
@@ -74,7 +74,7 @@ export function GatewaysPage() {
     enabled: !!importingGateway,
   })
 
-  const { data: gateways = [], isLoading, isFetching, refetch } = useQuery({
+  const { data: gateways = [], isLoading } = useQuery({
     queryKey: ['gateways'],
     queryFn: fetchGateways,
     refetchInterval: 15_000, // polling cada 15 s
@@ -116,16 +116,8 @@ export function GatewaysPage() {
     importMutation.mutate({ gatewayId: importingGateway.id, listName })
   }
 
-  const [selectedSiteId, setSelectedSiteId] = useState('')
+  const [selectedSiteId] = useState('')
 
-  // Consultar lista de Sitios para el filtro
-  const { data: sites = [] } = useQuery<any[]>({
-    queryKey: ['sites-list'],
-    queryFn: async () => {
-      const { data } = await api.get('/sites')
-      return data
-    },
-  })
 
   const filteredGateways = gateways.filter((gateway) => {
     if (selectedSiteId === '') return true
@@ -149,18 +141,22 @@ export function GatewaysPage() {
   return (
     <div className="space-y-6 animate-fade-in">
       {/* ── Header ── */}
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
-          <h1 className="sm:text-2xl font-bold text-foreground">Gateways</h1>
+          <h1 className="sm:text-2xl font-bold text-foreground flex items-center gap-2">
+            {/* icon router */}
+            <Server className="w-6 h-6 text-cyan-400 animate-pulse" />
+            Gateways
+          </h1>
         </div>
         <div className="flex items-center gap-3">
           {isAdmin && (
             <button
               id="add-gateway"
               onClick={() => { setEditingGateway(null); setDialogOpen(true) }}
-              className="btn-primary"
+              className="w-full sm:w-auto bg-primary hover:bg-primary-hover text-primary-foreground font-semibold px-4 py-2.5 rounded-lg flex items-center justify-center gap-2 transition-all shadow-lg shadow-primary/20 cursor-pointer"
             >
-              <Plus className="w-4 h-4" />
+              <PlusCircle className="w-4 h-4" />
               Agregar gateway
             </button>
           )}
@@ -195,7 +191,7 @@ export function GatewaysPage() {
           </p>
           {isAdmin && (
             <button onClick={() => setDialogOpen(true)} className="btn-primary mx-auto">
-              <Plus className="w-4 h-4" />
+              <PlusCircle className="w-4 h-4" />
               Agregar primer gateway
             </button>
           )}

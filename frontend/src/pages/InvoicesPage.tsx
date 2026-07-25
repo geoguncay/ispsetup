@@ -4,9 +4,7 @@
 import { useState } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { Link } from 'react-router-dom'
-import {
-  Receipt, Search, Filter, AlertTriangle, CheckCircle2, Clock,
-  Download, PlusCircle, RefreshCw, CreditCard, User, AlertCircle
+import { Receipt, Search, AlertTriangle, CheckCircle2, Clock, Download, PlusCircle, RefreshCw, CreditCard, User, AlertCircle
 } from 'lucide-react'
 import api from '@/services/api'
 import { useAuthStore } from '@/stores/authStore'
@@ -89,12 +87,12 @@ export function InvoicesPage() {
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
-          <h2 className="text-2xl font-bold tracking-tight text-foreground flex items-center gap-2">
-            <Receipt className="w-7 h-7 text-primary" />
-            <span>Gestión de Facturas y Cobranzas</span>
-          </h2>
+          <h1 className="sm:text-2xl font-bold text-foreground flex items-center gap-2">
+            <Receipt className="w-6 h-6 text-cyan-400 animate-pulse" />
+            <span>Gestión de Facturas</span>
+          </h1>
         </div>
 
         <div className="w-full sm:w-auto">

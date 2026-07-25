@@ -4,13 +4,11 @@
 import React, { useState, useEffect, useMemo } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { useNavigate } from 'react-router-dom'
-import {
-  Activity, Server, ArrowDown, ArrowUp, Users, Search,
-  RefreshCw, RefreshCcw, ShieldAlert, ExternalLink
+import { Activity, Server, ArrowDown, ArrowUp, Users, Search, RefreshCw, RefreshCcw, ShieldAlert, ExternalLink
 } from 'lucide-react'
 import api from '@/services/api'
 import TrafficChart, { formatSpeed } from '@/components/TrafficChart'
-import { GatewayStatusBadge } from '@/components/GatewayStatusBadge'
+
 
 interface Gateway {
   id: string
@@ -241,7 +239,7 @@ export function TrafficPage() {
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
           <h1 className="sm:text-2xl font-bold text-foreground flex items-center gap-2">
-            <Activity className="w-6 h-6 text-cyan-400" />
+            <Activity className="w-6 h-6 text-cyan-400 animate-pulse" />
             Monitoreo de Tráfico
           </h1>
         </div>

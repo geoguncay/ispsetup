@@ -130,7 +130,7 @@ def generate_monthly_invoices(
             )
 
             if not active_client_plan or not active_client_plan.plan:
-                logger.warning(f"El cliente {client.name} ({client.id}) está activo pero no tiene un plan activo asignado.")
+                logger.warning(f"El cliente {client.full_name} ({client.id}) está activo pero no tiene un plan activo asignado.")
                 continue
 
             plan = active_client_plan.plan
@@ -143,7 +143,7 @@ def generate_monthly_invoices(
             )
 
             if existing_invoice:
-                logger.info(f"El cliente {client.name} ya tiene una factura para el periodo {current_period}.")
+                logger.info(f"El cliente {client.full_name} ya tiene una factura para el periodo {current_period}.")
                 continue
 
             # Crear factura
@@ -172,7 +172,7 @@ def generate_monthly_invoices(
 
             db.add(new_invoice)
             invoices_created += 1
-            logger.info(f"Factura generada para {client.name} — Periodo: {current_period}, Monto: ${total_amount:.2f}")
+            logger.info(f"Factura generada para {client.full_name} — Periodo: {current_period}, Monto: ${total_amount:.2f}")
             
         db.commit()
         log_event(

@@ -48,7 +48,7 @@ class PaymentResponse(BaseModel):
                 "status": getattr(data, "status", None),
                 "notes": getattr(data, "notes", None),
                 "created_at": getattr(data, "created_at", None),
-                "client_name": client.name if client else None,
+                "client_name": client.full_name if client else None,
                 "user_name": user.name if user else None
             }
         return data

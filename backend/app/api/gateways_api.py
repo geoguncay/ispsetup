@@ -250,9 +250,9 @@ def update_gateway(
         import re
         clean_name = re.sub(r'[^a-z0-9_-]', '', clean_name)
         if not r.parent_queue:
-            r.parent_queue = f"isp_padre_{clean_name}"
+            r.parent_queue = f"Clients{clean_name}"
         if not r.address_list:
-            r.address_list = f"isp_clientes_{clean_name}"
+            r.address_list = f"clients{clean_name}"
 
     gateway_mode = r.config_mode == 'gateway'
     if not gateway_mode:
@@ -625,7 +625,7 @@ def import_clients_from_gateway(
 
         # Crear Cliente
         client = Client(
-            name=name,
+            full_name=name,
             cedula=cedula,
             phone="0999999999",
             address="Importado desde MikroTik",
@@ -706,7 +706,7 @@ def get_gateway_queues(gateway_id: uuid.UUID, db: DBSession, _: AdminOrTechnicia
             }
             client_map[client.static_ip.ip] = {
                 "id": client.id,
-                "name": client.name,
+                "name": client.full_name,
                 "plan": plan_info
             }
 

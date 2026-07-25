@@ -13,7 +13,7 @@ SpeedControlType = Literal['pcq_addresslist', 'simple_queues', 'dhcp_lease_dynam
 
 
 class SecurityResourceConfig(BaseModel):
-    suspend_list: str = Field(default='isp_suspendidos', min_length=1, max_length=100)
+    suspend_list: str = Field(default='suspendidos', min_length=1, max_length=100)
 
 
 class TrafficResourceConfig(BaseModel):
@@ -28,15 +28,15 @@ class SpeedControlResourceConfig(BaseModel):
     simple_queue_download_type: str = Field(default='default-small', min_length=1, max_length=100)
     client_address_list: str = Field(default='=clientes', min_length=1, max_length=100)
     client_queue_name_template: str = Field(default='{client_name}', min_length=1, max_length=120)
-    dhcp_comment_template: str = Field(default='{client_name} - {plan_name}', min_length=1, max_length=160)
+    dhcp_comment_template: str = Field(default='{plan_name} | {client_name}', min_length=1, max_length=160)
     pcq_upload_type: str = Field(default='pcq_upload', min_length=1, max_length=100)
     pcq_download_type: str = Field(default='pcq_download', min_length=1, max_length=100)
     upload_packet_mark: str = Field(default='pcq_upload', min_length=1, max_length=100)
     download_packet_mark: str = Field(default='pcq_download', min_length=1, max_length=100)
     upload_queue_tree: str = Field(default='pcq_upload', min_length=1, max_length=100)
     download_queue_tree: str = Field(default='pcq_download', min_length=1, max_length=100)
-    upload_mangle_comment: str = Field(default='ISP NMS PCQ upload', min_length=1, max_length=160)
-    download_mangle_comment: str = Field(default='ISP NMS PCQ download', min_length=1, max_length=160)
+    upload_mangle_comment: str = Field(default='PCQ upload', min_length=1, max_length=160)
+    download_mangle_comment: str = Field(default='PCQ download', min_length=1, max_length=160)
 
     @field_validator('client_queue_name_template', 'dhcp_comment_template')
     @classmethod

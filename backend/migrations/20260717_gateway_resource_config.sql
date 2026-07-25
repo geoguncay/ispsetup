@@ -24,15 +24,15 @@ SET resource_config = jsonb_build_object(
             ELSE 'isp_clientes_' || TRIM(address_list)
         END,
         'client_queue_name_template', '{client_name}',
-        'dhcp_comment_template', '{client_name} - {plan_name}',
-        'pcq_upload_type', 'isp_pcq_upload',
-        'pcq_download_type', 'isp_pcq_download',
-        'upload_packet_mark', 'isp_pcq_upload',
-        'download_packet_mark', 'isp_pcq_download',
-        'upload_queue_tree', 'isp_pcq_upload',
-        'download_queue_tree', 'isp_pcq_download',
-        'upload_mangle_comment', 'ISP NMS PCQ upload',
-        'download_mangle_comment', 'ISP NMS PCQ download'
+        'dhcp_comment_template', '{plan_name} | {client_name}',
+        'pcq_upload_type', 'pcq_upload',
+        'pcq_download_type', 'pcq_download',
+        'upload_packet_mark', 'pcq_upload',
+        'download_packet_mark', 'pcq_download',
+        'upload_queue_tree', 'pcq_upload',
+        'download_queue_tree', 'pcq_download',
+        'upload_mangle_comment', 'PCQ upload',
+        'download_mangle_comment', 'PCQ download'
     )
 )
 WHERE resource_config IS NULL;

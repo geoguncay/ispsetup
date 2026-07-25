@@ -1,6 +1,6 @@
 /**
- * Ajustes de Notificaciones y Alertas — contenedor de la categoría "Notificaciones y Alertas" en SettingsPage.
- * Agrupa Notificaciones (SMTP/SMS) y Alertas como sub-pestañas internas.
+ * Ajustes de Notificaciones  — contenedor de la categoría "Notificaciones" en SettingsPage.
+ * Agrupa Notificaciones (SMTP/SMS) y  como sub-pestañas internas.
  */
 import { useEffect, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
@@ -8,16 +8,11 @@ import { Bell, Save, Loader2 } from 'lucide-react'
 import { getSystemSettings, updateNotifications, type SmtpSettingsRead } from '@/services/systemSettings'
 import { saveButtonClass } from '@/lib/utils'
 import { useFormDirty } from '@/hooks/useFormDirty'
-import { SettingsSubTabs } from '@/pages/settings/SettingsSubTabs'
 
 type StatusSetter = (msg: { type: 'success' | 'error'; text: string } | null) => void
 
-type SubTab = 'notificaciones' | 'alertas'
+type SubTab = 'notificaciones'
 
-const SUB_TABS: { id: SubTab; label: string }[] = [
-  { id: 'notificaciones', label: 'Notificaciones' },
-  { id: 'alertas', label: 'Alertas' },
-]
 
 // ── Notificaciones ───────────────────────────────────────────────────────
 function NotificationSettingsForm({
@@ -138,24 +133,10 @@ function NotificationSettingsForm({
   )
 }
 
-// ── Alertas ───────────────────────────────────────────────────────────────
-function AlertsPlaceholder() {
-  return (
-    <div className="glass-card p-12 text-center max-w-xl mx-auto space-y-4 animate-fade-in">
-      <div className="w-16 h-16 bg-amber-500/10 rounded-full flex items-center justify-center mx-auto border border-amber-500/25 animate-pulse">
-        <Bell className="w-8 h-8 text-amber-400" />
-      </div>
-      <h3 className="text-lg font-semibold text-foreground">Centro de Alertas</h3>
-      <p className="text-muted-foreground text-sm">
-        Panel consolidado de notificaciones de estado de enrutadores, latencia alta, y eventos del sistema. Próximamente.
-      </p>
-    </div>
-  )
-}
 
 // ── Contenedor ────────────────────────────────────────────────────────────
-export function NotificationsAndAlertsTab({ isAdmin, setStatusMessage }: { isAdmin: boolean; setStatusMessage: StatusSetter }) {
-  const [subTab, setSubTab] = useState<SubTab>('notificaciones')
+export function Notifications({ isAdmin, setStatusMessage }: { isAdmin: boolean; setStatusMessage: StatusSetter }) {
+  const [subTab] = useState<SubTab>('notificaciones')
   const queryClient = useQueryClient()
 
   const { data, isLoading } = useQuery({
@@ -168,12 +149,6 @@ export function NotificationsAndAlertsTab({ isAdmin, setStatusMessage }: { isAdm
 
   return (
     <div className="space-y-6 animate-fade-in">
-      <SettingsSubTabs
-        tabs={SUB_TABS}
-        active={subTab}
-        onChange={(id) => { setSubTab(id); setStatusMessage(null) }}
-      />
-
       {subTab === 'notificaciones' && (
         isLoading || !data ? (
           <div className="glass-card p-12 flex items-center justify-center">
@@ -183,7 +158,6 @@ export function NotificationsAndAlertsTab({ isAdmin, setStatusMessage }: { isAdm
           <NotificationSettingsForm data={data.notifications} onSaved={invalidate} setStatusMessage={setStatusMessage} />
         )
       )}
-      {subTab === 'alertas' && <AlertsPlaceholder />}
     </div>
   )
 }

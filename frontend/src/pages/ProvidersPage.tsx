@@ -4,7 +4,7 @@
 import { useState } from 'react'
 import { createPortal } from 'react-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { Plus, RefreshCw, Search, Truck, Edit2, Trash2, X, Loader2, Save, FileText } from 'lucide-react'
+import { RefreshCw, Search, Truck, Edit2, Trash2, X, Loader2, Save, PlusCircle } from 'lucide-react'
 import api from '@/services/api'
 
 interface Supplier {
@@ -116,24 +116,19 @@ export function ProvidersPage() {
   return (
     <div className="space-y-6 animate-fade-in">
       {/* Header */}
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-bold text-foreground">Proveedores</h1>
+          <h1 className="sm:text-2xl font-bold text-foreground flex items-center gap-2">
+            <Truck className="w-6 h-6 text-cyan-400 animate-pulse" />
+            Proveedores
+          </h1>
         </div>
         <div className="flex items-center gap-3">
           <button
-            onClick={() => refetch()}
-            disabled={isLoading}
-            className="btn-secondary"
-          >
-            <RefreshCw className={`w-4 h-4 ${isLoading ? 'animate-spin' : ''}`} />
-            Actualizar
-          </button>
-          <button
             onClick={() => handleOpenForm()}
-            className="btn-primary"
+            className="w-full sm:w-auto bg-primary hover:bg-primary-hover text-primary-foreground font-semibold px-4 py-2.5 rounded-lg flex items-center justify-center gap-2 transition-all shadow-lg shadow-primary/20 cursor-pointer"
           >
-            <Plus className="w-4 h-4" />
+            <PlusCircle className="w-4 h-4" />
             Nuevo Proveedor
           </button>
         </div>
@@ -166,7 +161,7 @@ export function ProvidersPage() {
             Registra los proveedores que suministran tus routers, cables y demás equipamiento tecnológico.
           </p>
           <button onClick={() => handleOpenForm()} className="btn-primary mx-auto">
-            <Plus className="w-4 h-4" />
+            <PlusCircle className="w-4 h-4" />
             Registrar Proveedor
           </button>
         </div>

@@ -74,7 +74,7 @@ def create_payment(
 
     # 3. Reactivar cliente si estaba inactivo/suspendido
     if not client.active:
-        logger.info(f"Detectado cliente suspendido {client.name} ({client.id}). Procediendo a reactivación...")
+        logger.info(f"Detectado cliente suspendido {client.full_name} ({client.id}). Procediendo a reactivación...")
         client.active = True
 
         # Activar su plan suspendido
@@ -107,7 +107,7 @@ def create_payment(
                     username=client.pppoe_secret.ppp_username,
                     password=password_dec,
                     profile_name=profile_name,
-                    client_name=client.name,
+                    client_name=client.full_name,
                     disabled=False
                 )
             except Exception as e:
@@ -131,7 +131,7 @@ def create_payment(
             
         # Disparar SMS de notificación (no bloqueante)
         try:
-            send_suspension_notification(client.name, client.phone, is_suspension=False)
+            send_suspension_notification(client.full_name, client.phone, is_suspension=False)
         except Exception as notification_error:
             logger.warning(f"Error al enviar notificación de reactivación por pago: {notification_error}")
             
@@ -140,10 +140,10 @@ def create_payment(
     log_event(
         db, AuditAction.CREATE_PAYMENT,
         entity_type="Payment", entity_id=payment.id,
-        entity_name=f"Pago · {client.name}",
+        entity_name=f"Pago · {client.full_name}",
         user_id=current_user.id, user_name=current_user.name,
         detail=audit_detail(
-            "Pago registrado", client=client.name, invoice_id=invoice.id,
+            "Pago registrado", client=client.full_name, invoice_id=invoice.id,
             amount=payment.amount, method=payment.method,
             client_reactivated=client_was_reactivated,
         ),

@@ -4,7 +4,7 @@
 import React, { useState } from 'react'
 import { createPortal } from 'react-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { Plus, RefreshCw, Trash2, Edit2, Sliders, Loader2, DollarSign, X, Package, ShieldCheck, ShieldAlert } from 'lucide-react'
+import { RefreshCw, Trash2, Edit2, Sliders, Loader2, X, Package, PlusCircle } from 'lucide-react'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
@@ -136,28 +136,20 @@ export function CustomServicesPage() {
   return (
     <div className="space-y-6 animate-fade-in">
       {/* Header */}
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-bold text-foreground flex items-center gap-2">
-            <Sliders className="w-6 h-6 text-brand-400" />
+          <h1 className="sm:text-2xl font-bold text-foreground flex items-center gap-2">
+            <Sliders className="w-6 h-6 text-cyan-400 animate-pulse" />
             Servicios Personalizados
           </h1>
         </div>
         <div className="flex items-center gap-3">
-          <button
-            onClick={() => refetch()}
-            disabled={isFetching}
-            className="btn-secondary"
-          >
-            <RefreshCw className={`w-4 h-4 ${isFetching ? 'animate-spin' : ''}`} />
-            Actualizar
-          </button>
           {isAdmin && (
             <button
               onClick={openAddDialog}
-              className="btn-primary"
+              className="w-full sm:w-auto bg-primary hover:bg-primary-hover text-primary-foreground font-semibold px-4 py-2.5 rounded-lg flex items-center justify-center gap-2 transition-all shadow-lg shadow-primary/20 cursor-pointer"
             >
-              <Plus className="w-4 h-4" />
+              <PlusCircle className="w-4 h-4" />
               Agregar servicio
             </button>
           )}
@@ -174,7 +166,7 @@ export function CustomServicesPage() {
           </p>
           {isAdmin && (
             <button onClick={openAddDialog} className="btn-primary mx-auto">
-              <Plus className="w-4 h-4" />
+              <PlusCircle className="w-4 h-4" />
               Agregar primer servicio
             </button>
           )}

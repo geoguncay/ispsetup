@@ -6,9 +6,7 @@ import { useForm, useWatch } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
 import { useMutation } from '@tanstack/react-query'
-import {
-  User, Lock, Save, Loader2, CheckCircle2, XCircle,
-  Camera, Shield, Wrench, Eye, Timer,
+import { User, Lock, Save, Loader2, CheckCircle2, XCircle, Camera, Shield, Wrench, Eye
 } from 'lucide-react'
 import api from '@/services/api'
 import { useAuthStore } from '@/stores/authStore'

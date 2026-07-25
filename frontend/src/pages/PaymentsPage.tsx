@@ -5,8 +5,7 @@ import { useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { Link } from 'react-router-dom'
 import {
-  DollarSign, RefreshCw, Calendar, ArrowUpRight,
-  CreditCard, Wallet, Download, Clock, Landmark, User, FileText
+  DollarSign, RefreshCw, Calendar, ArrowUpRight, CreditCard, Wallet, Download, Clock, Landmark, User, FileText
 } from 'lucide-react'
 import api from '@/services/api'
 import { useDateFormat, useTimeFormat } from '@/hooks/useDateFormat'
@@ -59,22 +58,13 @@ export function PaymentsPage() {
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div className="flex justify-between items-center">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
-          <h2 className="text-2xl font-bold tracking-tight text-foreground flex items-center gap-2">
-            <Wallet className="w-7 h-7 text-primary" />
+          <h1 className="sm:text-2xl font-bold text-foreground flex items-center gap-2">
+            <Wallet className="w-6 h-6 text-cyan-400 animate-pulse" />
             <span>Caja del Día</span>
-          </h2>
+          </h1>
         </div>
-
-        {/* Refrescar */}
-        <button
-          onClick={() => refetch()}
-          className="bg-secondary/40 hover:bg-secondary/60 text-foreground border border-border p-2.5 rounded-lg transition-all cursor-pointer flex items-center gap-2 text-sm font-semibold"
-        >
-          <RefreshCw className="w-4 h-4" />
-          <span>Sincronizar</span>
-        </button>
       </div>
 
       {/* Grid de Totales en Glassmorphism */}

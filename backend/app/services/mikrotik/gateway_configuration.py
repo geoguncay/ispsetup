@@ -208,8 +208,8 @@ def ensure_pcq_parent_rules(api, address_list: str, names: dict | None = None) -
         'download_packet_mark': 'pcq_download',
         'upload_queue_tree': 'pcq_upload',
         'download_queue_tree': 'pcq_download',
-        'upload_mangle_comment': 'ISP NMS PCQ upload',
-        'download_mangle_comment': 'ISP NMS PCQ download',
+        'upload_mangle_comment': 'PCQ upload',
+        'download_mangle_comment': 'PCQ download',
     }
     _ensure_named_resource(
         api, '/queue/type', '/queue/type/add', names['pcq_upload_type'],
@@ -251,13 +251,13 @@ def configure_speed_control(api, gateway: Gateway) -> None:
         ensure_pcq_parent_rules(api, names['client_address_list'], names)
         return
 
-    for comment in ('ISP NMS PCQ upload', 'ISP NMS PCQ download'):
+    for comment in ('PCQ upload', 'PCQ download'):
         entries = list(
             api.path('/ip/firewall/mangle').select().where(Key('comment') == comment)
         )
         for entry in entries:
             list(api('/ip/firewall/mangle/set', **{'.id': entry['.id'], 'disabled': 'yes'}))
-    for name in ('isp_pcq_upload', 'isp_pcq_download'):
+    for name in ('pcq_upload', 'pcq_download'):
         entries = list(api.path('/queue/tree').select().where(Key('name') == name))
         for entry in entries:
             list(api('/queue/tree/set', **{'.id': entry['.id'], 'disabled': 'yes'}))

@@ -113,7 +113,7 @@ def test_create_client_creates_queue(mock_sync_queue, mock_sync_ip, client: Test
         "/api/clients",
         headers={"Authorization": f"Bearer {token}"},
         json={
-            "name": "Juan Valdes",
+            "full_name": "Juan Valdes",
             "cedula": "1724024888",
             "phone": "0999999999",
             "address": "Quito",
@@ -156,7 +156,7 @@ def test_assign_plan_updates_queue(mock_sync_queue, mock_sync_ip, client: TestCl
 
     # Crear cliente manualmente
     c = Client(
-        name="Pepe Lucho",
+        full_name="Pepe Lucho",
         cedula="1724024888",
         phone="0999999999",
         address="Quito",
@@ -195,7 +195,7 @@ def test_toggle_client_queue_endpoint(mock_toggle_queue, client: TestClient):
     db = TestingSessionLocal()
     gateway = db.query(Gateway).first()
     c = Client(
-        name="Maria C",
+        full_name="Maria C",
         cedula="1724024888",
         phone="0999999999",
         address="Quito",
@@ -276,8 +276,8 @@ def test_update_gateway_accepts_custom_resource_names(mock_apply, mock_migrate, 
             "simple_queue_upload_type": "default-small",
             "simple_queue_download_type": "default-small",
             "client_address_list": "abonados_norte",
-            "client_queue_name_template": "NMS-{client_name}",
-            "dhcp_comment_template": "{client_name} / {plan_name}",
+            "client_queue_name_template": "{client_name}",
+            "dhcp_comment_template": "{plan_name} | {client_name}",
             "pcq_upload_type": "pcq_up_norte",
             "pcq_download_type": "pcq_down_norte",
             "upload_packet_mark": "mark_up_norte",
@@ -555,7 +555,7 @@ def test_hard_delete_preserves_routeros_and_removes_gateway_data(mock_cleanup, c
     db = TestingSessionLocal()
     gateway = db.query(Gateway).first()
     customer = Client(
-        name="Cliente a eliminar",
+        full_name="Cliente a eliminar",
         cedula="1711111116",
         phone="0991111111",
         address="Quito",
@@ -654,7 +654,7 @@ def test_get_router_queues_enriched(mock_fetch_queues, client: TestClient):
     gateway = db.query(Gateway).first()
     plan = db.query(Plan).first()
     c = Client(
-        name="Jose Ortiz",
+        full_name="Jose Ortiz",
         cedula="1724024888",
         phone="0999999999",
         address="Quito",

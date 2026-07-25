@@ -3,7 +3,7 @@
  */
 import { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { Plus, RefreshCw, Search, Package, Edit2, Trash2, AlertTriangle, Truck, ArrowUpDown, ArrowUp, ArrowDown, Upload } from 'lucide-react'
+import { RefreshCw, Search, Package, Edit2, Trash2, AlertTriangle, Truck, ArrowUpDown, ArrowUp, ArrowDown, Upload, PlusCircle } from 'lucide-react'
 import api from '@/services/api'
 import { InventoryFormDialog } from '@/components/InventoryFormDialog'
 import { InventoryImportDialog } from '@/components/InventoryImportDialog'
@@ -104,31 +104,26 @@ export function InventoryPage() {
   return (
     <div className="space-y-6 animate-fade-in">
       {/* Header */}
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-bold text-foreground">Inventario y Stock</h1>
+          <h1 className="sm:text-2xl font-bold text-foreground flex items-center gap-2">
+            <Package className="w-6 h-6 text-cyan-400 animate-pulse" />
+            <span>Inventario y Stock</span>
+          </h1>
         </div>
         <div className="flex items-center gap-3">
           <button
-            onClick={() => refetch()}
-            disabled={isLoading}
-            className="btn-secondary"
-          >
-            <RefreshCw className={`w-4 h-4 ${isLoading ? 'animate-spin' : ''}`} />
-            Actualizar
-          </button>
-          <button
             onClick={() => setImportOpen(true)}
-            className="btn-secondary"
+            className="bg-secondary hidden sm:flex items-center hover:bg-secondary-hover text-secondary-foreground font-semibold px-4 py-2.5 rounded-lg justify-center gap-1 transition-all shadow-lg shadow-secondary/20 cursor-pointer"
           >
             <Upload className="w-4 h-4" />
             Importar
           </button>
           <button
             onClick={() => handleOpenForm()}
-            className="btn-primary"
+            className="w-full sm:w-auto bg-primary hover:bg-primary-hover text-primary-foreground font-semibold px-4 py-2.5 rounded-lg flex items-center justify-center gap-2 transition-all shadow-lg shadow-primary/20 cursor-pointer"
           >
-            <Plus className="w-4 h-4" />
+            <PlusCircle className="w-4 h-4" />
             Registrar Artículo
           </button>
         </div>
@@ -161,7 +156,7 @@ export function InventoryPage() {
             Registra tu stock de routers, antenas CPE, bobinas de fibra, ONUs y consumibles.
           </p>
           <button onClick={() => handleOpenForm()} className="btn-primary mx-auto">
-            <Plus className="w-4 h-4" />
+            <PlusCircle className="w-4 h-4" />
             Registrar Artículo
           </button>
         </div>

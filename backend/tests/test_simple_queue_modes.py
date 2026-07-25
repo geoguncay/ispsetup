@@ -20,7 +20,7 @@ def _gateway(structure: str = 'standalone', upload: str = 'cake', download: str 
                 'simple_queue_upload_type': upload,
                 'simple_queue_download_type': download,
                 'parent_queue': 'isp_padre',
-                'client_queue_name_template': '{client_name}',
+                'client_queue_name_template': '{plan_name} | {client_name}',
             },
         },
     )

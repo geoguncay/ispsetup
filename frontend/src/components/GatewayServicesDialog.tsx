@@ -159,7 +159,7 @@ export function GatewayServicesDialog({ open, onClose, gateway, onSuccess }: Gat
 
   return createPortal(
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
-      <div className="glass-card w-full max-w-6xl mx-4 animate-fade-in h-5/6 flex flex-col overflow-hidden">
+      <div className="glass-card w-full max-w-2xl mx-4 animate-fade-in h-5/6 flex flex-col overflow-hidden">
         <div className="flex items-center justify-between border-b border-border p-5">
           <div className="flex items-center gap-3">
             <Settings2 className="h-5 w-5 text-brand-400" />

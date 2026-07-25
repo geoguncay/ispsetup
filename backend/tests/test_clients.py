@@ -126,7 +126,7 @@ def test_create_client_invalid_cedula(client: TestClient):
         "/api/clients",
         headers={"Authorization": f"Bearer {token}"},
         json={
-            "name": "Juan Perez",
+            "full_name": "Juan Perez",
             "cedula": "1724024883",  # Inválido (10 dígitos pero verificador incorrecto)
             "phone": "0999999999",
             "address": "Sector La Mariscal, Quito",
@@ -155,7 +155,7 @@ def test_create_client_valid_cedula_no_plan(client: TestClient):
         "/api/clients",
         headers={"Authorization": f"Bearer {token}"},
         json={
-            "name": "Juan Perez",
+            "full_name": "Juan Perez",
             "cedula": "1724024888",
             "phone": "0999999999",
             "address": "Sector La Mariscal, Quito",
@@ -168,7 +168,7 @@ def test_create_client_valid_cedula_no_plan(client: TestClient):
     )
     assert response.status_code == 201
     data = response.json()
-    assert data["name"] == "Juan Perez"
+    assert data["full_name"] == "Juan Perez"
     assert data["cedula"] == "1724024888"
     assert data["plan_activo"] is None
 
@@ -189,7 +189,7 @@ def test_create_client_with_initial_plan(client: TestClient):
         "/api/clients",
         headers={"Authorization": f"Bearer {token}"},
         json={
-            "name": "Maria Gomez",
+            "full_name": "Maria Gomez",
             "cedula": "0926079971",  # Cédula válida
             "phone": "0988888888",
             "address": "Av. Carlos Julio Arosemena, Guayaquil",
@@ -201,7 +201,7 @@ def test_create_client_with_initial_plan(client: TestClient):
     )
     assert response.status_code == 201
     data = response.json()
-    assert data["name"] == "Maria Gomez"
+    assert data["full_name"] == "Maria Gomez"
     assert data["plan_activo"]["id"] == str(plan.id)
     assert data["plan_activo"]["name"] == "Plan Fibra 50 Mbps"
 
@@ -218,8 +218,8 @@ def test_list_clients_and_filtering(client: TestClient):
     plan = db.query(Plan).first()
 
     # Agregar dos clientes con datos válidos
-    c1 = Client(name="Andres Lopez", cedula="1724024888", phone="0999999999", address="Quito Central", gateway_id=gateway.id)
-    c2 = Client(name="Sofia Velez", cedula="0926079971", phone="0988888888", address="Guayaquil Norte", gateway_id=gateway.id)
+    c1 = Client(full_name="Andres Lopez", cedula="1724024888", phone="0999999999", address="Quito Central", gateway_id=gateway.id)
+    c2 = Client(full_name="Sofia Velez", cedula="0926079971", phone="0988888888", address="Guayaquil Norte", gateway_id=gateway.id)
     db.add(c1)
     db.add(c2)
     db.flush()
@@ -243,14 +243,14 @@ def test_list_clients_and_filtering(client: TestClient):
         "/api/clients?search=Sofia", headers={"Authorization": f"Bearer {token}"}
     )
     assert response.json()["total"] == 1
-    assert response.json()["items"][0]["name"] == "Sofia Velez"
+    assert response.json()["items"][0]["full_name"] == "Sofia Velez"
 
     # 3. Filtrar por plan_id
     response = client.get(
         f"/api/clients?plan_id={plan_id}", headers={"Authorization": f"Bearer {token}"}
     )
     assert response.json()["total"] == 1
-    assert response.json()["items"][0]["name"] == "Andres Lopez"
+    assert response.json()["items"][0]["full_name"] == "Andres Lopez"
 
 
 def test_list_clients_sorting(client: TestClient):
@@ -293,7 +293,7 @@ def test_list_clients_sorting(client: TestClient):
     # Bernardo: pppoe, inactive, r1, no plan, no ip
     c1 = Client(
         id=uuid.UUID("30000000-0000-0000-0000-000000000000"),
-        name="Bernardo",
+        full_name="Bernardo",
         cedula="1724024888",
         phone="0999999999",
         address="Quito",
@@ -306,7 +306,7 @@ def test_list_clients_sorting(client: TestClient):
     # Carlos: static, active with scheduled_suspension, r2, plan_premium, ip=10.0.0.20
     c2 = Client(
         id=uuid.UUID("10000000-0000-0000-0000-000000000000"),
-        name="Carlos",
+        full_name="Carlos",
         cedula="0926079971",
         phone="0988888888",
         address="Guayaquil",
@@ -320,7 +320,7 @@ def test_list_clients_sorting(client: TestClient):
     # Andres: static, active, r1, plan_fibra, ip=10.0.0.10
     c3 = Client(
         id=uuid.UUID("20000000-0000-0000-0000-000000000000"),
-        name="Andres",
+        full_name="Andres",
         cedula="1790011674001",
         phone="0977777777",
         address="Cuenca",
@@ -346,20 +346,20 @@ def test_list_clients_sorting(client: TestClient):
 
     # 1. Sort by name ascending (Andres, Bernardo, Carlos)
     resp = client.get(
-        "/api/clients?sort_by=name&sort_dir=asc",
+        "/api/clients?sort_by=full_name&sort_dir=asc",
         headers={"Authorization": f"Bearer {token}"}
     )
     assert resp.status_code == 200
-    names = [item["name"] for item in resp.json()["items"]]
+    names = [item["full_name"] for item in resp.json()["items"]]
     assert names == ["Andres", "Bernardo", "Carlos"]
 
     # 2. Sort by name descending (Carlos, Bernardo, Andres)
     resp = client.get(
-        "/api/clients?sort_by=name&sort_dir=desc",
+        "/api/clients?sort_by=full_name&sort_dir=desc",
         headers={"Authorization": f"Bearer {token}"}
     )
     assert resp.status_code == 200
-    names = [item["name"] for item in resp.json()["items"]]
+    names = [item["full_name"] for item in resp.json()["items"]]
     assert names == ["Carlos", "Bernardo", "Andres"]
 
     # 3. Sort by created_at ascending (Bernardo, Carlos, Andres)
@@ -368,7 +368,7 @@ def test_list_clients_sorting(client: TestClient):
         headers={"Authorization": f"Bearer {token}"}
     )
     assert resp.status_code == 200
-    names = [item["name"] for item in resp.json()["items"]]
+    names = [item["full_name"] for item in resp.json()["items"]]
     assert names == ["Bernardo", "Carlos", "Andres"]
 
     # 4. Sort by connection_type ascending (Bernardo/pppoe, Andres/static, Carlos/static)
@@ -377,7 +377,7 @@ def test_list_clients_sorting(client: TestClient):
         headers={"Authorization": f"Bearer {token}"}
     )
     assert resp.status_code == 200
-    names = [item["name"] for item in resp.json()["items"]]
+    names = [item["full_name"] for item in resp.json()["items"]]
     assert names[0] == "Bernardo"
 
     # 5. Sort by active (Andres/activo sin aplazamiento/1, Carlos/activo con suspensión programada/2, Bernardo/inactivo/4)
@@ -386,7 +386,7 @@ def test_list_clients_sorting(client: TestClient):
         headers={"Authorization": f"Bearer {token}"}
     )
     assert resp.status_code == 200
-    names = [item["name"] for item in resp.json()["items"]]
+    names = [item["full_name"] for item in resp.json()["items"]]
     assert names == ["Andres", "Carlos", "Bernardo"]
 
     # 6. Sort by ip descending (Carlos/10.0.0.20, Andres/10.0.0.10, Bernardo/Null)
@@ -395,7 +395,7 @@ def test_list_clients_sorting(client: TestClient):
         headers={"Authorization": f"Bearer {token}"}
     )
     assert resp.status_code == 200
-    names = [item["name"] for item in resp.json()["items"]]
+    names = [item["full_name"] for item in resp.json()["items"]]
     assert names == ["Carlos", "Andres", "Bernardo"]
 
     # 7. Sort by gateway ascending (Carlos/Router Guayaquil, Bernardo/Router Quito Central, Andres/Router Quito Central)
@@ -404,7 +404,7 @@ def test_list_clients_sorting(client: TestClient):
         headers={"Authorization": f"Bearer {token}"}
     )
     assert resp.status_code == 200
-    names = [item["name"] for item in resp.json()["items"]]
+    names = [item["full_name"] for item in resp.json()["items"]]
     assert names[0] == "Carlos"
 
     # 8. Sort by plan ascending (Bernardo/Null, Andres/Plan Fibra 50 Mbps, Carlos/Plan Premium 100 Mbps)
@@ -413,7 +413,7 @@ def test_list_clients_sorting(client: TestClient):
         headers={"Authorization": f"Bearer {token}"}
     )
     assert resp.status_code == 200
-    names = [item["name"] for item in resp.json()["items"]]
+    names = [item["full_name"] for item in resp.json()["items"]]
     assert names == ["Bernardo", "Andres", "Carlos"]
 
 
@@ -438,7 +438,7 @@ def test_assign_plan_history(client: TestClient):
     )
     db.add(plan_b)
 
-    c = Client(name="Carlos Ruiz", cedula="1724024888", phone="0999999999", address="Quito Central", gateway_id=gateway.id)
+    c = Client(full_name="Carlos Ruiz", cedula="1724024888", phone="0999999999", address="Quito Central", gateway_id=gateway.id)
     db.add(c)
     db.flush()
 
@@ -488,7 +488,7 @@ def test_update_client_cedula_and_email(client: TestClient):
         "/api/clients",
         headers={"Authorization": f"Bearer {token}"},
         json={
-            "name": "Test Email Client",
+            "full_name": "Test Email Client",
             "cedula": "1724024888",
             "phone": "0999999999",
             "address": "Quito",
@@ -533,7 +533,7 @@ def test_create_client_valid_ruc(client: TestClient):
         "/api/clients",
         headers={"Authorization": f"Bearer {token}"},
         json={
-            "name": "Natural RUC Client",
+            "full_name": "Natural RUC Client",
             "cedula": "1724024888001",
             "phone": "0999999999",
             "address": "Quito",
@@ -550,7 +550,7 @@ def test_create_client_valid_ruc(client: TestClient):
         "/api/clients",
         headers={"Authorization": f"Bearer {token}"},
         json={
-            "name": "Juridica RUC Client",
+            "full_name": "Juridica RUC Client",
             "cedula": "1790011674001",
             "phone": "0999999999",
             "address": "Quito",
@@ -567,7 +567,7 @@ def test_create_client_valid_ruc(client: TestClient):
         "/api/clients",
         headers={"Authorization": f"Bearer {token}"},
         json={
-            "name": "Publica RUC Client",
+            "full_name": "Publica RUC Client",
             "cedula": "1760001550001",
             "phone": "0999999999",
             "address": "Quito",
@@ -596,7 +596,7 @@ def test_create_client_invalid_ruc(client: TestClient):
         "/api/clients",
         headers={"Authorization": f"Bearer {token}"},
         json={
-            "name": "Invalid RUC Client",
+            "full_name": "Invalid RUC Client",
             "cedula": "1790011675001",  # Inválido (dígito verificador incorrecto)
             "phone": "0999999999",
             "address": "Quito",
@@ -626,7 +626,7 @@ def test_create_and_update_client_custom_created_at(client: TestClient):
         "/api/clients",
         headers={"Authorization": f"Bearer {token}"},
         json={
-            "name": "Client With Custom Date",
+            "full_name": "Client With Custom Date",
             "cedula": "1724024888",
             "phone": "0999999999",
             "address": "Quito",
@@ -697,7 +697,7 @@ def test_client_site_filtering(client: TestClient):
         "/api/clients",
         headers={"Authorization": f"Bearer {token}"},
         json={
-            "name": "Client Site A",
+            "full_name": "Client Site A",
             "cedula": "1724024888",
             "phone": "0999999999",
             "address": "Quito A",
@@ -713,7 +713,7 @@ def test_client_site_filtering(client: TestClient):
         "/api/clients",
         headers={"Authorization": f"Bearer {token}"},
         json={
-            "name": "Client Site B",
+            "full_name": "Client Site B",
             "cedula": "0926079971",
             "phone": "0988888888",
             "address": "Guayaquil B",
@@ -732,7 +732,7 @@ def test_client_site_filtering(client: TestClient):
     assert response_filter_a.status_code == 200
     data_a = response_filter_a.json()
     assert data_a["total"] == 1
-    assert data_a["items"][0]["name"] == "Client Site A"
+    assert data_a["items"][0]["full_name"] == "Client Site A"
     assert data_a["items"][0]["site_name"] == "Site A"
     assert data_a["items"][0]["site_id"] == str(site1.id)
 
@@ -744,7 +744,7 @@ def test_client_site_filtering(client: TestClient):
     assert response_filter_b.status_code == 200
     data_b = response_filter_b.json()
     assert data_b["total"] == 1
-    assert data_b["items"][0]["name"] == "Client Site B"
+    assert data_b["items"][0]["full_name"] == "Client Site B"
     assert data_b["items"][0]["site_name"] == "Site B"
     assert data_b["items"][0]["site_id"] == str(site2.id)
 

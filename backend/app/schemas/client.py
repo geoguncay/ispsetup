@@ -38,7 +38,7 @@ class ClientInventoryItemResponse(BaseModel):
 
 
 class ClientBase(BaseModel):
-    name: str | None = Field(default=None, max_length=120)
+    full_name: str | None = Field(default=None, max_length=120)
     last_name: str | None = Field(default=None, max_length=60)
     first_name: str | None = Field(default=None, max_length=60)
     cedula: str = Field(min_length=10, max_length=20)
@@ -86,7 +86,7 @@ class ClientCreate(ClientBase):
 
 
 class ClientUpdate(BaseModel):
-    name: str | None = Field(default=None, max_length=120)
+    full_name: str | None = Field(default=None, max_length=120)
     last_name: str | None = Field(default=None, max_length=60)
     first_name: str | None = Field(default=None, max_length=60)
     custom_service_ids: list[uuid.UUID] | None = None

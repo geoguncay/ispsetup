@@ -111,7 +111,7 @@ def generate_receipt_pdf(payment: ClientPayment, company: Company | None = None)
     
     # ── Datos del Cliente ──────────────────────────────────────────────────────
     client = payment.client
-    client_name = client.name if client else "N/A"
+    client_name = client.full_name if client else "N/A"
     client_cedula = client.cedula if client else "N/A"
     client_email = client.email if (client and client.email) else "N/A"
     client_phone = client.phone if client else "N/A"

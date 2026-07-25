@@ -60,7 +60,7 @@ class InvoiceResponse(BaseModel):
                 "due_date": getattr(data, "due_date", None),
                 "status": getattr(data, "status", None),
                 "created_at": getattr(data, "created_at", None),
-                "client_name": client.name if client else None,
+                "client_name": client.full_name if client else None,
                 "client_cedula": client.cedula if client else None,
                 "plan_name": plan.name if plan else None,
                 "payment_id": payment_id
