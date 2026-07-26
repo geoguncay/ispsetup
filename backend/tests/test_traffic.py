@@ -85,7 +85,10 @@ def setup_db(monkeypatch):
         role="admin",
         active=True,
     ))
-    # Agregar un gateway
+    # Agregar un gateway. traffic_accounting se fija explícitamente en
+    # 'queue_accounting' porque estas pruebas ejercitan la recolección vía
+    # Simple Queues; el modo 'traffic_flow' la omite (ver test_netflow_collector.py
+    # y test_poll_traffic_skips_simple_queues_for_traffic_flow_gateway más abajo).
     r = Gateway(
         name="Router Monitoreado",
         ip="10.0.0.1",
@@ -93,6 +96,7 @@ def setup_db(monkeypatch):
         api_username="admin",
         password_enc="enc_pass",
         active=True,
+        traffic_accounting="queue_accounting",
     )
     db.add(r)
     db.commit()
@@ -200,6 +204,79 @@ def test_poll_traffic_task(mock_connect_to):
     assert iface_sample.rx_bytes == 1000
     assert iface_sample.tx_bytes == 2000
 
+    db.close()
+
+
+@patch("app.workers.traffic.gateway_pool.connect_to")
+def test_poll_traffic_skips_simple_queues_for_traffic_flow_gateway(mock_connect_to):
+    """Un Gateway en modo 'traffic_flow' no debe generar TrafficSample por
+    cliente vía Simple Queues (eso ahora lo hace el colector NetFlow), pero
+    sí debe seguir reportando el consumo de sus interfaces."""
+    api_mock = MagicMock()
+
+    def api_side_effect(cmd, *args, **kwargs):
+        if cmd == "/interface/print":
+            return [
+                {"name": "ether1", "type": "ether", "running": "true", "disabled": "false", "rx-byte": 111, "tx-byte": 222},
+            ]
+        elif cmd == "/system/resource/print":
+            return [{"version": "7.15", "uptime": "1d2h"}]
+        return []
+
+    api_mock.side_effect = api_side_effect
+
+    def path_side_effect(path):
+        if path == "/queue/simple":
+            return [
+                {"name": "Cliente NetFlow", "target": "192.168.20.5/32", "rate": "1000/2000", "bytes": "3000/4000", "disabled": "false"}
+            ]
+        return MagicMock()
+
+    api_mock.path.side_effect = path_side_effect
+    mock_connect_to.return_value.__enter__.return_value = api_mock
+
+    db = TestingSessionLocal()
+    gw = Gateway(
+        name="Router NetFlow",
+        ip="10.0.0.2",
+        api_port=8728,
+        api_username="admin",
+        password_enc="enc_pass",
+        active=True,
+        traffic_accounting="traffic_flow",
+    )
+    db.add(gw)
+    db.flush()
+    c = Client(
+        full_name="Cliente NetFlow",
+        cedula="1724024890",
+        phone="0999999996",
+        address="Quito",
+        gateway_id=gw.id,
+        connection_type="static",
+        active=True,
+    )
+    db.add(c)
+    db.flush()
+    db.add(StaticIP(client_id=c.id, ip="192.168.20.5", gateway_id=gw.id))
+    gateway_id = gw.id
+    db.commit()
+    db.close()
+
+    poll_traffic()
+
+    db = TestingSessionLocal()
+    client_samples = db.query(TrafficSample).filter(
+        TrafficSample.gateway_id == gateway_id, TrafficSample.client_id.isnot(None)
+    ).all()
+    assert client_samples == []
+
+    iface_samples = db.query(TrafficSample).filter(
+        TrafficSample.gateway_id == gateway_id, TrafficSample.interface_name == "ether1"
+    ).all()
+    assert len(iface_samples) == 1
+    assert iface_samples[0].rx_bytes == 111
+    assert iface_samples[0].tx_bytes == 222
     db.close()
 
 

@@ -69,48 +69,53 @@ def sync_poll_gateway(gateway: Gateway, static_ips_map: dict, now: datetime) -> 
     try:
         with gateway_pool.connect_to(gateway) as api:
             # 1. Obtener Simple Queues (Tráfico de Clientes)
-            try:
-                queues = list(api.path('/queue/simple'))
-                for q in queues:
-                    name = q.get("name")
-                    target = q.get("target")  # e.g., "192.168.10.15/32"
-                    rate_str = q.get("rate", "0/0")  # e.g., "128000/256000"
-                    bytes_str = q.get("bytes", "0/0")  # e.g., "12345/67890"
-                    disabled = q.get("disabled") == "true" or q.get("disabled") is True
+            # En modo 'traffic_flow' el colector NetFlow (app.services.netflow)
+            # ya reporta el tráfico por cliente a partir de lo que el propio
+            # router exporta; sondear Simple Queues aquí duplicaría/mezclaría
+            # esas muestras, así que se omite para esos Gateways.
+            if gateway.traffic_accounting != 'traffic_flow':
+                try:
+                    queues = list(api.path('/queue/simple'))
+                    for q in queues:
+                        name = q.get("name")
+                        target = q.get("target")  # e.g., "192.168.10.15/32"
+                        rate_str = q.get("rate", "0/0")  # e.g., "128000/256000"
+                        bytes_str = q.get("bytes", "0/0")  # e.g., "12345/67890"
+                        disabled = q.get("disabled") == "true" or q.get("disabled") is True
 
-                    if not target or disabled:
-                        continue
+                        if not target or disabled:
+                            continue
 
-                    # Extraer dirección IP (ej: de "192.168.10.15/32" -> "192.168.10.15")
-                    ip = target.split('/')[0]
-                    client_id = static_ips_map.get((gateway.id, ip))
+                        # Extraer dirección IP (ej: de "192.168.10.15/32" -> "192.168.10.15")
+                        ip = target.split('/')[0]
+                        client_id = static_ips_map.get((gateway.id, ip))
 
-                    if not client_id:
-                        continue
+                        if not client_id:
+                            continue
 
-                    # Parsear tasas (Simple Queues en MikroTik reporta: upload/download)
-                    try:
-                        tx_rate, rx_rate = map(int, rate_str.split('/'))
-                    except ValueError:
-                        tx_rate, rx_rate = 0, 0
+                        # Parsear tasas (Simple Queues en MikroTik reporta: upload/download)
+                        try:
+                            tx_rate, rx_rate = map(int, rate_str.split('/'))
+                        except ValueError:
+                            tx_rate, rx_rate = 0, 0
 
-                    try:
-                        tx_bytes, rx_bytes = map(int, bytes_str.split('/'))
-                    except ValueError:
-                        tx_bytes, rx_bytes = 0, 0
+                        try:
+                            tx_bytes, rx_bytes = map(int, bytes_str.split('/'))
+                        except ValueError:
+                            tx_bytes, rx_bytes = 0, 0
 
-                    client_samples.append({
-                        "gateway_id": gateway.id,
-                        "client_id": client_id,
-                        "name": name,
-                        "rx_bytes": rx_bytes,
-                        "tx_bytes": tx_bytes,
-                        "rx_rate": rx_rate,
-                        "tx_rate": tx_rate,
-                        "timestamp": now,
-                    })
-            except Exception as eq:
-                logger.error(f"Error al consultar colas en {gateway.name}: {eq}")
+                        client_samples.append({
+                            "gateway_id": gateway.id,
+                            "client_id": client_id,
+                            "name": name,
+                            "rx_bytes": rx_bytes,
+                            "tx_bytes": tx_bytes,
+                            "rx_rate": rx_rate,
+                            "tx_rate": tx_rate,
+                            "timestamp": now,
+                        })
+                except Exception as eq:
+                    logger.error(f"Error al consultar colas en {gateway.name}: {eq}")
 
             # 2. Obtener Interfaces (Consumo Global)
             try:

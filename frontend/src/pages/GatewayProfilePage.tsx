@@ -302,9 +302,19 @@ export function GatewayProfilePage() {
       try {
         const payload = JSON.parse(event.data)
         const clients = payload.clients || []
-        const sortedClients = [...clients].sort((a: any, b: any) => (b.rx_rate + b.tx_rate) - (a.rx_rate + a.tx_rate))
-        setLiveClients(sortedClients)
-        const bridge = (payload.interfaces || []).find((i: any) => i.name === 'bridge1')
+        const interfaces = payload.interfaces || []
+
+        // En modo Traffic Flow, el colector NetFlow (clientes) y el polling
+        // de interfaces (poll_traffic) publican mensajes separados en el
+        // mismo canal Redis. Un mensaje con interfaces no vacías viene del
+        // polling y no trae datos reales de clientes en esta modalidad; se
+        // ignora para no pisar el último dato de clientes que sí reportó NetFlow.
+        const isTrafficFlow = gateway?.traffic_accounting === 'traffic_flow'
+        if (!(isTrafficFlow && interfaces.length > 0)) {
+          const sortedClients = [...clients].sort((a: any, b: any) => (b.rx_rate + b.tx_rate) - (a.rx_rate + a.tx_rate))
+          setLiveClients(sortedClients)
+        }
+        const bridge = interfaces.find((i: any) => i.name === 'bridge1')
         if (bridge) setBridgeBytes({ rx: bridge.rx_bytes || 0, tx: bridge.tx_bytes || 0 })
       } catch (err) {
         console.error('Error al procesar mensaje de tráfico en vivo:', err)
@@ -314,7 +324,7 @@ export function GatewayProfilePage() {
     return () => {
       ws.close()
     }
-  }, [id, gateway?.settings_configured])
+  }, [id, gateway?.settings_configured, gateway?.traffic_accounting])
 
   // Consultar todos los clientes del gateway (para estadísticas y mapa de cobertura)
   const { data: allClients = [] } = useQuery<Client[]>({

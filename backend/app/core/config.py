@@ -44,6 +44,11 @@ class Settings(BaseSettings):
     # Gateway.radius_secret_encrypted.
     TRAFFIC_FLOW_PORT: int = 2055
 
+    # ── Colector NetFlow v9 (recibe lo que el modo Traffic Flow envía) ─
+    NETFLOW_COLLECTOR_HOST: str = "0.0.0.0"
+    NETFLOW_FLUSH_INTERVAL_SECONDS: int = 5
+    NETFLOW_MAPPING_REFRESH_SECONDS: int = 20
+
     # ── Usuario admin inicial (seed) ──────────────────────────
     ADMIN_SEED_EMAIL: str = "admin@email.com"
     ADMIN_SEED_PASSWORD: str = "t3PXeS4tn@"

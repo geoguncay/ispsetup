@@ -16,6 +16,7 @@ interface Gateway {
   ip: string
   active: boolean
   status: 'online' | 'offline' | 'degraded' | 'unknown' | null
+  traffic_accounting?: string
 }
 
 export const formatBytes = (bytes: number) => {
@@ -142,6 +143,16 @@ export function TrafficPage() {
         const payload = JSON.parse(event.data)
         const timestamp = payload.timestamp || new Date().toISOString()
         const clients = payload.clients || []
+        const interfaces = payload.interfaces || []
+
+        // En modo Traffic Flow, el colector NetFlow (clientes) y el polling
+        // de interfaces (poll_traffic) publican mensajes separados en el
+        // mismo canal Redis. Un mensaje con interfaces no vacías viene del
+        // polling y no trae datos reales de clientes en esta modalidad; se
+        // ignora para no pisar el último dato de clientes que sí reportó
+        // NetFlow con un falso "0".
+        const isTrafficFlow = selectedGateway?.traffic_accounting === 'traffic_flow'
+        if (isTrafficFlow && interfaces.length > 0) return
 
         // Calculate aggregate speeds from active clients
         const totalRx = clients.reduce((acc: number, c: any) => acc + (c.rx_rate || 0), 0)
@@ -180,7 +191,7 @@ export function TrafficPage() {
     return () => {
       ws.close()
     }
-  }, [selectedGatewayId])
+  }, [selectedGatewayId, selectedGateway?.traffic_accounting])
 
   // Filter clients list
   const filteredClients = useMemo(() => {

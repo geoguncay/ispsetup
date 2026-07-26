@@ -68,6 +68,33 @@ services:
       - isp_net
 
   # ─────────────────────────────────────────────
+  # Colector NetFlow v9 — recibe lo que los Gateways en modo "Traffic Flow"
+  # envían (ver app/services/mikrotik/gateway_configuration.py) y alimenta
+  # traffic_samples / el pub-sub de tráfico en vivo. Ver
+  # app/services/netflow/collector.py.
+  # ─────────────────────────────────────────────
+  netflow-collector:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+      target: development
+    container_name: netflow_collector
+    restart: unless-stopped
+    env_file: .env
+    command: python -m app.services.netflow.collector
+    volumes:
+      - ./backend:/app
+    ports:
+      - "${TRAFFIC_FLOW_PORT:-2055}:${TRAFFIC_FLOW_PORT:-2055}/udp"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - isp_net
+
+  # ─────────────────────────────────────────────
   # PostgreSQL
   # ─────────────────────────────────────────────
   postgres:

@@ -4,9 +4,10 @@ import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
 import { Loader2, Settings2, X, AlertTriangle } from 'lucide-react'
-import { useMutation, useQueryClient } from '@tanstack/react-query'
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 
 import api from '@/services/api'
+import { getSystemSettings } from '@/services/systemSettings'
 
 const namedResource = z.string().trim().min(1, 'El nombre es obligatorio').max(160)
 const resourceTemplate = namedResource.refine((value) => {
@@ -112,6 +113,12 @@ function resourcesFor(gateway: GatewayServicesDialogProps['gateway']): GatewaySe
 
 export function GatewayServicesDialog({ open, onClose, gateway, onSuccess }: GatewayServicesDialogProps) {
   const queryClient = useQueryClient()
+  const { data: systemSettings } = useQuery({
+    queryKey: ['system-settings'],
+    queryFn: getSystemSettings,
+    enabled: open,
+  })
+  const ispsetupIpMissing = open && !systemSettings?.ispsetup.ispsetup_server_ip
   const { register, handleSubmit, reset, watch, formState: { errors } } = useForm<GatewaySettingsForm>({
     resolver: zodResolver(settingsSchema),
     defaultValues: {
@@ -149,6 +156,8 @@ export function GatewayServicesDialog({ open, onClose, gateway, onSuccess }: Gat
 
   const securityMode = watch('security_mode')
   const usesRadius = securityMode === 'ppp_radius' || securityMode === 'hotspot_radius'
+  const trafficAccounting = watch('traffic_accounting')
+  const trafficNeedsIspsetupIp = trafficAccounting === 'traffic_flow' || trafficAccounting === 'accounting_v6'
   const speedMode = watch('speed_control_type')
   const simpleQueueStructure = watch('resource_config.speed_control.simple_queue_structure')
   const errorDetail = (saveMutation.error as { response?: { data?: { detail?: string } } } | null)
@@ -176,6 +185,12 @@ export function GatewayServicesDialog({ open, onClose, gateway, onSuccess }: Gat
           </div>
           <button type="button" onClick={onClose} className="text-muted-foreground hover:text-foreground"><X className="h-5 w-5" /></button>
         </div>
+
+        {saveMutation.isError && (
+          <p className="mx-5 mt-4 rounded-lg border border-destructive/30 bg-destructive/10 px-4 py-3 text-sm text-destructive">
+            {errorDetail ?? 'No se pudo guardar y aplicar la configuración.'}
+          </p>
+        )}
 
         <form className="flex min-h-0 flex-1 flex-col" onSubmit={handleSubmit((values) => saveMutation.mutate(values))}>
           <div className="min-h-0 flex-1 space-y-5 overflow-y-auto p-5">
@@ -229,6 +244,15 @@ export function GatewayServicesDialog({ open, onClose, gateway, onSuccess }: Gat
                 <option value="queue_accounting">Colas / Queue accounting</option><option value="none">Ninguno</option>
               </select>
               <p className="text-[11px] text-muted-foreground">Este modo no crea recursos RouterOS que requieran un nombre adicional.</p>
+              {ispsetupIpMissing && trafficNeedsIspsetupIp && (
+                <div className="flex items-start gap-2 rounded-lg border border-amber-500/30 bg-amber-500/10 p-3 text-xs text-amber-400">
+                  <AlertTriangle className="h-4 w-4 flex-shrink-0 mt-0.5" />
+                  <span>
+                    Falta configurar la IP del servidor ISPSETUP en Ajustes ▸ Integraciones. Sin ella,
+                    RouterOS rechazará este modo y el guardado fallará.
+                  </span>
+                </div>
+              )}
             </section>
 
             <section className="rounded-xl border border-border/50 bg-secondary/10 p-4 space-y-4">
@@ -282,8 +306,6 @@ export function GatewayServicesDialog({ open, onClose, gateway, onSuccess }: Gat
               </div>}
               {speedMode === 'none' && <p className="text-xs text-muted-foreground">No se crearán colas, reglas PCQ ni límites DHCP.</p>}
             </section>
-
-            {saveMutation.isError && <p className="rounded-lg border border-destructive/30 bg-destructive/10 px-4 py-3 text-sm text-destructive">{errorDetail ?? 'No se pudo guardar y aplicar la configuración.'}</p>}
           </div>
 
           <div className="flex justify-end gap-3 border-t border-border/50 px-5 py-4">
