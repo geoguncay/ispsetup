@@ -22,9 +22,10 @@ interface Gateway {
   active: boolean
   hw_model: string | null
   notes: string | null
-  status: 'online' | 'offline' | 'degraded' | 'unknown' | null
+  status: 'online' | 'offline' | 'tunnel_down' | 'degraded' | 'unknown' | null
   uptime: string | null
   ros_version: string | null
+  zerotier_online?: boolean | null
   traffic_monitoring: boolean
   speed_control: boolean
   sync_logs: boolean
@@ -125,7 +126,9 @@ export function GatewaysPage() {
   })
 
   const onlineCount = filteredGateways.filter((gateway) => gateway.status === 'online').length
-  const offlineCount = filteredGateways.filter((gateway) => gateway.status === 'offline').length
+  const offlineCount = filteredGateways.filter(
+    (gateway) => gateway.status === 'offline' || gateway.status === 'tunnel_down',
+  ).length
 
   if (isLoading) {
     return (

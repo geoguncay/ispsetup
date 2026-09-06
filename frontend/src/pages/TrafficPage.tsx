@@ -15,7 +15,7 @@ interface Gateway {
   name: string
   ip: string
   active: boolean
-  status: 'online' | 'offline' | 'degraded' | 'unknown' | null
+  status: 'online' | 'offline' | 'tunnel_down' | 'degraded' | 'unknown' | null
   traffic_accounting?: string
 }
 

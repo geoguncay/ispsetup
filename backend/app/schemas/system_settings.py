@@ -133,7 +133,7 @@ class IntegrationSettingsRead(BaseModel):
     pg_api_secret_set: bool
 
 
-# ── ISPSETUP / RADIUS ─────────────────────────────────────────────────────────────
+# ── ISPSETUP (IP alcanzable desde los Gateways para Traffic Flow) ─────────────
 class NmsSettings(BaseModel):
     ispsetup_server_ip: str | None = Field(default=None, max_length=255)
 

@@ -81,7 +81,7 @@ interface GatewayFormDialogProps {
     api_username: string;
     hw_model: string | null;
     notes: string | null;
-    status?: 'online' | 'offline' | 'degraded' | 'unknown' | null;
+    status?: 'online' | 'offline' | 'tunnel_down' | 'degraded' | 'unknown' | null;
     latitude?: number | null;
     longitude?: number | null;
     traffic_monitoring?: boolean;

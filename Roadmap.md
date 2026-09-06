@@ -1,5 +1,28 @@
 # ISP SETUP — Roadmap de desarrollo
 
+> **Nota de actualización (2026-08-17):** Este roadmap se revisó y ajustó contra
+> el estado real del código. Cambios de fondo desde la versión anterior:
+> `Router` se renombró a **`Gateway`** (agrupable por **`Site`**) y se agregó un
+> modo de monitoreo por **NetFlow v9 ("Traffic Flow")** como alternativa al
+> polling, y se sumaron módulos que no estaban contemplados originalmente:
+> **Inventario/Proveedores**, **Servicios personalizados**, **Datos de empresa
+> (Company)** y **Auditoría**. El detalle de cada uno está marcado inline abajo.
+> La carpeta `mobile/` del árbol original todavía no existe en el repo — ver
+> nota en Fase 4.4.
+>
+> **Nota de actualización (2026-09-06):** La **Fase 4.4** deja de ser la "app móvil
+> para técnicos" (descartada) y pasa a ser un **módulo completo de gestión OLT/ONU
+> GPON** estilo SmartOLT: OLTs multi-vendor, aprovisionamiento de ONUs, perfiles de
+> velocidad/VLAN, monitoreo de señal óptica y enganche con el ciclo de vida del
+> cliente. Detalle en Fase 4.4; stack en "Módulo OLT / ONU".
+>
+> **Nota de actualización (2026-09-06):** La **subfase 3.5 (RADIUS Accounting)**
+> se **descartó por completo** — no hay caso de uso (servicio 100% PPPoE + IP
+> estática, sin Hotspot). Se eliminó del código el servidor FreeRADIUS
+> (contenedor `radius/`), la ingesta de Accounting, los modos de seguridad
+> `ppp_radius`/`hotspot_radius`, el secreto RADIUS por Gateway y `docs/radius.md`.
+> La IP del servidor ISPSETUP se conserva porque la usa Traffic Flow.
+
 ---
 
 ## Estructura del monorepo
@@ -8,13 +31,18 @@
 isp-platform/
 ├── backend/
 │   ├── app/
-│   │   ├── api/              # Routers FastAPI por módulo
+│   │   ├── api/              # Routers FastAPI por módulo (clients, gateways,
+│   │   │                     #   sites, inventory, suppliers, custom_services,
+│   │   │                     #   audit_logs, zerotier, traffic, …)
 │   │   ├── models/           # Modelos SQLAlchemy
 │   │   ├── schemas/          # Pydantic schemas
 │   │   ├── services/         # Lógica de negocio
 │   │   │   ├── mikrotik/     # librouteros — queues, PPPoE, firewall
-│   │   │   ├── sri/          # Módulo facturación electrónica
-│   │   │   └── notifications/
+│   │   │   ├── netflow/      # Colector + parser NetFlow v9 (modo "Traffic Flow")
+│   │   │   ├── zerotier/     # Cliente ZeroTier Central API
+│   │   │   ├── olt/          # Drivers OLT/ONU por vendor (SSH/Telnet + SNMP) — pendiente (Fase 4.4)
+│   │   │   ├── notifications/
+│   │   │   └── sri/          # Módulo facturación electrónica — pendiente (Fase 4.2)
 │   │   ├── workers/          # Tareas Celery
 │   │   ├── core/             # Config, auth, seguridad
 │   │   └── main.py
@@ -25,19 +53,19 @@ isp-platform/
 ├── frontend/
 │   ├── src/
 │   │   ├── components/       # Componentes reutilizables
-│   │   ├── pages/            # Vistas por módulo
-│   │   ├── hooks/            # Custom hooks (useRouter, useTraffic…)
+│   │   ├── pages/            # Vistas por módulo (incluye pages/settings/ con
+│   │   │                     #   pestañas: Company, Security, Integrations, …)
+│   │   ├── hooks/            # Custom hooks
 │   │   ├── stores/           # Zustand stores
 │   │   ├── services/         # Llamadas a la API
 │   │   └── lib/              # Utils, validaciones Zod
 │   ├── tailwind.config.ts
 │   ├── vite.config.ts
 │   └── Dockerfile
-├── mobile/
-│   ├── app/                  # Expo Router (file-based routing)
-│   ├── components/
-│   └── app.json
-├── docker-compose.yml
+├── docs/
+│   └── olt.md                # Matriz de vendors, flujo de aprovisionamiento
+│                             #   ONU, seguridad de red y tabla de niveles ópticos
+├── docker-compose.yml        # incluye netflow-collector, zerotier
 ├── docker-compose.prod.yml
 ├── nginx/
 │   └── nginx.conf
@@ -73,13 +101,19 @@ isp-platform/
 - [x] UI: pantalla de login con Tailwind + shadcn/ui, guards de rutas React Router
 - [x] UI: panel de gestión de usuarios (solo admin)
 
-### 1.3 Modelo multi-router
+### 1.3 Modelo multi-gateway
 
-- [x] Modelo `Router`: id, nombre, ip, usuario_api, contraseña (Fernet cifrada), activo, modelo_hw, notas
-- [x] Servicio `RouterPool`: pool de conexiones `librouteros` por `router_id`, con reconexión automática
+> Renombrado de `Router` → **`Gateway`** durante la implementación (ver nota al
+> inicio del documento). Los ítems abajo reflejan el modelo actual.
+
+- [x] Modelo `Gateway` (antes `Router`): id, nombre, ip, api_port, api_username, contraseña (Fernet cifrada), activo, hw_model, notas, coordenadas
+- [x] Modelo `Site`: agrupa Gateways por ubicación/nodo (nombre, coordenadas) — no estaba en el plan original
+- [x] Modos configurables por Gateway: `security_mode` (none_api / ppp_api / hotspot_api), `traffic_accounting` (polling / traffic_flow), `speed_control_type`
+- [x] Servicio: pool de conexiones `librouteros` con reconexión automática
 - [x] Health check automático cada 60 s (Celery Beat) → estado en Redis
-- [x] Endpoint `GET /routers/{id}/status`: ping, versión RouterOS, uptime, interfaces
-- [x] UI: CRUD de routers con indicador de estado en tiempo real (verde/rojo/amarillo)
+- [x] Endpoint `GET /gateways/{id}/status`: ping, versión RouterOS, uptime, interfaces
+- [x] Cola de sincronización `MikroTikSyncQueue`: reintenta operaciones (address-list, queues, PPPoE) si el Gateway está offline al momento del cambio — no estaba en el plan original
+- [x] UI: CRUD de Gateways con indicador de estado en tiempo real (verde/rojo/amarillo), agrupados por Site
 - [x] UI: test de conexión manual desde el formulario
 
 ---
@@ -91,29 +125,29 @@ isp-platform/
 
 ### 2.1 Gestión de clientes
 
-- [x] Modelo `Client`: id, nombre, cédula, teléfono, dirección, coordenadas GPS, router_id, tipo (static/pppoe), activo
+- [x] Modelo `Client`: id, nombre, cédula, teléfono, dirección, coordenadas GPS, gateway_id, tipo (static/pppoe), activo
 - [x] Modelo `Plan`: id, nombre, velocidad_down_mbps, velocidad_up_mbps, precio
 - [x] Modelo `ClientPlan`: cliente_id, plan_id, fecha_inicio, fecha_fin, estado (activo/suspendido/cancelado)
 - [x] CRUD completo de clientes con validaciones de cédula ecuatoriana
-- [x] UI: listado con filtros dinámicos (router, plan, estado, zona) + paginación
+- [x] UI: listado con filtros dinámicos (gateway/site, plan, estado, zona) + paginación
 - [x] UI: formulario de nuevo cliente con mapa Leaflet para marcar coordenadas GPS
 - [x] UI: perfil de cliente — historial de planes, suspensiones, pagos y tickets
 
 ### 2.2 IP estáticas y sincronización MikroTik
 
-- [x] Modelo `StaticIP`: cliente_id, ip, router_id, mac (opcional), notas
+- [x] Modelo `StaticIP`: cliente_id, ip, gateway_id, mac (opcional), notas
 - [x] Servicio: al crear cliente → agregar IP a `/ip firewall address-list list=clientes`
-- [x] Importar clientes existentes del router (address-list → BD)
-- [x] Validación: IP no duplicada dentro del mismo router
+- [x] Importar clientes existentes del gateway (address-list → BD)
+- [x] Validación: IP no duplicada dentro del mismo gateway
 - [x] Endpoint `POST /clients/{id}/sync-router`: forzar sincronización manual
 
 ### 2.3 Colas de ancho de banda
 
-- [x] Servicio `QueueService`: crear Simple Queue hija bajo cola padre por router
+- [x] Servicio `QueueService`: crear Simple Queue hija bajo cola padre por gateway
 - [x] Convención de nombre: `comment` = tag del plan (compatible con scripts CAKE existentes)
 - [x] Endpoint: cambio de plan → modifica `max-limit` de la cola en RouterOS en tiempo real
 - [x] Endpoint: deshabilitar / habilitar cola por `cliente_id`
-- [x] UI: vista de colas activas por router — nombre, límites, TX/RX actual
+- [x] UI: vista de colas activas por gateway — nombre, límites, TX/RX actual
 - [x] UI: botón de cambio de plan con efecto inmediato y confirmación
 
 ### 2.4 Suspensión y reactivación
@@ -136,7 +170,8 @@ isp-platform/
 ### 3.1 Monitoreo en tiempo real
 
 - [x] Colector de tráfico: polling RouterOS API cada 5 s → guardar en tabla `traffic_samples` (PostgreSQL particionado por mes)
-- [x] WebSocket endpoint `/ws/traffic/{router_id}` — push de métricas al frontend
+- [x] **Modo alternativo "Traffic Flow" (no estaba en el plan original):** colector NetFlow v9 standalone (`netflow-collector`, servicio propio en `docker-compose.yml`) que recibe UDP del Gateway MikroTik y escribe en el mismo `traffic_samples` / canal Redis — se elige por Gateway vía `traffic_accounting` (`polling` vs `traffic_flow`), sin cambios en los endpoints de consumo
+- [x] WebSocket endpoint `/ws/traffic/{gateway_id}` — push de métricas al frontend
 - [x] UI: dashboard principal con gráficos en tiempo real por router (Recharts)
 - [x] UI: top 10 clientes por consumo en el momento actual
 - [x] Histórico: tráfico por cliente — últimas 1h, 24h, 7d, 30d
@@ -155,14 +190,14 @@ isp-platform/
 
 ### 3.3 Gestión PPPoE
 
-- [x] Modelo `PPPoEProfile`: nombre, velocidad_down, velocidad_up, router_id
-- [x] Modelo `PPPoESecret`: cliente_id, usuario_ppp, contraseña_ppp (Fernet), perfil_id, router_id
+- [x] Modelo `PPPoEProfile`: nombre, velocidad_down, velocidad_up, gateway_id
+- [x] Modelo `PPPoESecret`: cliente_id, usuario_ppp, contraseña_ppp (Fernet), perfil_id, gateway_id
 - [x] Servicio: crear / editar / eliminar `/ppp secret` en RouterOS al gestionar cliente PPPoE
 - [x] Servicio: listar sesiones activas `/ppp active` — IP asignada, tiempo conectado, bytes TX/RX
-- [x] Sincronizar perfiles PPPoE desde RouterOS al registrar un router nuevo
+- [x] Sincronizar perfiles PPPoE desde RouterOS al registrar un gateway nuevo
 - [x] Endpoint `DELETE /pppoe/sessions/{username}`: desconectar sesión activa
 - [x] UI: pestaña PPPoE en perfil de cliente — credenciales, sesión activa, opción de desconectar
-- [x] UI: vista global de sesiones PPPoE activas en todos los routers
+- [x] UI: vista global de sesiones PPPoE activas en todos los gateways
 
 ### 3.4 Integración ZeroTier
 
@@ -173,14 +208,51 @@ isp-platform/
 - [x] Modelo `Gateway.zerotier_node_id` — vínculo opcional con un nodo ZeroTier
 - [x] UI: selector "Vincular con nodo ZeroTier" en el formulario de Gateway, autocompleta la IP
 - [x] `docker-compose.yml`: servicio `zerotier` opcional (`--profile zerotier`) para acceso remoto al servidor completo
-- [ ] Cruce de estado ZeroTier + ping RouterOS en el health-check periódico (distinguir túnel caído vs. RouterOS caído)
+- [x] Cruce de estado ZeroTier + ping RouterOS en el health-check periódico (distinguir túnel caído vs. RouterOS caído) — nuevo estado `tunnel_down`: si RouterOS no responde y el nodo ZeroTier tampoco reporta a ZeroTier Central, el problema es el túnel/enlace; badge "Túnel caído" en la UI
+
+### 3.5 RADIUS Accounting — ~~DESCARTADA~~ (2026-09-06)
+
+Esta subfase (añadido a mitad de desarrollo, nunca estuvo en el plan original) se
+**eliminó por completo del producto y del código**. Motivo: no hay caso de uso —
+el ISP opera 100% PPPoE + IP estática, sin Hotspot ni venta por fichas, y el
+consumo por cliente ya lo cubre Traffic Flow (NetFlow v9).
+
+Se retiró: el contenedor FreeRADIUS (`radius/`), la ingesta de Accounting
+(parser de `detail`, modelos `RadiusAccountingSession`/`RadiusIngestState`,
+worker, API `/radius/accounting/*`, página **Dispositivos ▸ RADIUS**), los modos
+de seguridad `ppp_radius`/`hotspot_radius`, el campo `Gateway.radius_secret_encrypted`,
+la configuración de `/radius` en RouterOS y `docs/radius.md`. La IP del servidor
+ISPSETUP (`SystemSettings.ispsetup_server_ip`) **se conserva** porque la usa
+Traffic Flow. La limpieza de una entrada `/radius` heredada al eliminar un Gateway
+se mantiene como higiene (para instalaciones que la tuvieran de una versión previa).
+
+---
+
+## Módulos adicionales implementados (fuera del alcance original)
+
+Estos módulos surgieron durante el desarrollo y no tenían fase asignada en el plan inicial. Se documentan aquí para que el roadmap quede alineado con el producto real.
+
+- [x] **Sites**: agrupación de Gateways por ubicación/nodo (ver 1.3)
+- [x] **Inventario**: modelo `InventoryItem` (stock, alerta de mínimo, precio compra/venta, categoría, modelo) + `Supplier` (proveedores) + `ProductCategory`; endpoints `inventory_api.py` / `suppliers_api.py`; UI de inventario y proveedores (`InventoryPage`, `ProvidersPage`)
+- [x] **Servicios personalizados** (`CustomService`): cargos recurrentes o puntuales fuera de los planes de internet (nombre, precio, impuestos, recurrente/no) — extiende la facturación de la Fase 4.1
+- [x] **Datos de empresa** (`Company`): RUC, dirección, teléfono, logo y fondo de login, editable desde Ajustes ▸ Empresa — cubre parte de lo que la Fase 4.2 preveía como variable de entorno estática (RUC ahora vive en BD, no solo en `.env`)
+- [x] **Auditoría** (`AuditLog`): registro de acciones (usuario, acción, entidad, detalle, IP) con endpoint y UI dedicados (`audit_logs_api.py`, `AuditLogsPage`)
+- [x] **Tickets de soporte**: implementado como se previó en 2.1 (perfil de cliente), con modelo `ClientTicket` propio (prioridad/estado) y endpoints anidados en `/clients/{id}/tickets`
+- [x] **Panel de estadísticas de suscriptores** (`SubscribersStatsPage`): gráficos de clientes activos/suspendidos/nuevos — solapa parcialmente con lo previsto en el "Reporte de clientes" de 4.3; al construir esa fase, evaluar si se reutiliza esta pantalla en vez de duplicar
 
 ---
 
 ## Fase 4 — Facturación, reportes
 
-**Duración estimada:** 5–6 semanas  
-**Objetivo:** Sistema de cobro con emisión de facturas electrónicas SRI, reportes exportables y app móvil para técnicos en campo.
+**Duración estimada:** 5–6 semanas (4.1–4.3) + 10–14 semanas (4.4 OLT/ONU)  
+**Objetivo:** Sistema de cobro con emisión de facturas electrónicas SRI, reportes
+exportables y **módulo de gestión de OLTs/ONUs GPON** (estilo SmartOLT).
+
+> **Estado real:** 4.1 (facturación y pagos) está implementado. 4.2 (SRI) y 4.3
+> (reportes) siguen pendientes tal como estaban. **4.4 se replanteó:** la app
+> móvil para técnicos (carpeta `mobile/`, nunca iniciada) se descarta y se
+> reemplaza por un módulo completo de administración de fibra OLT/ONU — ver 4.4.
+> La app móvil, si se retoma, pasa a una eventual Fase 5.
 
 ### 4.1 Facturación y pagos
 
@@ -196,7 +268,7 @@ isp-platform/
 ### 4.2 Integración SRI Ecuador
 
 - [ ] Conectar módulo `facturacion_sri` (repo existente) como servicio interno vía imports
-- [ ] Centralizar configuración: RUC, clave `.p12` vía env var, ambiente (pruebas/producción)
+- [ ] Centralizar configuración: RUC ya disponible en modelo `Company` (Ajustes ▸ Empresa); falta clave `.p12` vía env var y ambiente (pruebas/producción)
 - [ ] Generar XML de factura + firma digital Fernet al emitir factura electrónica
 - [ ] Envío SOAP al SRI + manejo de respuesta: autorizado / no autorizado / devuelto
 - [ ] Retry automático para facturas devueltas (hasta 3 intentos con backoff)
@@ -214,6 +286,124 @@ isp-platform/
 - [ ] Export PDF (WeasyPrint) con logo y datos de la empresa
 - [ ] Export Excel (openpyxl) con formato de tabla y totales
 - [ ] UI: módulo de reportes con selector de período, filtros y botones de descarga
+
+### 4.4 Módulo OLT / ONU GPON (reemplaza la app móvil — estilo SmartOLT)
+
+**Estado: no iniciado.** Sustituye a la antigua "app móvil para técnicos". Objetivo:
+gestión completa de fibra — registro de OLTs multi-vendor, aprovisionamiento de ONUs,
+perfiles de velocidad/VLAN, monitoreo de señal óptica, diagnósticos y enganche con el
+ciclo de vida del cliente (alta, cambio de plan, suspensión).
+
+**Duración estimada:** 10–14 semanas (1 dev), entregable por sub-fases.
+
+#### Arquitectura (alineada a los patrones actuales)
+
+```
+backend/app/
+├── models/          olt.py, pon_port.py, onu.py, onu_type.py, speed_profile.py,
+│                    vlan_profile.py, onu_config_profile.py, fiber_zone.py,
+│                    splitter_box.py, onu_signal_sample.py
+├── services/olt/
+│   ├── pool.py      # pool SSH/Telnet por olt_id (mirror de services/mikrotik/gateway_pool)
+│   ├── registry.py  # vendor → driver
+│   ├── base.py      # OLTDriver (ABC): list_unconfigured/authorize/reboot/get_signal/
+│   │                #   set_speed/get_onu_status/diagnostics/...
+│   ├── snmp.py      # lecturas rápidas (octetos, rx/tx power, estado)
+│   └── vendors/     # huawei/ zte/ vsol/ cdata/ bdcom/  (driver.py + templates *.j2 + parsers textfsm)
+├── api/             olts_api.py, onus_api.py, onu_profiles_api.py, fiber_api.py
+├── workers/         olt_health.py, onu_signal_poll.py, onu_discovery.py   (Celery Beat)
+└── schemas/         olt_schema.py, onu_schema.py, ...
+
+frontend/src/pages/  OltsPage, OltProfilePage, OnusPage, OnuProfilePage,
+                     UnconfiguredOnusPage, FiberMapPage, settings/OltSettingsTab
+docs/olt.md
+```
+
+Drivers por vendor = mismo enfoque que `services/mikrotik/`: CLI vía `scrapli[asyncssh]`
++ parsing con `ntc-templates`/textfsm, lecturas vía SNMP (`pysnmp`), plantillas de comandos
+con Jinja2. Credenciales OLT cifradas con Fernet (`app.core.security`). Estado en vivo en
+Redis + WebSocket `/ws/olt/{olt_id}`. `OnuSignalSample` particionada por mes como
+`traffic_samples` (purga > 12 meses).
+
+**Orden de construcción:** vertical slice con **un solo vendor** (4.4.1 + 4.4.2) hasta
+"registrar OLT → ver ONUs sin configurar → autorizar una → verla online con señal";
+luego 4.4.3/4.4.4; después 4.4.6 (valor operativo real); por último 4.4.5/4.4.7 y
+agregar vendors 2..N (~3–5 días cada uno sobre la ABC estable).
+
+#### 4.4.1 Núcleo OLT y conectividad (2–3 sem)
+
+- [ ] Modelo `OLT`: nombre, vendor, modelo, ip_mgmt, método (ssh/telnet), puerto, credenciales (Fernet), enable_password, SNMP (community / v3), pon_type (GPON/EPON/XGS-PON), `site_id`, coordenadas, firmware, activo
+- [ ] Modelo `PonPort`: olt_id, chasis/slot/puerto, descripción, admin_status, max_onus, tx_power
+- [ ] `services/olt/pool.py` + `registry.py` + `base.OLTDriver` (ABC) + **1 vendor real** como vertical slice
+- [ ] Worker `olt_health` (Celery Beat cada 60 s): alcanzabilidad, uptime, CPU/RAM/temp, estado de puertos PON, conteo de ONUs → Redis
+- [ ] Endpoints: CRUD OLT, `GET /olts/{id}/status`, test de conexión manual
+- [ ] UI: `OltsPage` (CRUD + badge de estado, agrupado por Site — reusar patrón `GatewaysPage`/`GatewayStatusBadge`); `OltProfilePage` con pestaña Puertos PON
+- [ ] Nav: nuevo grupo **"Fibra / OLT"** en `AppLayout.tsx`
+
+#### 4.4.2 Descubrimiento y aprovisionamiento de ONUs (3–4 sem)
+
+- [ ] Modelo `ONU`: olt_id, pon_port, onu_index, serial (SN GPON / MAC EPON), nombre, `client_id` (FK opcional a `Client`), onu_type_id, config_profile_id, zone_id, splitter_id, estado (online/offline/LOS/power-off/dying-gasp), rx_power_onu / rx_power_olt / tx_power, distancia_m, firmware, last_seen, coordenadas, descripción
+- [ ] Worker `onu_discovery`: poll de ONUs "autofind"/no autorizadas → lista de **ONUs sin configurar** (SN, vendor, puerto PON, señal) en Redis + WebSocket
+- [ ] Flujo de aprovisionamiento (1 clic): autorizar ONU en puerto → aplicar `OnuType` → asignar `SpeedProfile` (up/down) → asignar VLAN/service-ports → modo (bridge/router) → (opcional) credenciales PPPoE / IP estática
+- [ ] Operaciones ONU: reboot, habilitar/deshabilitar, deautorizar/eliminar, resync de config, **reemplazo de ONU** (cambia SN, conserva config), refrescar señal
+- [ ] Operaciones masivas: autorizar / reiniciar / aplicar perfil a N ONUs
+- [ ] Endpoints `onus_api.py`: listado con filtros (olt/puerto/zona/estado/cliente) + paginación; `POST /onus/authorize`; `POST /onus/{id}/reboot|enable|disable|resync`; `POST /onus/bulk/...`
+- [ ] UI: `UnconfiguredOnusPage` (autorizar desde ahí), `OnusPage` (listado global filtrable), `OnuProfilePage` (estado, señal, acciones, historial)
+
+#### 4.4.3 Perfiles y plantillas (1–2 sem)
+
+- [ ] `OnuType`: vendor, modelo, nº de puertos (eth/pots/wifi/catv), modo por defecto, capacidades
+- [ ] `SpeedProfile`: nombre, down/up kbps → mapea a line-profile / DBA / traffic-profile del vendor (crear en la OLT o referenciar existente)
+- [ ] `VlanProfile` / service config: vlan id, modo (tag/transparent/translate), servicio (internet/IPTV/VoIP)
+- [ ] `OnuConfigProfile`: agrupa OnuType + SpeedProfile + VLAN + WiFi por defecto para el 1-clic
+- [ ] Plantillas de comandos Jinja2 por vendor en `services/olt/vendors/<v>/templates/`
+- [ ] UI: gestión de perfiles (pestaña en Ajustes ▸ OLT o página dedicada)
+
+#### 4.4.4 Monitoreo de señal y tráfico (2 sem)
+
+- [ ] Modelo `OnuSignalSample` (rx/tx power, temp, voltaje, bias) **particionado por mes**, purga > 12 meses
+- [ ] Worker `onu_signal_poll` (Beat, cada 5–15 min configurable): SNMP en lote por OLT
+- [ ] Tráfico por ONU vía SNMP (octetos in/out por service-port) → `traffic_samples` o tabla nueva; reusar endpoints de histórico 1h/24h/7d/30d + Recharts
+- [ ] WebSocket `/ws/olt/{olt_id}`: online/offline, eventos LOS
+- [ ] UI: gráficos de señal en `OnuProfilePage`; widget "Top ONUs con peor señal" en dashboard
+
+#### 4.4.5 Zonas de fibra y mapa (1 sem)
+
+- [ ] Modelos `FiberZone` (cobertura GPON) y `SplitterBox`/`ODB` (ratio, ubicación, PON padre, puertos usados); ONU → puerto de splitter
+- [ ] `FiberMapPage` con Leaflet (ya en el stack): OLTs, splitters y ONUs; color por señal/estado
+
+#### 4.4.6 Integración con cliente y facturación (2 sem)
+
+- [ ] `Client.connection_type` nuevo valor **`gpon`** (junto a static/pppoe)
+- [ ] Pestaña **"ONU / Fibra"** en `ClientProfilePage`: ONU asignada, SN, señal, puerto PON, ODB, botones reboot/diagnóstico, historial de señal
+- [ ] **Suspensión GPON:** extender worker `suspension` → deshabilitar ONU o poner su service-port a perfil 0, en vez de address-list de firewall
+- [ ] **Cambio de plan:** mapear `Plan` → `SpeedProfile`; aplicar en la ONU en tiempo real (análogo a `QueueService`)
+- [ ] Flujo "aprovisionar desde cliente": alta de cliente → elegir ONU sin configurar → auto-provisión
+
+#### 4.4.7 Alertas OLT/ONU (1 sem — depende de Fase 3.2)
+
+- [ ] Si 3.2 está hecha: nuevos tipos de `AlertRule` (onu_los, onu_dying_gasp, onu_low_rx, olt_down, pon_port_down, olt_temp_high, onu_count_high)
+- [ ] Si no: log de eventos mínimo en este módulo + notificación por los canales existentes (Twilio/email)
+
+#### 4.4.8 Docs, infra y CI (transversal)
+
+- [ ] `docs/olt.md`: matriz de vendors/comandos, flujo de aprovisionamiento, seguridad de red (VLAN de gestión, nunca exponer telnet/SNMP a Internet), tabla de referencia de niveles ópticos
+- [ ] Deps nuevas en `requirements.txt`: `scrapli[asyncssh]`, `pysnmp`, `jinja2`, `ntc-templates`/`textfsm`
+- [ ] (Opcional) contenedor `olt-poller` dedicado en `docker-compose.yml` (como `netflow-collector`) si el polling SNMP pesa; si no, sólo workers Celery
+- [ ] CI: tests de driver por vendor con **fixtures de salida CLI grabada** (sin OLT real)
+- [ ] SVG en `architecture/` para el flujo OLT ↔ ISPSETUP ↔ ONU; actualizar diagrama entidad-relación
+
+#### 4.4.9 (Opcional — mover a Fase 5) Gestión WiFi / TR-069
+
+- [ ] ACS (GenieACS) o WiFi por OMCI en ONUs modo router: SSID, clave, canal, reboot remoto — subproyecto grande por sí solo
+
+#### Decisiones a confirmar antes de arrancar
+
+- [ ] **Vendors/modelos prioritarios** (Huawei MA56xx, ZTE C320, V-SOL, C-Data, BDCOM…) — define el primer driver y la matriz de comandos. En Ecuador V-SOL / C-Data / Huawei son los más comunes
+- [ ] **Topología:** ¿la OLT es L2 puro y el BNG sigue siendo un MikroTik, o la OLT termina PPPoE/IPoE? — cambia por completo la lógica de suspensión y cambio de plan (4.4.6)
+- [ ] **Método de acceso:** SSH/Telnet CLI + SNMP (recomendado) vs. NETCONF/NBI del vendor
+- [ ] **4.4.9 WiFi/TR-069:** ¿en alcance ahora o Fase 5? (recomendado: Fase 5)
+- [ ] Confirmar que la **app móvil para técnicos** queda descartada (o se mueve a Fase 5)
 
 
 ## Decisiones de arquitectura clave
@@ -249,6 +439,7 @@ isp-platform/
 | Auth          | python-jose + passlib | —       | JWT + bcrypt              |
 | Cifrado       | cryptography (Fernet) | 42+     | Credenciales de routers   |
 | RouterOS API  | librouteros           | 3.2+    | Comunicación MikroTik     |
+| NetFlow       | Parser propio (v9)    | —       | Colector "Traffic Flow" alternativo al polling |
 | Jobs async    | Celery + Redis        | 5.3+    | Cron, alertas, colector   |
 | WebSockets    | FastAPI WebSocket     | —       | Tráfico en tiempo real    |
 | PDF           | WeasyPrint            | 62+     | Reportes + RIDE SRI       |
@@ -288,16 +479,21 @@ isp-platform/
 | Tablas         | TanStack Table          | —       | Listados con filtros       |
 | WebSocket      | native browser API      | —       | Tráfico en tiempo real     |
 
-### App móvil
+### Módulo OLT / ONU (Fase 4.4)
 
-| Componente         | Tecnología                    | Uso                |
-| ------------------ | ----------------------------- | ------------------ |
-| Framework          | React Native + Expo           | App iOS y Android  |
-| Lenguaje           | TypeScript                    | Tipado estático    |
-| Navegación         | React Navigation v6           | Pantallas y tabs   |
-| Estilos            | NativeWind (Tailwind para RN) | Clases utilitarias |
-| Push notifications | Expo Notifications            | Alertas críticas   |
-| Storage seguro     | Expo SecureStore              | JWT tokens         |
+> ⚠️ **No iniciado** — stack de diseño para el módulo que reemplaza a la app móvil.
+> La app móvil (React Native + Expo) queda descartada; si se retoma, va a Fase 5.
+
+| Componente          | Tecnología                     | Uso                                        |
+| ------------------- | ------------------------------ | ------------------------------------------ |
+| Acceso CLI OLT      | scrapli[asyncssh]              | SSH/Telnet a OLTs multi-vendor             |
+| Parsing CLI         | ntc-templates / textfsm        | Estructurar salida de comandos por vendor  |
+| Lecturas rápidas    | pysnmp                         | Estado ONU, rx/tx power, octetos           |
+| Plantillas comandos | Jinja2                         | Comandos de aprovisionamiento por vendor   |
+| Series de señal     | PostgreSQL (particiones/mes)   | Historial óptico de ONUs (`onu_signal_sample`) |
+| Tiempo real         | FastAPI WebSocket              | Online/offline y eventos LOS (`/ws/olt/{id}`) |
+| Mapa de planta      | Leaflet + react-leaflet        | OLTs, splitters y ONUs georreferenciados   |
+| Colector (opcional) | Servicio propio `olt-poller`   | Polling SNMP masivo si supera al worker Celery |
 
 ### Infraestructura y DevOps
 

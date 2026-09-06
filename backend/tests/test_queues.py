@@ -238,14 +238,14 @@ def test_update_gateway_operating_settings(mock_apply, client: TestClient):
         f"/api/gateways/{gateway_id}/settings",
         headers={"Authorization": f"Bearer {token}"},
         json={
-            "security_mode": "ppp_radius",
+            "security_mode": "ppp_api",
             "traffic_accounting": "queue_accounting",
             "speed_control_type": "pcq_addresslist",
         },
     )
 
     assert response.status_code == 200
-    assert response.json()["security_mode"] == "ppp_radius"
+    assert response.json()["security_mode"] == "ppp_api"
     assert response.json()["traffic_accounting"] == "queue_accounting"
     assert response.json()["speed_control_type"] == "pcq_addresslist"
     assert response.json()["settings_configured"] is True
@@ -423,7 +423,7 @@ def test_gateway_settings_are_rolled_back_when_mikrotik_fails(mock_apply, client
         f"/api/gateways/{gateway_id}/settings",
         headers={"Authorization": f"Bearer {token}"},
         json={
-            "security_mode": "ppp_radius",
+            "security_mode": "ppp_api",
             "traffic_accounting": "accounting_v6",
             "speed_control_type": "pcq_addresslist",
         },

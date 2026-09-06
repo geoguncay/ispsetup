@@ -129,8 +129,6 @@ const SECURITY_MODE_LABELS: Record<string, string> = {
   none_api: 'Sin autenticación · API',
   ppp_api: 'PPP · API',
   hotspot_api: 'Hotspot · API',
-  ppp_radius: 'PPP · Radius',
-  hotspot_radius: 'Hotspot · Radius',
 }
 
 const TRAFFIC_ACCOUNTING_LABELS: Record<string, string> = {
@@ -603,7 +601,7 @@ export function GatewayProfilePage() {
   const activePercentage = totalClients > 0 ? (activeClients / totalClients) * 100 : 0
 
   const hasServiceConfig = gateway.settings_configured === true
-  const usesPpp = gateway.security_mode === 'ppp_api' || gateway.security_mode === 'ppp_radius'
+  const usesPpp = gateway.security_mode === 'ppp_api'
   const usesSimpleQueues = gateway.speed_control_type === 'simple_queues'
     || gateway.speed_control_type === 'dhcp_lease_dynamic'
   const simpleQueueStructure = gateway.resource_config?.speed_control?.simple_queue_structure ?? 'parented'
@@ -742,10 +740,26 @@ export function GatewayProfilePage() {
               {gateway.zerotier_node_id && (
                 <div>
                   <span className="block text-xs text-muted-foreground">ZeroTier</span>
-                  <span className="text-sm text-emerald-400 font-medium flex items-center gap-1.5">
+                  <span
+                    className={`text-sm font-medium flex items-center gap-1.5 ${
+                      gateway.zerotier_online === false
+                        ? 'text-amber-400'
+                        : gateway.zerotier_online === true
+                          ? 'text-emerald-400'
+                          : 'text-foreground'
+                    }`}
+                  >
                     <Network className="w-3.5 h-3.5" />
                     {gateway.zerotier_node_id}
+                    {gateway.zerotier_online === false && ' · nodo sin reportar'}
+                    {gateway.zerotier_online === true && ' · nodo en línea'}
                   </span>
+                  {gateway.status === 'tunnel_down' && (
+                    <span className="mt-1 block text-xs text-amber-400/90">
+                      El túnel ZeroTier está caído: RouterOS podría seguir operativo. Revisa
+                      enlace y energía del sitio.
+                    </span>
+                  )}
                 </div>
               )}
 

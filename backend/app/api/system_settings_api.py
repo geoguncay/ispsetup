@@ -312,7 +312,7 @@ def update_ispsetup_settings(
         db, AuditAction.UPDATE_ISPSETUP_SETTINGS,
         entity_type="SystemSettings",
         user_id=current_user.id, user_name=current_user.name,
-        detail=audit_detail("Ajustes de ISPSETUP/RADIUS actualizados", fields_changed=sorted(payload.model_fields_set)),
+        detail=audit_detail("Ajustes de ISPSETUP actualizados", fields_changed=sorted(payload.model_fields_set)),
     )
     return _to_ispsetup_read(cfg)
 

@@ -189,7 +189,7 @@ export function DashboardPage() {
                       </p>
                     </div>
                   </div>
-                  <GatewayStatusBadge status={(router.status ?? 'unknown') as 'online' | 'offline' | 'degraded' | 'unknown'} />
+                  <GatewayStatusBadge status={(router.status ?? 'unknown') as 'online' | 'offline' | 'tunnel_down' | 'degraded' | 'unknown'} />
                 </div>
               ))}
             </div>

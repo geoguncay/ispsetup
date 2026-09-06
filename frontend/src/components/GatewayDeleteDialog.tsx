@@ -89,7 +89,7 @@ export function GatewayDeleteDialog({
               <div>
                 <span className="block text-sm font-semibold text-foreground">2. Conservar datos históricos y eliminar configuración en RouterOS</span>
                 <span className="mt-1 block text-xs leading-relaxed text-muted-foreground">
-                  Conserva la información del ISPSETUP y limpia listas, colas, PCQ, PPPoE, Radius y Traffic Flow administrados por el sistema.
+                  Conserva la información del ISPSETUP y limpia listas, colas, PCQ, PPPoE y Traffic Flow administrados por el sistema.
                 </span>
               </div>
             </div>

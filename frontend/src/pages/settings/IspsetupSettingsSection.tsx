@@ -1,9 +1,7 @@
 /**
- * NmsRadiusSettingsSection — tarjeta "ISPSETUP / RADIUS" dentro de la categoría
+ * IspsetupSettingsSection — tarjeta "Servidor ISPSETUP" dentro de la categoría
  * "Integraciones" de Ajustes. Configura la IP alcanzable desde los Gateways
- * MikroTik que usan Traffic Flow y el servidor RADIUS de Accounting (ver
- * servicio `freeradius` en docker-compose.yml). El secreto RADIUS es propio
- * de cada Gateway y se configura en su diálogo de Ajustes ▸ Seguridad.
+ * MikroTik que usan el modo de registro de tráfico "Traffic Flow" (NetFlow v9).
  */
 import { useEffect } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
@@ -25,11 +23,11 @@ function SettingsForm({
     onSuccess: () => {
       onSaved()
       snapshot()
-      setStatusMessage({ type: 'success', text: 'Configuración de ISPSETUP/RADIUS guardada.' })
+      setStatusMessage({ type: 'success', text: 'IP del servidor ISPSETUP guardada.' })
     },
     onError: (err: unknown) => {
       const msg = (err as { response?: { data?: { detail?: string } } })?.response?.data?.detail
-      setStatusMessage({ type: 'error', text: msg || 'Error al guardar la configuración de ISPSETUP/RADIUS.' })
+      setStatusMessage({ type: 'error', text: msg || 'Error al guardar la IP del servidor ISPSETUP.' })
     },
   })
 
@@ -55,8 +53,8 @@ function SettingsForm({
           placeholder="10.0.0.10"
         />
         <span className="text-[10px] text-muted-foreground block">
-          Dirección alcanzable desde todos los Gateways (LAN, VPN o ZeroTier). La usan Traffic Flow
-          y el servidor RADIUS de Accounting.
+          Dirección alcanzable desde todos los Gateways (LAN, VPN o ZeroTier). La usan los Gateways
+          en modo Traffic Flow como destino de los paquetes NetFlow v9.
         </span>
       </div>
 
@@ -70,7 +68,7 @@ function SettingsForm({
   )
 }
 
-export function NmsRadiusSettingsSection({ setStatusMessage }: { setStatusMessage: StatusSetter }) {
+export function IspsetupSettingsSection({ setStatusMessage }: { setStatusMessage: StatusSetter }) {
   const queryClient = useQueryClient()
 
   const { data, isLoading } = useQuery({
@@ -85,11 +83,10 @@ export function NmsRadiusSettingsSection({ setStatusMessage }: { setStatusMessag
       <div>
         <h3 className="text-lg font-semibold text-foreground flex items-center gap-2">
           <Radio className="w-5 h-5 text-brand-400" />
-          SERVER / RADIUS
+          Servidor ISPSETUP
         </h3>
         <p className="text-muted-foreground text-xs mt-1">
-          IP del servidor local que reciben los Gateways para Traffic Flow y Accounting RADIUS. El
-          secreto RADIUS de cada Gateway se configura en su propio diálogo de Ajustes ▸ Seguridad.
+          IP del servidor local que los Gateways usan como destino de Traffic Flow (NetFlow v9).
         </p>
       </div>
 

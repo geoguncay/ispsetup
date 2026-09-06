@@ -38,10 +38,9 @@ class Settings(BaseSettings):
     FERNET_KEY: str
 
     # ── Integraciones locales ISPSETUP / MikroTik ──────────────────────
-    # La IP del ISPSETUP y el secreto RADIUS (por Gateway) ahora se configuran
-    # desde la plataforma (Ajustes ▸ Integraciones y Ajustes de Gateway),
-    # no por variables de entorno. Ver SystemSettings.ispsetup_server_ip y
-    # Gateway.radius_secret_encrypted.
+    # La IP del ISPSETUP ahora se configura desde la plataforma
+    # (Ajustes ▸ Integraciones), no por variables de entorno.
+    # Ver SystemSettings.ispsetup_server_ip.
     TRAFFIC_FLOW_PORT: int = 2055
 
     # ── Colector NetFlow v9 (recibe lo que el modo Traffic Flow envía) ─

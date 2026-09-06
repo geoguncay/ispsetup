@@ -10,8 +10,7 @@ sigan funcionando sin cambios.
 
 Solo procesa paquetes de Gateways activos con `traffic_accounting ==
 'traffic_flow'`, identificados por la IP origen del paquete UDP contra
-`Gateway.ip` — la misma convención que ya usa FreeRADIUS para asociar
-Accounting-Requests a un Gateway (ver docs/radius.md).
+`Gateway.ip`.
 """
 import asyncio
 import json

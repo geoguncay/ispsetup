@@ -7,7 +7,7 @@ from typing import Any, Literal
 
 from pydantic import BaseModel, Field, field_validator
 
-SecurityMode = Literal['none_api', 'ppp_api', 'hotspot_api', 'ppp_radius', 'hotspot_radius']
+SecurityMode = Literal['none_api', 'ppp_api', 'hotspot_api']
 TrafficAccounting = Literal['traffic_flow', 'accounting_v6', 'queue_accounting', 'none']
 SpeedControlType = Literal['pcq_addresslist', 'simple_queues', 'dhcp_lease_dynamic', 'none']
 
@@ -135,7 +135,6 @@ class GatewaySettingsUpdate(BaseModel):
     traffic_accounting: TrafficAccounting
     speed_control_type: SpeedControlType
     resource_config: GatewayResourceConfig | None = None
-    radius_secret: str | None = Field(default=None, max_length=255, description="Deje vacío para conservar el secreto actual")
 
 
 class GatewayRead(BaseModel):
@@ -160,7 +159,6 @@ class GatewayRead(BaseModel):
     speed_control_type: SpeedControlType
     settings_configured: bool
     resource_config: GatewayResourceConfig | None = None
-    radius_secret_set: bool = False
 
     # Nuevos campos de configuración de MikroTik y ancho de banda
     parent_queue: str | None
@@ -181,20 +179,30 @@ class GatewayRead(BaseModel):
     updated_at: datetime
 
     # Estado dinámico (desde Redis, no desde BD)
-    status: str | None = None          # "online" | "offline" | "degraded" | "unknown"
+    status: str | None = None          # "online" | "offline" | "tunnel_down" | "degraded" | "unknown"
     uptime: str | None = None
     ros_version: str | None = None
+    # Estado del nodo ZeroTier vinculado en el último health-check (None si no aplica).
+    zerotier_online: bool | None = None
 
 
 class GatewayStatus(BaseModel):
     gateway_id: uuid.UUID
-    status: str                         # "online" | "offline" | "degraded"
+    # "online"      → RouterOS API responde
+    # "offline"     → RouterOS API no responde (y el túnel ZeroTier está OK, o no hay túnel que consultar)
+    # "tunnel_down" → RouterOS API no responde Y el nodo ZeroTier no reporta a ZeroTier Central
+    #                 (el problema está en el túnel / enlace / energía, no necesariamente en RouterOS)
+    status: str
     ip: str
     uptime: str | None = None
     ros_version: str | None = None
     interfaces: list[dict[str, Any]] = []
     error: str | None = None
     checked_at: datetime
+    # Resultado del cruce con ZeroTier Central (solo si el Gateway tiene nodo vinculado
+    # y la integración ZeroTier está habilitada y configurada).
+    zerotier_checked: bool = False
+    zerotier_online: bool | None = None
 
 
 class GatewayTestResult(BaseModel):

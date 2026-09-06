@@ -69,7 +69,7 @@ class SystemSettings(Base):
     zt_api_token_encrypted: Mapped[str | None] = mapped_column(Text, nullable=True)
     zt_enabled: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False, server_default="false")
 
-    # ISPSETUP / RADIUS (IP alcanzable desde los Gateways para Traffic Flow y Accounting Radius)
+    # ISPSETUP (IP alcanzable desde los Gateways para Traffic Flow)
     ispsetup_server_ip: Mapped[str | None] = mapped_column(String(255), nullable=True)
 
     # Facturación 

@@ -5,7 +5,6 @@ import time
 from librouteros.query import Key
 
 from app.core.config import settings
-from app.core.security import decrypt_secret
 from app.models.gateway import Gateway
 from app.services.mikrotik.address_list import get_clean_list_name, get_suspend_list_name
 from app.services.mikrotik.gateway_resources import get_gateway_resource_config
@@ -56,77 +55,17 @@ def _ispsetup_ip() -> str:
     ip = _get_ispsetup_ip()
     if not ip:
         raise GatewayConfigurationError(
-            "Configure la IP del ISPSETUP en Ajustes ▸ Integraciones antes de habilitar Accounting, Traffic Flow o Radius."
+            "Configure la IP del ISPSETUP en Ajustes ▸ Integraciones antes de habilitar Accounting o Traffic Flow."
         )
     return ip
 
 
-def _set_hotspot_radius(api, enabled: bool) -> None:
-    for profile in list(api.path('/ip/hotspot/profile')):
-        entry_id = profile.get('.id')
-        if entry_id:
-            list(api('/ip/hotspot/profile/set', **{
-                '.id': entry_id,
-                'use-radius': 'yes' if enabled else 'no',
-                'radius-accounting': 'yes' if enabled else 'no',
-            }))
-
-
-def _set_radius_entry(api, service: str, secret: str | None) -> None:
-    ip = _ispsetup_ip()
-    if not secret:
-        raise GatewayConfigurationError(
-            "Configure un secreto RADIUS para este Gateway antes de seleccionar un modo Radius."
-        )
-
-    existing = list(
-        api.path('/radius').select().where(Key('address') == ip)
-    )
-    params = {
-        'address': ip,
-        'secret': secret,
-        'service': service,
-        'disabled': 'no',
-    }
-    if existing:
-        list(api('/radius/set', **{'.id': existing[0]['.id'], **params}))
-    else:
-        list(api('/radius/add', **params))
-
-
-def _disable_managed_radius(api) -> None:
-    ip = _get_ispsetup_ip()
-    if not ip:
-        return
-    existing = list(
-        api.path('/radius').select().where(Key('address') == ip)
-    )
-    for entry in existing:
-        list(api('/radius/set', **{'.id': entry['.id'], 'disabled': 'yes'}))
-
-
 def configure_security(api, gateway: Gateway) -> None:
-    """Configura autenticación local/API o Radius para PPP y Hotspot."""
-    security_mode = gateway.security_mode
-    radius_service = None
-    if security_mode == 'ppp_radius':
-        radius_service = 'ppp'
-    elif security_mode == 'hotspot_radius':
-        radius_service = 'hotspot'
-
-    if radius_service:
-        secret = decrypt_secret(gateway.radius_secret_encrypted) if gateway.radius_secret_encrypted else None
-        _set_radius_entry(api, radius_service, secret)
-    else:
-        _disable_managed_radius(api)
-
-    ppp_radius = security_mode == 'ppp_radius'
-    hotspot_radius = security_mode == 'hotspot_radius'
+    """Configura el accounting local de PPP según el modo de seguridad del Gateway."""
     list(api('/ppp/aaa/set', **{
-        'use-radius': 'yes' if ppp_radius else 'no',
-        'accounting': 'yes' if security_mode in ('ppp_api', 'ppp_radius') else 'no',
+        'use-radius': 'no',
+        'accounting': 'yes' if gateway.security_mode == 'ppp_api' else 'no',
     }))
-    _set_hotspot_radius(api, hotspot_radius)
 
 
 def _ensure_traffic_flow_target(api) -> None:
@@ -417,7 +356,14 @@ def cleanup_gateway_configuration(
         with gateway_pool.connect_to(gateway) as api:
             # Autenticación creada por el ISPSETUP.
             list(api('/ppp/aaa/set', **{'use-radius': 'no', 'accounting': 'no'}))
-            _set_hotspot_radius(api, False)
+            # Limpieza legacy: versiones anteriores podían dejar RADIUS activo en
+            # los perfiles Hotspot y una entrada /radius apuntando al ISPSETUP.
+            for profile in list(api.path('/ip/hotspot/profile')):
+                entry_id = profile.get('.id')
+                if entry_id:
+                    list(api('/ip/hotspot/profile/set', **{
+                        '.id': entry_id, 'use-radius': 'no', 'radius-accounting': 'no',
+                    }))
             if ispsetup_ip:
                 summary['radius_clients'] = _remove_entries(
                     api,

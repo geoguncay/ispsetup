@@ -28,7 +28,7 @@ class ZeroTierError(Exception):
     """Error de comunicación o de la API de ZeroTier Central."""
 
 
-def _request(token: str, method: str, path: str, **kwargs: Any) -> Any:
+def _request(token: str, method: str, path: str, *, allow_404: bool = False, **kwargs: Any) -> Any:
     url = f"{ZT_API_BASE}{path}"
     headers = {"Authorization": f"Bearer {token}"}
     try:
@@ -39,6 +39,8 @@ def _request(token: str, method: str, path: str, **kwargs: Any) -> Any:
     if response.status_code == 401:
         raise ZeroTierError("Token de API de ZeroTier inválido o expirado")
     if response.status_code == 404:
+        if allow_404:
+            return None
         raise ZeroTierError("Red o miembro de ZeroTier no encontrado")
     if response.status_code >= 400:
         raise ZeroTierError(f"Error de ZeroTier Central ({response.status_code}): {response.text[:200]}")
@@ -95,3 +97,15 @@ def list_members(cfg: SystemSettings) -> list[ZeroTierMember]:
     token = _token_for(cfg)
     raw_members = _request(token, "GET", f"/network/{cfg.zt_network_id}/member") or []
     return [_to_member_schema(m) for m in raw_members]
+
+
+def get_member(cfg: SystemSettings, node_id: str) -> ZeroTierMember | None:
+    """
+    Devuelve un miembro puntual de la red por su node_id (10 hex).
+    Devuelve None si el nodo no está en la red (404).
+    """
+    token = _token_for(cfg)
+    raw = _request(
+        token, "GET", f"/network/{cfg.zt_network_id}/member/{node_id}", allow_404=True
+    )
+    return _to_member_schema(raw) if raw else None

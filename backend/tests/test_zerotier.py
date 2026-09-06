@@ -13,7 +13,12 @@ from app.core.security import hash_password
 from app.main import app
 from app.models.user import User
 from app.services.zerotier import zerotier_service
-from app.services.zerotier.zerotier_service import ZeroTierError, _is_online, list_members
+from app.services.zerotier.zerotier_service import (
+    ZeroTierError,
+    _is_online,
+    get_member,
+    list_members,
+)
 
 engine_test = create_engine(
     "sqlite://",
@@ -133,6 +138,37 @@ def test_list_members_maps_fields(monkeypatch):
     assert members[0].ip_assignments == ["10.147.20.5"]
     assert members[0].version == "1.12.0"
     assert members[0].online is False
+
+
+def test_get_member_returns_none_on_404(monkeypatch):
+    fake_response = MagicMock()
+    fake_response.status_code = 404
+    fake_response.content = b""
+    monkeypatch.setattr(zerotier_service.httpx, "request", MagicMock(return_value=fake_response))
+    monkeypatch.setattr(zerotier_service, "decrypt_secret", lambda _: "fake-token")
+
+    assert get_member(_FakeConfig("enc-token"), "abc1234567") is None
+
+
+def test_get_member_maps_online_node(monkeypatch):
+    import time
+
+    fake_response = MagicMock()
+    fake_response.status_code = 200
+    fake_response.content = b"{}"
+    fake_response.json.return_value = {
+        "nodeId": "abc1234567",
+        "name": "gw-central",
+        "lastOnline": int(time.time() * 1000) - 5_000,
+        "config": {"authorized": True, "ipAssignments": ["10.147.20.5"]},
+    }
+    monkeypatch.setattr(zerotier_service.httpx, "request", MagicMock(return_value=fake_response))
+    monkeypatch.setattr(zerotier_service, "decrypt_secret", lambda _: "fake-token")
+
+    member = get_member(_FakeConfig("enc-token"), "abc1234567")
+    assert member is not None
+    assert member.node_id == "abc1234567"
+    assert member.online is True
 
 
 def test_request_raises_on_invalid_token(monkeypatch):

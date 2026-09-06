@@ -109,7 +109,8 @@
 		background-color: hsl(var(--status-offline));
 	}
 
-	.status-dot.degraded {
+	.status-dot.degraded,
+	.status-dot.tunnel_down {
 		background-color: hsl(var(--status-degraded));
 		animation: status-pulse-degraded 1.5s ease-in-out infinite;
 	}

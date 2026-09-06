@@ -55,6 +55,7 @@ def _enrich_with_status(r: Gateway, cached: GatewayStatus | None) -> dict:
         data["status"] = cached.status
         data["uptime"] = cached.uptime
         data["ros_version"] = cached.ros_version
+        data["zerotier_online"] = cached.zerotier_online
     else:
         data["status"] = "unknown"
     return data
@@ -313,7 +314,6 @@ def update_gateway_settings(
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Gateway no encontrado")
 
     settings = payload.model_dump(exclude_none=True)
-    radius_secret = settings.pop("radius_secret", None)
     resource_config_supplied = "resource_config" in settings
     old_parent_name = None
     old_resource_config = None
@@ -340,10 +340,6 @@ def update_gateway_settings(
         gateway.suspend_list = resources["security"]["suspend_list"]
         gateway.parent_queue = resources["speed_control"]["parent_queue"]
         gateway.address_list = resources["speed_control"]["client_address_list"]
-
-    if radius_secret:
-        gateway.radius_secret_encrypted = encrypt_secret(radius_secret)
-        changes.add("security_mode")
 
     try:
         if resource_config_supplied and old_resource_config:

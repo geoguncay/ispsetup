@@ -1131,7 +1131,6 @@ def run_migrations(bind_engine) -> None:
             conn.execute(text("ALTER TABLE system_settings ADD COLUMN IF NOT EXISTS cutoff_dates JSONB;"))
             conn.execute(text("ALTER TABLE system_settings ADD COLUMN IF NOT EXISTS ispsetup_server_ip VARCHAR(255);"))
             conn.execute(text("ALTER TABLE gateways ADD COLUMN IF NOT EXISTS suspend_list VARCHAR(100);"))
-            conn.execute(text("ALTER TABLE gateways ADD COLUMN IF NOT EXISTS radius_secret_encrypted TEXT;"))
             # Corrige bases donde resource_config quedó como `json` (creado por
             # Base.metadata.create_all antes de que este ADD COLUMN JSONB pudiera aplicarse);
             # las UPDATE de abajo usan jsonb_set/jsonb_build_object y requieren jsonb real.
@@ -2119,5 +2118,17 @@ def run_migrations(bind_engine) -> None:
                 END IF;
             END $$;
             """))
+
+            # ── Retiro del módulo RADIUS (subfase 3.5 descartada) ────────────
+            # Se elimina el servidor RADIUS de Accounting y los modos de
+            # seguridad basados en RADIUS. Los Gateways que estuvieran en un
+            # modo *_radius se normalizan a 'none_api'.
+            conn.execute(text(
+                "UPDATE gateways SET security_mode = 'none_api' "
+                "WHERE security_mode IN ('ppp_radius', 'hotspot_radius');"
+            ))
+            conn.execute(text("ALTER TABLE gateways DROP COLUMN IF EXISTS radius_secret_encrypted;"))
+            conn.execute(text("DROP TABLE IF EXISTS radius_ingest_state;"))
+            conn.execute(text("DROP TABLE IF EXISTS radius_accounting_sessions;"))
 
             conn.commit()

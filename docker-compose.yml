@@ -139,29 +139,6 @@ services:
       - isp_net
 
   # ─────────────────────────────────────────────
-  # FreeRADIUS — servidor de Accounting para los modos PPP/Hotspot Radius.
-  # Genera su clients.conf dinámicamente desde la tabla `gateways` (IP +
-  # secreto por Gateway, configurados desde Ajustes de Gateway ▸ Seguridad).
-  # Ver radius/ y docs/radius.md.
-  # ─────────────────────────────────────────────
-  freeradius:
-    build:
-      context: ./radius
-    container_name: freeradius
-    restart: unless-stopped
-    env_file: .env
-    ports:
-      - "1812:1812/udp"
-      - "1813:1813/udp"
-    depends_on:
-      postgres:
-        condition: service_healthy
-    volumes:
-      - freeradius_acct:/var/log/freeradius/radacct
-    networks:
-      - isp_net
-
-  # ─────────────────────────────────────────────
   # Adminer (DB management UI)
   # ─────────────────────────────────────────────
   adminer:
@@ -237,4 +214,3 @@ volumes:
   redis_data:
   celery_beat_data:
   zerotier_data:
-  freeradius_acct:

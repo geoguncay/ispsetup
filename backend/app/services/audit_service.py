@@ -169,7 +169,7 @@ ACTION_DEFAULTS: dict[str, tuple[str, str, str]] = {
     AuditAction.UPDATE_CATALOG_SETTINGS: ("SystemSettings", "Ajustes de catálogos", "Ajustes de catálogos actualizados"),
     AuditAction.SYSTEM_BACKUP: ("SystemSettings", "Respaldo del sistema", "Respaldo generado"),
     AuditAction.UPDATE_MIKROTIK_API_SETTINGS: ("SystemSettings", "API MikroTik", "Credenciales API MikroTik actualizadas"),
-    AuditAction.UPDATE_ISPSETUP_SETTINGS: ("SystemSettings", "Ajustes de ISPSETUP/RADIUS", "Ajustes de ISPSETUP/RADIUS actualizados"),
+    AuditAction.UPDATE_ISPSETUP_SETTINGS: ("SystemSettings", "Ajustes de ISPSETUP", "Ajustes de ISPSETUP actualizados"),
     AuditAction.UPDATE_ZEROTIER_SETTINGS: ("SystemSettings", "Ajustes de ZeroTier", "Ajustes de ZeroTier actualizados"),
     AuditAction.AUTHORIZE_ZT_MEMBER: ("ZeroTierMember", "Miembro de ZeroTier", "Miembro de ZeroTier autorizado"),
 }
@@ -256,12 +256,19 @@ def log_event(
         db.rollback()
 
 
-def log_connectivity_change(gateway_id: str, gateway_name: str, action: str) -> None:
+def log_connectivity_change(
+    gateway_id: str, gateway_name: str, action: str, reason: str | None = None
+) -> None:
     """
     Registra cambios de conectividad de un gateway (online/offline).
+    `reason` distingue la causa cuando el gateway sale de línea:
+    "offline" (RouterOS no responde) o "tunnel_down" (túnel ZeroTier caído).
     Abre su propia sesión de BD — seguro de llamar desde Celery workers.
     """
     from app.core.database import SessionLocal
+    detail = {"source": "health_check"}
+    if reason:
+        detail["reason"] = reason
     db = SessionLocal()
     try:
         log_event(
@@ -270,7 +277,7 @@ def log_connectivity_change(gateway_id: str, gateway_name: str, action: str) -> 
             entity_type="Gateway",
             entity_id=gateway_id,
             entity_name=gateway_name,
-            detail={"source": "health_check"},
+            detail=detail,
         )
     finally:
         db.close()

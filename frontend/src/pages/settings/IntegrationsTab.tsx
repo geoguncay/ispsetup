@@ -9,7 +9,7 @@ import { getSystemSettings, updateIntegrations, type IntegrationSettingsRead } f
 import { saveButtonClass } from '@/lib/utils'
 import { useFormDirty } from '@/hooks/useFormDirty'
 import { ZeroTierSettingsSection } from '@/pages/settings/ZeroTierSettingsSection'
-import { NmsRadiusSettingsSection } from '@/pages/settings/NmsRadiusSettingsSection'
+import { IspsetupSettingsSection } from '@/pages/settings/IspsetupSettingsSection'
 
 type StatusSetter = (msg: { type: 'success' | 'error'; text: string } | null) => void
 
@@ -110,7 +110,7 @@ export function IntegrationsTab({ isAdmin, setStatusMessage }: { isAdmin: boolea
 
   return (
     <div className="space-y-6 animate-fade-in">
-      <NmsRadiusSettingsSection setStatusMessage={setStatusMessage} />
+      <IspsetupSettingsSection setStatusMessage={setStatusMessage} />
       <ZeroTierSettingsSection setStatusMessage={setStatusMessage} />
 
       {isLoading || !data ? (

@@ -3,7 +3,7 @@
  */
 import { cn } from '@/lib/utils'
 
-type RouterStatusType = 'online' | 'offline' | 'degraded' | 'unknown'
+type RouterStatusType = 'online' | 'offline' | 'tunnel_down' | 'degraded' | 'unknown'
 
 interface GatewayStatusBadgeProps {
   status: RouterStatusType
@@ -12,10 +12,11 @@ interface GatewayStatusBadgeProps {
 }
 
 const statusConfig: Record<RouterStatusType, { label: string; textColor: string }> = {
-  online:   { label: 'En línea',   textColor: 'text-emerald-400' },
-  offline:  { label: 'Fuera de línea', textColor: 'text-red-400' },
-  degraded: { label: 'Degradado',  textColor: 'text-amber-400' },
-  unknown:  { label: 'Desconocido', textColor: 'text-slate-400' },
+  online:      { label: 'En línea',      textColor: 'text-emerald-400' },
+  offline:     { label: 'Fuera de línea', textColor: 'text-red-400' },
+  tunnel_down: { label: 'Túnel caído',   textColor: 'text-amber-400' },
+  degraded:    { label: 'Degradado',     textColor: 'text-amber-400' },
+  unknown:     { label: 'Desconocido',   textColor: 'text-slate-400' },
 }
 
 export function GatewayStatusBadge({
