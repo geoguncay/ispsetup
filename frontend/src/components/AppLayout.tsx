@@ -2,11 +2,11 @@
  * AppLayout — Layout principal con sidebar y header.
  */
 import React, { useState, useEffect, useCallback, useRef } from 'react'
-import { NavLink, Outlet, useNavigate, useLocation } from 'react-router-dom'
+import { NavLink, Outlet, useNavigate } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import {
   LayoutDashboard, Router, Users,
-  LogOut, Menu, X, ChevronDown, ChevronRight, Activity, Settings, Network,
+  LogOut, Menu, X, ChevronDown, Activity, Settings, Network,
   Zap, Building, Sliders, BarChart2, Receipt, DollarSign, Package, Truck,
   Bell,
 } from 'lucide-react'
@@ -94,31 +94,14 @@ interface SidebarProps {
   mobile?: boolean
   setSidebarOpen: (open: boolean) => void
   company: Company | undefined
-  pathname: string
   visibleNavItems: NavItem[]
-  networkMenuOpen: boolean
-  setNetworkMenuOpen: React.Dispatch<React.SetStateAction<boolean>>
-  subscribersMenuOpen: boolean
-  setSubscribersMenuOpen: React.Dispatch<React.SetStateAction<boolean>>
-  servicesMenuOpen: boolean
-  setServicesMenuOpen: React.Dispatch<React.SetStateAction<boolean>>
-  billingMenuOpen: boolean
-  setBillingMenuOpen: React.Dispatch<React.SetStateAction<boolean>>
-  inventoryMenuOpen: boolean
-  setInventoryMenuOpen: React.Dispatch<React.SetStateAction<boolean>>
 }
 
 function SidebarContent({
   mobile = false,
   setSidebarOpen,
   company,
-  pathname,
   visibleNavItems,
-  networkMenuOpen, setNetworkMenuOpen,
-  subscribersMenuOpen, setSubscribersMenuOpen,
-  servicesMenuOpen, setServicesMenuOpen,
-  billingMenuOpen, setBillingMenuOpen,
-  inventoryMenuOpen, setInventoryMenuOpen,
 }: SidebarProps) {
   return (
     <aside
@@ -162,70 +145,37 @@ function SidebarContent({
         )}
       </div>
 
-      {/* Navigation */}
+      {/* Navigation — lista plana con encabezados de sección (sin desplegables) */}
       <nav className="flex-1 p-3 space-y-0.5 overflow-y-auto">
-        {visibleNavItems.filter(item => 'items' in item || item.label !== 'Ajustes').map((item) => {
-          if ('items' in item) {
-            const hasActiveChild = item.items.some(sub => pathname.startsWith(sub.to))
-            const isMenuOpen =
-              item.label === 'Dispositivos'
-                ? networkMenuOpen
-                : item.label === 'Suscriptores'
-                ? subscribersMenuOpen
-                : item.label === 'Servicios'
-                ? servicesMenuOpen
-                : item.label === 'Facturación'
-                ? billingMenuOpen
-                : inventoryMenuOpen
-            const toggleMenu = () => {
-              if (item.label === 'Dispositivos') {
-                setNetworkMenuOpen(prev => !prev)
-              } else if (item.label === 'Suscriptores') {
-                setSubscribersMenuOpen(prev => !prev)
-              } else if (item.label === 'Servicios') {
-                setServicesMenuOpen(prev => !prev)
-              } else if (item.label === 'Facturación') {
-                setBillingMenuOpen(prev => !prev)
-              } else if (item.label === 'Inventario') {
-                setInventoryMenuOpen(prev => !prev)
-              }
-            }
-            const Icon = item.icon
-            return (
-              <div key={item.label} className="space-y-0.5">
-                <button
-                  onClick={toggleMenu}
-                  className={`w-full nav-item flex items-center justify-between ${hasActiveChild ? 'text-primary bg-primary/5' : ''}`}
-                >
-                  <div className="flex items-center gap-3">
-                    <Icon className="w-4 h-4 flex-shrink-0" />
+        {visibleNavItems
+          .filter(item => 'items' in item || item.label !== 'Ajustes')
+          .map((item) => {
+            if ('items' in item) {
+              const Icon = item.icon
+              return (
+                <div key={item.label} className="pt-3 first:pt-0">
+                  <p className="flex items-center gap-2 px-3 pb-1 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground/70 select-none">
+                    <Icon className="w-3.5 h-3.5 flex-shrink-0" />
                     <span>{item.label}</span>
-                  </div>
-                  {isMenuOpen ? (
-                    <ChevronDown className="w-3.5 h-3.5 text-muted-foreground transition-transform duration-200" />
-                  ) : (
-                    <ChevronRight className="w-3.5 h-3.5 text-muted-foreground transition-transform duration-200" />
-                  )}
-                </button>
-                {isMenuOpen && (
-                  <div className="pl-4 border-l border-border/50 ml-5 space-y-0.5 mt-0.5">
+                  </p>
+                  <div className="space-y-0.5">
                     {item.items.map((sub) => (
                       <NavLink
                         key={sub.to}
                         to={sub.to}
                         id={`nav-${sub.label.toLowerCase()}`}
                         onClick={() => setSidebarOpen(false)}
-                        className={({ isActive }) => `flex items-center gap-3 px-3 py-2 rounded-lg text-xs font-medium text-muted-foreground hover:text-foreground hover:bg-secondary/40 transition-all duration-200 cursor-pointer ${isActive ? 'text-primary bg-primary/10 border border-primary/20 font-semibold' : ''}`}
+                        className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`}
                       >
-                        <sub.icon className="w-3.5 h-3.5 flex-shrink-0" />
+                        <sub.icon className="w-4 h-4 flex-shrink-0" />
                         <span>{sub.label}</span>
                       </NavLink>
                     ))}
                   </div>
-                )}
-              </div>
-            )
-          } else {
+                </div>
+              )
+            }
+
             const Icon = item.icon
             return (
               <NavLink
@@ -239,8 +189,7 @@ function SidebarContent({
                 <span>{item.label}</span>
               </NavLink>
             )
-          }
-        })}
+          })}
       </nav>
 
       {/* Ajustes pinned at bottom */}
@@ -264,39 +213,11 @@ function SidebarContent({
 export function AppLayout() {
   const { user, logout } = useAuthStore()
   const navigate = useNavigate()
-  const location = useLocation()
   const [sidebarOpen, setSidebarOpen] = useState(false)
-  const [networkMenuOpen, setNetworkMenuOpen] = useState(
-    location.pathname.startsWith('/gateways') || location.pathname.startsWith('/traffic')
-  )
-  const [subscribersMenuOpen, setSubscribersMenuOpen] = useState(
-    location.pathname.startsWith('/clients') || location.pathname.startsWith('/subscribers')
-  )
-  const [servicesMenuOpen, setServicesMenuOpen] = useState(
-    location.pathname.startsWith('/plans') || location.pathname.startsWith('/custom-services')
-  )
-  const [billingMenuOpen, setBillingMenuOpen] = useState(
-    location.pathname.startsWith('/invoices') || location.pathname.startsWith('/payments')
-  )
-  const [inventoryMenuOpen, setInventoryMenuOpen] = useState(
-    location.pathname.startsWith('/inventory') || location.pathname.startsWith('/providers')
-  )
   const [profileOpen, setProfileOpen] = useState(false)
   const [notificationsOpen, setNotificationsOpen] = useState(false)
   const profileRef = useRef<HTMLDivElement>(null)
   const notificationsRef = useRef<HTMLDivElement>(null)
-
-  useEffect(() => {
-    const path = location.pathname
-    const raf = requestAnimationFrame(() => {
-      if (path.startsWith('/gateways') || path.startsWith('/traffic')) setNetworkMenuOpen(true)
-      if (path.startsWith('/clients') || path.startsWith('/subscribers')) setSubscribersMenuOpen(true)
-      if (path.startsWith('/plans') || path.startsWith('/custom-services')) setServicesMenuOpen(true)
-      if (path.startsWith('/invoices') || path.startsWith('/payments')) setBillingMenuOpen(true)
-      if (path.startsWith('/inventory') || path.startsWith('/providers')) setInventoryMenuOpen(true)
-    })
-    return () => cancelAnimationFrame(raf)
-  }, [location.pathname])
 
   useEffect(() => {
     const handleClickOutside = (e: MouseEvent) => {
@@ -364,13 +285,7 @@ export function AppLayout() {
   const sidebarProps: Omit<SidebarProps, 'mobile'> = {
     setSidebarOpen,
     company,
-    pathname: location.pathname,
     visibleNavItems,
-    networkMenuOpen, setNetworkMenuOpen,
-    subscribersMenuOpen, setSubscribersMenuOpen,
-    servicesMenuOpen, setServicesMenuOpen,
-    billingMenuOpen, setBillingMenuOpen,
-    inventoryMenuOpen, setInventoryMenuOpen,
   }
 
   return (
