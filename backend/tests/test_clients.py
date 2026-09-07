@@ -131,7 +131,7 @@ def test_create_client_invalid_cedula(client: TestClient):
             "phone": "0999999999",
             "address": "Sector La Mariscal, Quito",
             "router_id": str(router.id),
-            "connection_type": "static",
+            "access_method": "static",
             "ip": "192.168.10.10",
         },
     )
@@ -160,7 +160,8 @@ def test_create_client_valid_cedula_no_plan(client: TestClient):
             "phone": "0999999999",
             "address": "Sector La Mariscal, Quito",
             "router_id": str(router.id),
-            "connection_type": "static",
+            "access_method": "static",
+            "medium": "fiber",
             "ip": "192.168.10.10",
             "latitude": -0.180653,
             "longitude": -78.467834,
@@ -171,6 +172,89 @@ def test_create_client_valid_cedula_no_plan(client: TestClient):
     assert data["full_name"] == "Juan Perez"
     assert data["cedula"] == "1724024888"
     assert data["plan_activo"] is None
+    assert data["medium"] == "fiber"
+
+
+def test_create_client_default_medium_unspecified(client: TestClient):
+    login = client.post(
+        "/api/auth/login",
+        json={"email": "tecnico@test.com", "password": "tecnicopass123"},
+    )
+    token = login.json()["access_token"]
+    db = TestingSessionLocal()
+    router = db.query(Router).first()
+    db.close()
+
+    response = client.post(
+        "/api/clients",
+        headers={"Authorization": f"Bearer {token}"},
+        json={
+            "full_name": "Sin Medio",
+            "cedula": "0602910945",
+            "phone": "0999999999",
+            "address": "Sector Norte, Quito",
+            "router_id": str(router.id),
+            "access_method": "static",
+            "ip": "192.168.10.44",
+        },
+    )
+    assert response.status_code == 201
+    assert response.json()["medium"] == "unspecified"
+
+
+def test_create_client_rejects_invalid_medium(client: TestClient):
+    login = client.post(
+        "/api/auth/login",
+        json={"email": "tecnico@test.com", "password": "tecnicopass123"},
+    )
+    token = login.json()["access_token"]
+    db = TestingSessionLocal()
+    router = db.query(Router).first()
+    db.close()
+
+    response = client.post(
+        "/api/clients",
+        headers={"Authorization": f"Bearer {token}"},
+        json={
+            "full_name": "Medio Malo",
+            "cedula": "1710034065",
+            "phone": "0999999999",
+            "address": "Sector Sur, Quito",
+            "router_id": str(router.id),
+            "access_method": "static",
+            "medium": "satellite",
+            "ip": "192.168.10.45",
+        },
+    )
+    assert response.status_code == 422
+
+
+def test_list_clients_filter_by_medium(client: TestClient):
+    login = client.post(
+        "/api/auth/login",
+        json={"email": "tecnico@test.com", "password": "tecnicopass123"},
+    )
+    token = login.json()["access_token"]
+    headers = {"Authorization": f"Bearer {token}"}
+    db = TestingSessionLocal()
+    router = db.query(Router).first()
+    db.close()
+
+    for i, (ced, med) in enumerate([
+        ("0910005917", "fiber"), ("0926079971", "fiber"), ("0703506873", "radio"),
+    ]):
+        r = client.post("/api/clients", headers=headers, json={
+            "full_name": f"Cliente Medio {i}", "cedula": ced, "phone": "0999999999",
+            "address": "Direccion", "router_id": str(router.id),
+            "access_method": "static", "medium": med, "ip": f"192.168.50.{10 + i}",
+        })
+        assert r.status_code == 201
+
+    resp = client.get("/api/clients?medium=fiber", headers=headers)
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["total"] == 2
+    assert all(it["medium"] == "fiber" for it in body["items"])
 
 
 def test_create_client_with_initial_plan(client: TestClient):
@@ -195,7 +279,7 @@ def test_create_client_with_initial_plan(client: TestClient):
             "address": "Av. Carlos Julio Arosemena, Guayaquil",
             "router_id": str(router.id),
             "plan_id": str(plan.id),
-            "connection_type": "static",
+            "access_method": "static",
             "ip": "192.168.10.10",
         },
     )
@@ -298,7 +382,7 @@ def test_list_clients_sorting(client: TestClient):
         phone="0999999999",
         address="Quito",
         router_id=r1.id,
-        connection_type="pppoe",
+        access_method="pppoe",
         active=False,
         email="bernardo@test.com",
         created_at=datetime.fromisoformat("2025-01-01T12:00:00")
@@ -311,7 +395,7 @@ def test_list_clients_sorting(client: TestClient):
         phone="0988888888",
         address="Guayaquil",
         router_id=r2.id,
-        connection_type="static",
+        access_method="static",
         active=True,
         scheduled_suspension=datetime.now() + timedelta(days=5),
         email="carlos@test.com",
@@ -325,7 +409,7 @@ def test_list_clients_sorting(client: TestClient):
         phone="0977777777",
         address="Cuenca",
         router_id=r1.id,
-        connection_type="static",
+        access_method="static",
         active=True,
         email="andres@test.com",
         created_at=datetime.fromisoformat("2025-01-03T12:00:00")
@@ -371,9 +455,9 @@ def test_list_clients_sorting(client: TestClient):
     names = [item["full_name"] for item in resp.json()["items"]]
     assert names == ["Bernardo", "Carlos", "Andres"]
 
-    # 4. Sort by connection_type ascending (Bernardo/pppoe, Andres/static, Carlos/static)
+    # 4. Sort by access_method ascending (Bernardo/pppoe, Andres/static, Carlos/static)
     resp = client.get(
-        "/api/clients?sort_by=connection_type&sort_dir=asc",
+        "/api/clients?sort_by=access_method&sort_dir=asc",
         headers={"Authorization": f"Bearer {token}"}
     )
     assert resp.status_code == 200
@@ -493,7 +577,7 @@ def test_update_client_cedula_and_email(client: TestClient):
             "phone": "0999999999",
             "address": "Quito",
             "router_id": str(router.id),
-            "connection_type": "static",
+            "access_method": "static",
             "ip": "192.168.10.10",
             "email": "test@client.com"
         },
@@ -538,7 +622,7 @@ def test_create_client_valid_ruc(client: TestClient):
             "phone": "0999999999",
             "address": "Quito",
             "router_id": str(router.id),
-            "connection_type": "static",
+            "access_method": "static",
             "ip": "192.168.10.10",
         },
     )
@@ -555,7 +639,7 @@ def test_create_client_valid_ruc(client: TestClient):
             "phone": "0999999999",
             "address": "Quito",
             "router_id": str(router.id),
-            "connection_type": "static",
+            "access_method": "static",
             "ip": "192.168.10.11",
         },
     )
@@ -572,7 +656,7 @@ def test_create_client_valid_ruc(client: TestClient):
             "phone": "0999999999",
             "address": "Quito",
             "router_id": str(router.id),
-            "connection_type": "static",
+            "access_method": "static",
             "ip": "192.168.10.12",
         },
     )
@@ -601,7 +685,7 @@ def test_create_client_invalid_ruc(client: TestClient):
             "phone": "0999999999",
             "address": "Quito",
             "router_id": str(router.id),
-            "connection_type": "static",
+            "access_method": "static",
             "ip": "192.168.10.10",
         },
     )
@@ -631,7 +715,7 @@ def test_create_and_update_client_custom_created_at(client: TestClient):
             "phone": "0999999999",
             "address": "Quito",
             "router_id": str(router.id),
-            "connection_type": "static",
+            "access_method": "static",
             "ip": "192.168.10.10",
             "created_at": custom_date,
         },
@@ -702,7 +786,7 @@ def test_client_site_filtering(client: TestClient):
             "phone": "0999999999",
             "address": "Quito A",
             "router_id": str(router1.id),
-            "connection_type": "static",
+            "access_method": "static",
             "ip": "192.168.10.10",
         },
     )
@@ -718,7 +802,7 @@ def test_client_site_filtering(client: TestClient):
             "phone": "0988888888",
             "address": "Guayaquil B",
             "router_id": str(router2.id),
-            "connection_type": "static",
+            "access_method": "static",
             "ip": "192.168.10.20",
         },
     )

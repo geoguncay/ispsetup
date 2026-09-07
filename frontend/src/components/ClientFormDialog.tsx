@@ -100,7 +100,9 @@ const clientSchema = z.object({
   latitude: z.coerce.number().optional().nullable(),
   longitude: z.coerce.number().optional().nullable(),
   router_id: z.string().min(1, 'Debe seleccionar un router'),
-  connection_type: z.enum(['static', 'pppoe']),
+  // '' = cliente nuevo sin elegir (bloquea guardar); 'unspecified' = cliente antiguo (solo avisa)
+  medium: z.enum(['radio', 'fiber', 'unspecified']).or(z.literal('')),
+  access_method: z.enum(['static', 'pppoe']),
   plan_id: z.string().optional().nullable(),
   custom_service_ids: z.array(z.string()).optional(),
   active: z.boolean().optional(),
@@ -172,14 +174,24 @@ const clientSchema = z.object({
     }
   }
 
-  // 2. Validar IP obligatoria para connection_type estática, o credenciales para PPPoE
-  if (data.connection_type === 'static' && (!data.ip || data.ip.trim() === '')) {
+  // 1b. Medio de conexión obligatorio (clientes nuevos arrancan en ''); los antiguos
+  // pueden llegar como 'unspecified' — la UI muestra un aviso pero no bloquea.
+  if (!data.medium) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      message: 'Seleccione el medio de conexión',
+      path: ['medium'],
+    })
+  }
+
+  // 2. Validar IP obligatoria para el método estático, o credenciales para PPPoE
+  if (data.access_method === 'static' && (!data.ip || data.ip.trim() === '')) {
     ctx.addIssue({
       code: z.ZodIssueCode.custom,
       message: 'La dirección IP es obligatoria',
       path: ['ip'],
     })
-  } else if (data.connection_type === 'pppoe') {
+  } else if (data.access_method === 'pppoe') {
     if (!data.ppp_username || data.ppp_username.trim() === '') {
       ctx.addIssue({
         code: z.ZodIssueCode.custom,
@@ -216,7 +228,8 @@ interface FormClient {
   address: string
   email?: string | null
   active: boolean
-  connection_type: 'static' | 'pppoe'
+  access_method: 'static' | 'pppoe'
+  medium?: 'radio' | 'fiber' | 'unspecified'
   router_id: string
   latitude?: number | null
   longitude?: number | null
@@ -676,7 +689,8 @@ export function ClientFormDialog({ open, onClose, client, onSuccess }: ClientFor
           latitude: client.latitude,
           longitude: client.longitude,
           router_id: client.router_id,
-          connection_type: client.connection_type,
+          access_method: client.access_method,
+          medium: (client.medium as 'radio' | 'fiber' | 'unspecified') ?? 'unspecified',
           plan_id: client.plan_activo?.id ?? '',
           active: client.active,
           ip: client.static_ip?.ip ?? '',
@@ -733,7 +747,8 @@ export function ClientFormDialog({ open, onClose, client, onSuccess }: ClientFor
           latitude: null,
           longitude: null,
           router_id: '',
-          connection_type: 'static',
+          access_method: 'static',
+          medium: '',
           plan_id: '',
           active: true,
           ip: '',
@@ -814,7 +829,7 @@ export function ClientFormDialog({ open, onClose, client, onSuccess }: ClientFor
         payload.billing_start = `${billingStartStr}T12:00:00`
       }
 
-      if (payload.connection_type === 'pppoe') {
+      if (payload.access_method === 'pppoe') {
         payload.ip = null
         payload.mac = null
         payload.notes_ip = null
@@ -890,7 +905,7 @@ export function ClientFormDialog({ open, onClose, client, onSuccess }: ClientFor
       return
     }
 
-    const step4Fields = ['router_id', 'connection_type', 'ip', 'mac', 'notes_ip', 'ppp_username', 'ppp_password', 'profile_id']
+    const step4Fields = ['medium', 'router_id', 'access_method', 'ip', 'mac', 'notes_ip', 'ppp_username', 'ppp_password', 'profile_id']
     if (errorKeys.some((key) => step4Fields.includes(key))) {
       setStep(4)
       return
@@ -1652,7 +1667,23 @@ export function ClientFormDialog({ open, onClose, client, onSuccess }: ClientFor
               </div>
 
               <div className="glass-card p-6 border border-border/60 space-y-4 bg-secondary/10">
-                {/* Router y Tipo de Conexión */}
+                {/* Medio físico, Router y Método de asignación de IP */}
+                <div>
+                  <label className="block text-sm font-medium text-foreground mb-1.5">Medio de conexión *</label>
+                  <select {...register('medium')} className="input-field cursor-pointer font-sans">
+                    <option value="" disabled>Seleccione el medio…</option>
+                    <option value="radio">Radioenlace (WISP)</option>
+                    <option value="fiber">Fibra óptica (GPON)</option>
+                    <option value="unspecified" hidden>Sin especificar</option>
+                  </select>
+                  {errors.medium && <p className="text-xs text-destructive mt-1">{errors.medium.message}</p>}
+                  {watch('medium') === 'unspecified' && !errors.medium && (
+                    <p className="text-xs text-amber-500 mt-1">
+                      Medio sin especificar — selecciona radioenlace o fibra para completar el registro.
+                    </p>
+                  )}
+                </div>
+
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 font-sans">
                   <div>
                     <label className="block text-sm font-medium text-foreground mb-1.5">Router *</label>
@@ -1665,17 +1696,20 @@ export function ClientFormDialog({ open, onClose, client, onSuccess }: ClientFor
                     {errors.router_id && <p className="text-xs text-destructive mt-1">{errors.router_id.message}</p>}
                   </div>
                   <div>
-                    <label className="block text-sm font-medium text-foreground mb-1.5">Tipo de Conexión *</label>
-                    <select {...register('connection_type')} className="input-field cursor-pointer font-sans">
+                    <label className="block text-sm font-medium text-foreground mb-1.5">Método de asignación de IP *</label>
+                    <select {...register('access_method')} className="input-field cursor-pointer font-sans">
                       <option value="static">IP Estática</option>
                       <option value="pppoe">PPPoE</option>
                     </select>
-                    {errors.connection_type && <p className="text-xs text-destructive mt-1">{errors.connection_type.message}</p>}
+                    <p className="text-[11px] text-muted-foreground mt-1">
+                      Cómo se aprovisiona la IP en el router (address-list + cola, o PPPoE). No es el medio físico.
+                    </p>
+                    {errors.access_method && <p className="text-xs text-destructive mt-1">{errors.access_method.message}</p>}
                   </div>
                 </div>
 
                 {/* Campos condicionales para IP Estática */}
-                {watch('connection_type') === 'static' && (
+                {watch('access_method') === 'static' && (
                   <div className="space-y-4 border-l-2 border-brand-500 pl-4 py-1.5 mt-2 bg-brand-500/5 rounded-r-lg pr-3">
                     <div>
                       <label className="block text-sm font-medium text-foreground mb-1.5">Dirección IP *</label>
@@ -1700,7 +1734,7 @@ export function ClientFormDialog({ open, onClose, client, onSuccess }: ClientFor
                 )}
 
                 {/* Campos condicionales para PPPoE */}
-                {watch('connection_type') === 'pppoe' && (
+                {watch('access_method') === 'pppoe' && (
                   <div className="space-y-4 border-l-2 border-brand-500 pl-4 py-1.5 mt-2 bg-brand-500/5 rounded-r-lg pr-3">
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                       <div>

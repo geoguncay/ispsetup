@@ -113,7 +113,7 @@ def test_create_client_static_ip_success(mock_sync, client: TestClient):
             "phone": "0999999999",
             "address": "Av. Amazonas, Quito",
             "router_id": router_id,
-            "connection_type": "static",
+            "access_method": "static",
             "ip": "192.168.10.50",
             "mac": "11:22:33:44:55:66",
         },
@@ -150,7 +150,7 @@ def test_static_ip_duplication_validation(mock_sync, client: TestClient):
             "phone": "0999999999",
             "address": "Sector A",
             "router_id": g_quito_id,
-            "connection_type": "static",
+            "access_method": "static",
             "ip": "192.168.1.100",
         },
     )
@@ -166,7 +166,7 @@ def test_static_ip_duplication_validation(mock_sync, client: TestClient):
             "phone": "0988888888",
             "address": "Sector B",
             "router_id": g_quito_id,
-            "connection_type": "static",
+            "access_method": "static",
             "ip": "192.168.1.100",
         },
     )
@@ -183,7 +183,7 @@ def test_static_ip_duplication_validation(mock_sync, client: TestClient):
             "phone": "0988888888",
             "address": "Sector B",
             "router_id": g_gye_id,
-            "connection_type": "static",
+            "access_method": "static",
             "ip": "192.168.1.100",
         },
     )
@@ -214,7 +214,7 @@ def test_update_client_ip_sync(mock_sync, mock_remove, client: TestClient):
             "phone": "0999999999",
             "address": "Dir A",
             "router_id": router_id,
-            "connection_type": "static",
+            "access_method": "static",
             "ip": "192.168.1.50",
         },
     )

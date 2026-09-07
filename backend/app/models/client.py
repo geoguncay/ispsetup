@@ -35,7 +35,15 @@ class Client(Base):
     router_id: Mapped[uuid.UUID] = mapped_column(
         Uuid(native_uuid=False), ForeignKey("routers.id"), nullable=False
     )
-    connection_type: Mapped[str] = mapped_column(String(20), nullable=False, default="static")  # "static" o "pppoe"
+    # Ruta de aprovisionamiento en el router MikroTik (NO es el medio físico; ver `medium`):
+    #   "static" -> firewall address-list + /queue/simple ; "pppoe" -> /ppp/profile + /ppp/secret
+    access_method: Mapped[str] = mapped_column("access_method", String(20), nullable=False, default="static")
+    # Medio físico de acceso de última milla. Informativo por ahora; no afecta
+    # aprovisionamiento / suspensión / shaping.
+    #   "radio" | "fiber" | "unspecified" ("unspecified" solo para backfill de filas antiguas).
+    medium: Mapped[str] = mapped_column(
+        String(20), nullable=False, default="unspecified", server_default="unspecified"
+    )
     active: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
     email: Mapped[str | None] = mapped_column(String(100), nullable=True)
     billing_start: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)

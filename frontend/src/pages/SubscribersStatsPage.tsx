@@ -18,7 +18,8 @@ interface ClientStats {
 interface Client {
   id: string
   name: string
-  connection_type: 'static' | 'pppoe'
+  access_method: 'static' | 'pppoe'
+  medium?: 'radio' | 'fiber' | 'unspecified'
   active: boolean
   plan_activo: { id: string; name: string; price: number } | null
   created_at?: string
@@ -83,10 +84,10 @@ export function SubscribersStatsPage() {
     .map(([name, value]) => ({ name, clientes: value }))
     .sort((a, b) => b.clientes - a.clientes)
 
-  // 3. Datos para tipo de conexión
+  // 3. Datos por método de asignación de IP
   const typeCounts = { static: 0, pppoe: 0 }
   clientsList.forEach((c) => {
-    if (c.connection_type === 'static') {
+    if (c.access_method === 'static') {
       typeCounts.static += 1
     } else {
       typeCounts.pppoe += 1
@@ -95,6 +96,17 @@ export function SubscribersStatsPage() {
   const typeChartData = [
     { name: 'IP Estática', value: typeCounts.static, color: '#3b82f6' },
     { name: 'PPPoE', value: typeCounts.pppoe, color: '#8b5cf6' },
+  ].filter(item => item.value > 0)
+
+  // 3b. Datos por medio físico
+  const mediumCounts = { radio: 0, fiber: 0, unspecified: 0 }
+  clientsList.forEach((c) => {
+    mediumCounts[(c.medium ?? 'unspecified') as keyof typeof mediumCounts] += 1
+  })
+  const mediumChartData = [
+    { name: 'Radioenlace', value: mediumCounts.radio, color: '#22c55e' },
+    { name: 'Fibra óptica', value: mediumCounts.fiber, color: '#06b6d4' },
+    { name: 'Sin especificar', value: mediumCounts.unspecified, color: '#64748b' },
   ].filter(item => item.value > 0)
 
   // 4. Datos para crecimiento mensual de suscriptores
@@ -456,80 +468,73 @@ export function SubscribersStatsPage() {
             </div>
           </div>
 
-          {/* Third Row: Connection Type Distribution */}
-          <div className="grid grid-cols-1 gap-6">
-            <div className="glass-card p-5">
-              <div className="flex items-center gap-2 mb-4">
-                <Activity className="w-4 h-4 text-brand-400" />
-                <h2 className="text-sm font-semibold text-foreground">Métodos de Conexión</h2>
+          {/* Third Row: distribución por método de IP y por medio físico */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            {([
+              { title: 'Métodos de Asignación de IP', data: typeChartData, empty: 'Sin métodos registrados.' },
+              { title: 'Medio Físico de Acceso', data: mediumChartData, empty: 'Sin medios registrados.' },
+            ]).map((card) => (
+              <div key={card.title} className="glass-card p-5">
+                <div className="flex items-center gap-2 mb-4">
+                  <Activity className="w-4 h-4 text-brand-400" />
+                  <h2 className="text-sm font-semibold text-foreground">{card.title}</h2>
+                </div>
+
+                {isLoading ? (
+                  <div className="flex items-center justify-center h-24">
+                    <RefreshCw className="w-6 h-6 animate-spin text-muted-foreground" />
+                  </div>
+                ) : card.data.length === 0 ? (
+                  <div className="text-center py-6 text-sm text-muted-foreground">{card.empty}</div>
+                ) : (
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6 items-center">
+                    <div className="space-y-4">
+                      {card.data.map((item) => {
+                        const percentage = clientStats?.total ? Math.round((item.value / clientStats.total) * 100) : 0
+                        return (
+                          <div key={item.name} className="space-y-1.5">
+                            <div className="flex justify-between text-xs font-semibold">
+                              <span className="text-foreground flex items-center gap-2">
+                                <span className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: item.color }} />
+                                {item.name}
+                              </span>
+                              <span className="text-muted-foreground">{item.value} ({percentage}%)</span>
+                            </div>
+                            <div className="w-full bg-white/5 rounded-full h-2.5 overflow-hidden border border-white/5">
+                              <div
+                                className="h-full rounded-full transition-all duration-500"
+                                style={{ width: `${percentage}%`, backgroundColor: item.color }}
+                              />
+                            </div>
+                          </div>
+                        )
+                      })}
+                    </div>
+
+                    <div className="h-[120px] flex items-center justify-center">
+                      <ResponsiveContainer width="100%" height="100%">
+                        <RechartsPieChart>
+                          <Pie data={card.data} cx="50%" cy="50%" innerRadius={30} outerRadius={45} paddingAngle={3} dataKey="value">
+                            {card.data.map((entry, index) => (
+                              <Cell key={`cell-${index}`} fill={entry.color} stroke="rgba(255,255,255,0.05)" />
+                            ))}
+                          </Pie>
+                          <Tooltip
+                            contentStyle={{
+                              backgroundColor: 'rgba(30, 41, 59, 0.9)',
+                              borderColor: 'rgba(255,255,255,0.1)',
+                              borderRadius: '8px',
+                              color: '#fff',
+                              fontSize: '11px',
+                            }}
+                          />
+                        </RechartsPieChart>
+                      </ResponsiveContainer>
+                    </div>
+                  </div>
+                )}
               </div>
-
-              {isLoading ? (
-                <div className="flex items-center justify-center h-24">
-                  <RefreshCw className="w-6 h-6 animate-spin text-muted-foreground" />
-                </div>
-              ) : typeChartData.length === 0 ? (
-                <div className="text-center py-6 text-sm text-muted-foreground">
-                  Sin métodos de conexión registrados.
-                </div>
-              ) : (
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6 items-center">
-                  {/* Left Column: Progress bars */}
-                  <div className="space-y-4">
-                    {typeChartData.map((item) => {
-                      const percentage = clientStats?.total ? Math.round((item.value / clientStats.total) * 100) : 0
-                      return (
-                        <div key={item.name} className="space-y-1.5">
-                          <div className="flex justify-between text-xs font-semibold">
-                            <span className="text-foreground flex items-center gap-2">
-                              <span className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: item.color }} />
-                              {item.name}
-                            </span>
-                            <span className="text-muted-foreground">{item.value} ({percentage}%)</span>
-                          </div>
-                          <div className="w-full bg-white/5 rounded-full h-2.5 overflow-hidden border border-white/5">
-                            <div
-                              className="h-full rounded-full transition-all duration-500"
-                              style={{ width: `${percentage}%`, backgroundColor: item.color }}
-                            />
-                          </div>
-                        </div>
-                      )
-                    })}
-                  </div>
-
-                  {/* Right Column: Donut Mini-Chart */}
-                  <div className="h-[120px] flex items-center justify-center">
-                    <ResponsiveContainer width="100%" height="100%">
-                      <RechartsPieChart>
-                        <Pie
-                          data={typeChartData}
-                          cx="50%"
-                          cy="50%"
-                          innerRadius={30}
-                          outerRadius={45}
-                          paddingAngle={3}
-                          dataKey="value"
-                        >
-                          {typeChartData.map((entry, index) => (
-                            <Cell key={`cell-${index}`} fill={entry.color} stroke="rgba(255,255,255,0.05)" />
-                          ))}
-                        </Pie>
-                        <Tooltip
-                          contentStyle={{
-                            backgroundColor: 'rgba(30, 41, 59, 0.9)',
-                            borderColor: 'rgba(255,255,255,0.1)',
-                            borderRadius: '8px',
-                            color: '#fff',
-                            fontSize: '11px'
-                          }}
-                        />
-                      </RechartsPieChart>
-                    </ResponsiveContainer>
-                  </div>
-                </div>
-              )}
-            </div>
+            ))}
           </div>
         </>
       )}

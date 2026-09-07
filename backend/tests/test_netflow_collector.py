@@ -74,7 +74,7 @@ def _make_router_and_client(db, *, router_ip: str, traffic_accounting: str, clie
         phone="0999999999",
         address="Quito",
         router_id=gw.id,
-        connection_type="static",
+        access_method="static",
         active=client_active,
     )
     db.add(client)

@@ -631,7 +631,8 @@ def import_clients_from_router(
             phone="0999999999",
             address="Importado desde el router",
             router_id=router_id,
-            connection_type="static",
+            access_method="static",
+            medium="unspecified",
             active=True,
         )
         db.add(client)

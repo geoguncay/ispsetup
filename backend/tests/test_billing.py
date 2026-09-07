@@ -111,7 +111,7 @@ def test_generate_monthly_invoices_task():
         phone="0999999999",
         address="Quito",
         router_id=router.id,
-        connection_type="static",
+        access_method="static",
         active=True
     )
     db.add(c)
@@ -148,7 +148,7 @@ def test_check_overdue_invoices_task():
         phone="0999999999",
         address="Quito",
         router_id=router.id,
-        connection_type="static",
+        access_method="static",
         active=True
     )
     db.add(c)
@@ -202,7 +202,7 @@ def test_register_payment_and_reactivation_flow(mock_send_notif, mock_toggle_que
         phone="0999999999",
         address="Quito",
         router_id=router.id,
-        connection_type="static",
+        access_method="static",
         active=False
     )
     db.add(c)
@@ -293,7 +293,7 @@ def test_get_daily_cash(client: TestClient):
         phone="0999999999",
         address="Quito",
         router_id=router.id,
-        connection_type="static",
+        access_method="static",
         active=True
     )
     db.add(c)
@@ -357,7 +357,7 @@ def test_generate_monthly_invoices_with_custom_services():
         phone="0999999999",
         address="Quito",
         router_id=router.id,
-        connection_type="static",
+        access_method="static",
         active=True
     )
     db.add(c)
@@ -399,7 +399,7 @@ def test_create_manual_invoice_endpoint(client: TestClient):
         phone="0999999999",
         address="Quito",
         router_id=router.id,
-        connection_type="static",
+        access_method="static",
         active=True
     )
     db.add(c)
@@ -464,7 +464,7 @@ def test_generate_monthly_invoices_with_non_recurring_custom_services(client: Te
         phone="0987654321",
         address="Guayaquil",
         router_id=router.id,
-        connection_type="static",
+        access_method="static",
         active=True
     )
     c.custom_services.append(cs_recurring)

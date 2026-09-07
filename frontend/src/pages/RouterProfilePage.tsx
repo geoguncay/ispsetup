@@ -115,7 +115,8 @@ interface Client {
   full_name: string
   cedula: string
   phone: string
-  connection_type: 'static' | 'pppoe'
+  access_method: 'static' | 'pppoe'
+  medium?: 'radio' | 'fiber' | 'unspecified'
   active: boolean
   latitude: number | null
   longitude: number | null
@@ -1137,7 +1138,7 @@ export function RouterProfilePage() {
                             <td>
                               <div className="font-semibold text-sm text-foreground">{client.full_name}</div>
                               <div className="text-xs text-muted-foreground capitalize sm:hidden">
-                                {client.connection_type === 'static' ? 'IP Estática' : 'PPPoE'}
+                                {client.access_method === 'static' ? 'IP Estática' : 'PPPoE'}
                               </div>
                             </td>
                             <td className="hidden sm:table-cell font-mono text-xs text-muted-foreground">

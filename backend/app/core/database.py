@@ -787,6 +787,8 @@ def run_migrations(bind_engine) -> None:
             conn.execute(text("ALTER TABLE clients ADD COLUMN IF NOT EXISTS scheduled_suspension TIMESTAMP WITH TIME ZONE;"))
             conn.execute(text("ALTER TABLE clients ADD COLUMN IF NOT EXISTS scheduled_suspension_reason VARCHAR(255);"))
             conn.execute(text("ALTER TABLE clients ADD COLUMN IF NOT EXISTS scheduled_reactivation TIMESTAMP WITH TIME ZONE;"))
+            # Medio físico de acceso (radio | fiber | unspecified). Informativo; no afecta aprovisionamiento.
+            conn.execute(text("ALTER TABLE clients ADD COLUMN IF NOT EXISTS medium VARCHAR(20) NOT NULL DEFAULT 'unspecified';"))
             # Renombrar la cola de sync si aún existe con el nombre viejo.
             conn.execute(text("""
             DO $$
@@ -2105,6 +2107,22 @@ def run_migrations(bind_engine) -> None:
                     WHERE table_name = 'clients' AND column_name = 'tipo'
                 ) THEN
                     ALTER TABLE clients RENAME COLUMN tipo TO connection_type;
+                END IF;
+            END $$;
+            """))
+            # clients.connection_type -> clients.access_method (el valor sigue siendo static/pppoe;
+            # es el método de aprovisionamiento en el router, no el medio físico — ver clients.medium).
+            conn.execute(text("""
+            DO $$
+            BEGIN
+                IF EXISTS (
+                    SELECT 1 FROM information_schema.columns
+                    WHERE table_name = 'clients' AND column_name = 'connection_type'
+                ) AND NOT EXISTS (
+                    SELECT 1 FROM information_schema.columns
+                    WHERE table_name = 'clients' AND column_name = 'access_method'
+                ) THEN
+                    ALTER TABLE clients RENAME COLUMN connection_type TO access_method;
                 END IF;
             END $$;
             """))

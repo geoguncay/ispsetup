@@ -87,7 +87,7 @@ def create_payment(
             suspended_plan.estado = "activo"
             
         # Reactivar en MikroTik
-        if client.connection_type == "static" and client.static_ip:
+        if client.access_method == "static" and client.static_ip:
             try:
                 unsuspend_ip_in_firewall(client.router, client.static_ip.ip)
                 toggle_client_queue(client.router, client.static_ip.ip, disabled=False)
@@ -98,7 +98,7 @@ def create_payment(
                     status_code=status.HTTP_502_BAD_GATEWAY,
                     detail=f"Pago registrado pero falló la reactivación en MikroTik: {str(e)}"
                 )
-        elif client.connection_type == "pppoe" and client.pppoe_secret:
+        elif client.access_method == "pppoe" and client.pppoe_secret:
             try:
                 password_dec = decrypt_secret(client.pppoe_secret.ppp_password)
                 profile_name = client.pppoe_secret.profile.name if client.pppoe_secret.profile else "default"

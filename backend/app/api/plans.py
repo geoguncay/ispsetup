@@ -109,7 +109,7 @@ def update_plan(
 
     for cp in active_client_plans:
         client = cp.client
-        if client and client.active and client.connection_type == "static" and client.static_ip and client.router:
+        if client and client.active and client.access_method == "static" and client.static_ip and client.router:
             try:
                 from app.services.router.address_list import sync_ip_in_address_list, get_clean_list_name
                 from app.services.router.queue import sync_client_queue, get_clean_parent_name

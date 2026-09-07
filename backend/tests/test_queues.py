@@ -118,7 +118,7 @@ def test_create_client_creates_queue(mock_sync_queue, mock_sync_ip, client: Test
             "phone": "0999999999",
             "address": "Quito",
             "router_id": router_id,
-            "connection_type": "static",
+            "access_method": "static",
             "ip": "192.168.10.15",
             "plan_id": plan_id
         },
@@ -161,7 +161,7 @@ def test_assign_plan_updates_queue(mock_sync_queue, mock_sync_ip, client: TestCl
         phone="0999999999",
         address="Quito",
         router_id=router.id,
-        connection_type="static",
+        access_method="static",
         active=True
     )
     db.add(c)
@@ -200,7 +200,7 @@ def test_toggle_client_queue_endpoint(mock_toggle_queue, client: TestClient):
         phone="0999999999",
         address="Quito",
         router_id=router.id,
-        connection_type="static",
+        access_method="static",
         active=True
     )
     db.add(c)
@@ -560,7 +560,7 @@ def test_hard_delete_preserves_routeros_and_removes_router_data(mock_cleanup, cl
         phone="0991111111",
         address="Quito",
         router_id=router.id,
-        connection_type="static",
+        access_method="static",
         active=True,
     )
     db.add(customer)
@@ -659,7 +659,7 @@ def test_get_router_queues_enriched(mock_fetch_queues, client: TestClient):
         phone="0999999999",
         address="Quito",
         router_id=router.id,
-        connection_type="static",
+        access_method="static",
         active=True
     )
     db.add(c)

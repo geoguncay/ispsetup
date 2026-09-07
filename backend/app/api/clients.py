@@ -155,7 +155,8 @@ def list_clients(
     plan_id: uuid.UUID | None = None,
     site_id: uuid.UUID | None = None,
     active: bool | None = None,
-    connection_type: str | None = None,
+    access_method: str | None = None,
+    medium: str | None = None,
     search: str | None = None,
     sort_by: str | None = None,
     sort_dir: str = "desc",
@@ -177,8 +178,11 @@ def list_clients(
     if active is not None:
         query = query.filter(Client.active == active)
 
-    if connection_type:
-        query = query.filter(Client.connection_type == connection_type)
+    if access_method:
+        query = query.filter(Client.access_method == access_method)
+
+    if medium:
+        query = query.filter(Client.medium == medium)
 
     if plan_id:
         # Filtrar clientes cuyo plan activo sea el plan_id dado
@@ -208,8 +212,10 @@ def list_clients(
         sort_column = Client.email
     elif sort_by == "created_at":
         sort_column = Client.created_at
-    elif sort_by == "connection_type":
-        sort_column = Client.connection_type
+    elif sort_by == "access_method":
+        sort_column = Client.access_method
+    elif sort_by == "medium":
+        sort_column = Client.medium
     elif sort_by == "active":
         from sqlalchemy import case
         sort_column = case(
@@ -286,8 +292,8 @@ def create_client(payload: ClientCreate, db: DBSession, current_user: AdminOrTec
                 detail="El plan especificado no existe.",
             )
 
-    # Si es connection_type static, validar IP
-    if payload.connection_type == "static":
+    # Si es access_method static, validar IP
+    if payload.access_method == "static":
         if not payload.ip:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
@@ -303,7 +309,7 @@ def create_client(payload: ClientCreate, db: DBSession, current_user: AdminOrTec
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail=f"La dirección IP {payload.ip} ya está asignada a otro cliente en este router.",
             )
-    elif payload.connection_type == "pppoe":
+    elif payload.access_method == "pppoe":
         if not payload.ppp_username:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
@@ -369,7 +375,8 @@ def create_client(payload: ClientCreate, db: DBSession, current_user: AdminOrTec
         latitude=payload.latitude,
         longitude=payload.longitude,
         router_id=payload.router_id,
-        connection_type=payload.connection_type,
+        access_method=payload.access_method,
+        medium=payload.medium,
         active=True,
         email=payload.email,
         billing_start=payload.billing_start,
@@ -418,7 +425,7 @@ def create_client(payload: ClientCreate, db: DBSession, current_user: AdminOrTec
         db.add(client_plan)
 
     # Crear el registro de IP estática si se especificó
-    if payload.connection_type == "static" and payload.ip:
+    if payload.access_method == "static" and payload.ip:
         static_ip = StaticIP(
             client_id=client.id,
             ip=payload.ip,
@@ -456,7 +463,7 @@ def create_client(payload: ClientCreate, db: DBSession, current_user: AdminOrTec
             )
 
     # Crear el registro PPPoE si se especificó
-    elif payload.connection_type == "pppoe" and payload.ppp_username and payload.ppp_password:
+    elif payload.access_method == "pppoe" and payload.ppp_username and payload.ppp_password:
         pppoe_sec = PPPoESecret(
             client_id=client.id,
             ppp_username=payload.ppp_username,
@@ -491,7 +498,7 @@ def create_client(payload: ClientCreate, db: DBSession, current_user: AdminOrTec
         entity_type="Client", entity_id=str(client.id), entity_name=client.full_name,
         user_id=current_user.id, user_name=current_user.name,
         detail=audit_detail(
-            "Cliente creado", connection_type=client.connection_type,
+            "Cliente creado", access_method=client.access_method,
             router=client.router.name if client.router else None,
             plan_id=payload.plan_id,
         ),
@@ -549,10 +556,10 @@ def update_client(
     old_router = client.router
     old_router_id = client.router_id
     new_router_id = update_data.get("router_id", client.router_id)
-    new_tipo = update_data.get("connection_type", client.connection_type)
+    new_access_method = update_data.get("access_method", client.access_method)
 
-    # Si el connection_type cambia a pppoe y tenía una IP estática, removerla de MikroTik y BD
-    if new_tipo == "pppoe" and client.static_ip:
+    # Si el access_method cambia a pppoe y tenía una IP estática, removerla de MikroTik y BD
+    if new_access_method == "pppoe" and client.static_ip:
         try:
             remove_ip_from_address_list(client.router, client.static_ip.ip)
         except Exception as e:
@@ -563,8 +570,8 @@ def update_client(
             logger.warning(f"No se pudo remover la cola en MikroTik al cambiar a PPPoE: {e}")
         db.delete(client.static_ip)
 
-    # Si el connection_type cambia a static y tenía un secreto PPPoE, removerlo de MikroTik y BD
-    if new_tipo == "static" and client.pppoe_secret:
+    # Si el access_method cambia a static y tenía un secreto PPPoE, removerlo de MikroTik y BD
+    if new_access_method == "static" and client.pppoe_secret:
         try:
             remove_pppoe_secret_from_router(client.router, client.pppoe_secret.ppp_username)
         except Exception as e:
@@ -572,7 +579,7 @@ def update_client(
         db.delete(client.pppoe_secret)
 
     # Si es static o cambia a static, validar y sincronizar IP
-    if new_tipo == "static":
+    if new_access_method == "static":
         ip_val = update_data.get("ip") if "ip" in update_data else old_ip
         if not ip_val:
             raise HTTPException(
@@ -666,7 +673,7 @@ def update_client(
                 logger.warning(f"No se pudo remover la IP o cola en MikroTik al desactivar cliente: {e}")
 
     # Si es pppoe o cambia a pppoe, validar y sincronizar secreto
-    elif new_tipo == "pppoe":
+    elif new_access_method == "pppoe":
         user_val = update_data.get("ppp_username") or (client.pppoe_secret.ppp_username if client.pppoe_secret else None)
         pass_val = update_data.get("ppp_password") or (decrypt_secret(client.pppoe_secret.ppp_password) if client.pppoe_secret else None)
 
@@ -841,7 +848,7 @@ def update_client(
         detail=audit_detail(
             "Cliente actualizado",
             fields_changed=sorted(payload.model_fields_set),
-            connection_type=client.connection_type,
+            access_method=client.access_method,
             router=client.router.name if client.router else None,
         ),
     )
@@ -869,7 +876,7 @@ def delete_client(client_id: uuid.UUID, db: DBSession, current_user: AdminOrTech
         except Exception as e:
             logger.warning(f"No se pudo remover la cola en MikroTik al borrar cliente: {e}")
 
-    if client.connection_type == "pppoe" and client.pppoe_secret:
+    if client.access_method == "pppoe" and client.pppoe_secret:
         try:
             remove_pppoe_secret_from_router(client.router, client.pppoe_secret.ppp_username)
         except Exception as e:
@@ -878,7 +885,7 @@ def delete_client(client_id: uuid.UUID, db: DBSession, current_user: AdminOrTech
     client_name = client.full_name
     client_detail = {
         "cedula": client.cedula,
-        "connection_type": client.connection_type,
+        "access_method": client.access_method,
         "router": client.router.name if client.router else None,
     }
     db.delete(client)
@@ -939,7 +946,7 @@ def assign_client_plan(
         ap.fecha_fin = now
 
     # Sincronizar cola en MikroTik si el cliente es estático y tiene IP
-    if client.connection_type == "static" and client.static_ip:
+    if client.access_method == "static" and client.static_ip:
         try:
             addr_list_name = get_clean_list_name(client.router.address_list or plan.address_list)
             sync_ip_in_address_list(client.router, client.static_ip.ip, client.full_name, list_name=addr_list_name)
@@ -964,7 +971,7 @@ def assign_client_plan(
             )
     
     # Sincronizar secreto PPPoE si el cliente es PPPoE y tiene secreto
-    elif client.connection_type == "pppoe" and client.pppoe_secret:
+    elif client.access_method == "pppoe" and client.pppoe_secret:
         try:
             # 1. Buscar o crear el PPPoEProfile local para este router y plan
             profile = db.query(PPPoEProfile).filter(
@@ -1033,7 +1040,7 @@ def sync_client_router(client_id: uuid.UUID, db: DBSession, current_user: AdminO
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Cliente no encontrado")
     if not client.active:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="El cliente está inactivo.")
-    if client.connection_type != "static" or not client.static_ip:
+    if client.access_method != "static" or not client.static_ip:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="El cliente no posee IP estática activa.")
 
     active_client_plan = (
@@ -1090,7 +1097,7 @@ def toggle_client_queue_endpoint(
     client = db.get(Client, client_id)
     if not client:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Cliente no encontrado")
-    if client.connection_type != "static" or not client.static_ip:
+    if client.access_method != "static" or not client.static_ip:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="El cliente no posee IP estática configurada."
@@ -1154,7 +1161,7 @@ def suspend_client(
         active_plan.estado = "suspendido"
 
     # 2. Lógica de MikroTik (si es static y tiene IP, o pppoe con secret)
-    if client.connection_type == "static" and client.static_ip:
+    if client.access_method == "static" and client.static_ip:
         try:
             suspend_ip_in_firewall(client.router, client.static_ip.ip, client.full_name)
             toggle_client_queue(client.router, client.static_ip.ip, disabled=True)
@@ -1164,7 +1171,7 @@ def suspend_client(
                 status_code=status.HTTP_502_BAD_GATEWAY,
                 detail=f"Fallo al aplicar suspensión en MikroTik: {str(e)}"
             )
-    elif client.connection_type == "pppoe" and client.pppoe_secret:
+    elif client.access_method == "pppoe" and client.pppoe_secret:
         try:
             password_dec = decrypt_secret(client.pppoe_secret.ppp_password)
             profile_name = client.pppoe_secret.profile.name if client.pppoe_secret.profile else "default"
@@ -1245,7 +1252,7 @@ def reactivate_client(
         suspended_plan.estado = "activo"
 
     # 2. Lógica de MikroTik (si es static y tiene IP, o pppoe con secret)
-    if client.connection_type == "static" and client.static_ip:
+    if client.access_method == "static" and client.static_ip:
         try:
             unsuspend_ip_in_firewall(client.router, client.static_ip.ip)
             toggle_client_queue(client.router, client.static_ip.ip, disabled=False)
@@ -1255,7 +1262,7 @@ def reactivate_client(
                 status_code=status.HTTP_502_BAD_GATEWAY,
                 detail=f"Fallo al revertir suspensión en MikroTik: {str(e)}"
             )
-    elif client.connection_type == "pppoe" and client.pppoe_secret:
+    elif client.access_method == "pppoe" and client.pppoe_secret:
         try:
             password_dec = decrypt_secret(client.pppoe_secret.ppp_password)
             profile_name = client.pppoe_secret.profile.name if client.pppoe_secret.profile else "default"
@@ -1632,7 +1639,8 @@ def validate_import_data(
         cedula = row.get("cedula", "").strip() if row.get("cedula") else ""
         phone = row.get("telefono", "").strip() if row.get("telefono") else ""
         address = row.get("direccion", "").strip() if row.get("direccion") else ""
-        connection_type = row.get("tipo", "static").strip().lower() if row.get("tipo") else "static"
+        access_method = row.get("tipo", "static").strip().lower() if row.get("tipo") else "static"
+        medium = row.get("medio", "unspecified").strip().lower() if row.get("medio") else "unspecified"
 
         if not last_name:
             errors.append("Apellidos son requeridos.")
@@ -1645,8 +1653,10 @@ def validate_import_data(
         if not address:
             errors.append("La dirección es requerida.")
 
-        if connection_type not in ("static", "pppoe"):
-            errors.append("El tipo de conexión debe ser 'static' o 'pppoe'.")
+        if access_method not in ("static", "pppoe"):
+            errors.append("El método de aprovisionamiento debe ser 'static' o 'pppoe'.")
+        if medium not in ("radio", "fiber", "unspecified"):
+            errors.append("El medio debe ser 'radio', 'fiber' o 'unspecified'.")
 
         if cedula:
             if not validate_ecuadorian_cedula(cedula):
@@ -1694,7 +1704,7 @@ def validate_import_data(
             if not plan:
                 warnings.append(f"El plan '{plan_raw}' no fue encontrado. Se requerirá mapeo.")
 
-        if router and connection_type == "static":
+        if router and access_method == "static":
             ip = row.get("ip", "").strip() if row.get("ip") else ""
             mac = row.get("mac", "").strip() if row.get("mac") else ""
             if not ip:
@@ -1718,7 +1728,7 @@ def validate_import_data(
             if mac and len(mac) != 17:
                 errors.append("La dirección MAC debe tener formato válido de 17 caracteres (ej: XX:XX:XX:XX:XX:XX).")
 
-        elif router and connection_type == "pppoe":
+        elif router and access_method == "pppoe":
             ppp_username = row.get("ppp_username", "").strip() if row.get("ppp_username") else ""
             ppp_password = row.get("ppp_password", "").strip() if row.get("ppp_password") else ""
 
@@ -1813,7 +1823,7 @@ def commit_import_clients(
                     if not p:
                         raise Exception("El plan especificado no existe.")
                 
-                if client_data.connection_type == "static":
+                if client_data.access_method == "static":
                     if not client_data.ip:
                         raise Exception("La dirección IP es obligatoria para conexiones con IP Estática.")
                     exists_ip = db.query(StaticIP).filter(
@@ -1823,7 +1833,7 @@ def commit_import_clients(
                     if exists_ip:
                         raise Exception(f"La dirección IP {client_data.ip} ya está asignada en este router.")
                 
-                elif client_data.connection_type == "pppoe":
+                elif client_data.access_method == "pppoe":
                     if not client_data.ppp_username:
                         raise Exception("El usuario PPPoE es obligatorio para conexiones PPPoE.")
                     if not client_data.ppp_password:
@@ -1863,7 +1873,8 @@ def commit_import_clients(
                     latitude=client_data.latitude,
                     longitude=client_data.longitude,
                     router_id=client_data.router_id,
-                    connection_type=client_data.connection_type,
+                    access_method=client_data.access_method,
+                    medium=client_data.medium,
                     active=True,
                     email=client_data.email,
                     billing_start=client_data.billing_start,
@@ -1890,7 +1901,7 @@ def commit_import_clients(
                     )
                     db.add(client_plan)
                 
-                if client_data.connection_type == "static" and client_data.ip:
+                if client_data.access_method == "static" and client_data.ip:
                     static_ip = StaticIP(
                         client_id=client.id,
                         ip=client_data.ip,
@@ -1903,7 +1914,7 @@ def commit_import_clients(
                     p = db.get(Plan, client_data.plan_id) if client_data.plan_id else None
                     addr_list_name = get_clean_list_name(r.address_list or (p.address_list if p else None))
 
-                elif client_data.connection_type == "pppoe" and client_data.ppp_username and client_data.ppp_password:
+                elif client_data.access_method == "pppoe" and client_data.ppp_username and client_data.ppp_password:
                     pppoe_sec = PPPoESecret(
                         client_id=client.id,
                         ppp_username=client_data.ppp_username,
@@ -1920,7 +1931,7 @@ def commit_import_clients(
             # ── Sync MikroTik (fuera del savepoint; falla → encolar, nunca revertir el cliente) ──
             _sync_pending = False
 
-            if client_data.connection_type == "static" and client_data.ip:
+            if client_data.access_method == "static" and client_data.ip:
                 try:
                     sync_ip_in_address_list(r, client_data.ip, client.full_name, list_name=addr_list_name)
                 except Exception as _e:
@@ -1964,7 +1975,7 @@ def commit_import_clients(
                         _sync_pending = True
                         _logger.warning(f"[Import] queue → encolado ({client_data.cedula}): {_e}")
 
-            elif client_data.connection_type == "pppoe" and client_data.ppp_username:
+            elif client_data.access_method == "pppoe" and client_data.ppp_username:
                 try:
                     sync_pppoe_profile_in_router(r, plan)
                 except Exception as _e:

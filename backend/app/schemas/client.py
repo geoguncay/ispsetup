@@ -47,7 +47,10 @@ class ClientBase(BaseModel):
     latitude: float | None = None
     longitude: float | None = None
     router_id: uuid.UUID
-    connection_type: str = Field(default="static")  # "static" o "pppoe"
+    # Método de aprovisionamiento en el router: "static" o "pppoe". No es el medio físico.
+    access_method: str = Field(default="static")
+    # Medio físico de acceso: "radio" | "fiber" | "unspecified".
+    medium: str = Field(default="unspecified")
     email: str | None = Field(default=None, max_length=100)
     billing_start: datetime | None = None
     billing_period_start_day: int = Field(default=1, ge=1, le=31)
@@ -58,11 +61,18 @@ class ClientBase(BaseModel):
     separate_proration: bool = Field(default=True)
     created_at: datetime | None = None
 
-    @field_validator("connection_type")
+    @field_validator("access_method")
     @classmethod
-    def validate_connection_type(cls, v: str) -> str:
+    def validate_access_method(cls, v: str) -> str:
         if v not in ("static", "pppoe"):
-            raise ValueError("El tipo de conexión debe ser 'static' o 'pppoe'")
+            raise ValueError("El método de aprovisionamiento debe ser 'static' o 'pppoe'")
+        return v
+
+    @field_validator("medium")
+    @classmethod
+    def validate_medium(cls, v: str) -> str:
+        if v not in ("radio", "fiber", "unspecified"):
+            raise ValueError("El medio debe ser 'radio', 'fiber' o 'unspecified'")
         return v
 
 
@@ -97,7 +107,8 @@ class ClientUpdate(BaseModel):
     latitude: float | None = None
     longitude: float | None = None
     router_id: uuid.UUID | None = None
-    connection_type: str | None = None
+    access_method: str | None = None
+    medium: str | None = None
     active: bool | None = None
     email: str | None = Field(default=None, max_length=100)
     billing_start: datetime | None = None
@@ -115,11 +126,18 @@ class ClientUpdate(BaseModel):
     profile_id: uuid.UUID | None = None
     created_at: datetime | None = None
 
-    @field_validator("connection_type")
+    @field_validator("access_method")
     @classmethod
-    def validate_connection_type(cls, v: str | None) -> str | None:
+    def validate_access_method(cls, v: str | None) -> str | None:
         if v is not None and v not in ("static", "pppoe"):
-            raise ValueError("El tipo de conexión debe ser 'static' o 'pppoe'")
+            raise ValueError("El método de aprovisionamiento debe ser 'static' o 'pppoe'")
+        return v
+
+    @field_validator("medium")
+    @classmethod
+    def validate_medium(cls, v: str | None) -> str | None:
+        if v is not None and v not in ("radio", "fiber", "unspecified"):
+            raise ValueError("El medio debe ser 'radio', 'fiber' o 'unspecified'")
         return v
 
     @field_validator("cedula")

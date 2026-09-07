@@ -227,7 +227,7 @@ export function ClientProfilePage() {
       const { data } = await api.get(`/routers/${client.router_id}/pppoe-sessions`)
       return data
     },
-    enabled: !!client && client.connection_type === 'pppoe' && !!client.router_id,
+    enabled: !!client && client.access_method === 'pppoe' && !!client.router_id,
     refetchInterval: anyModalOpen ? false : 10000,
   })
 
@@ -787,8 +787,14 @@ export function ClientProfilePage() {
                   </h3>
                   <div className="space-y-3 text-xs">
                     <div className="flex justify-between py-1 border-b border-border/20">
-                      <span className="text-muted-foreground">Tipo Conexión:</span>
-                      <span className="font-semibold text-foreground uppercase">{client.connection_type === 'static' ? 'IP Estática' : 'PPPoE'}</span>
+                      <span className="text-muted-foreground">Medio:</span>
+                      <span className="font-semibold text-foreground">
+                        {client.medium === 'radio' ? 'Radioenlace' : client.medium === 'fiber' ? 'Fibra óptica' : '—'}
+                      </span>
+                    </div>
+                    <div className="flex justify-between py-1 border-b border-border/20">
+                      <span className="text-muted-foreground">Asignación de IP:</span>
+                      <span className="font-semibold text-foreground uppercase">{client.access_method === 'static' ? 'IP Estática' : 'PPPoE'}</span>
                     </div>
                     <div className="flex justify-between py-1 border-b border-border/20">
                       <span className="text-muted-foreground">Router:</span>
@@ -807,7 +813,7 @@ export function ClientProfilePage() {
                       </span>
                     </div>
 
-                    {client.connection_type === 'static' ? (
+                    {client.access_method === 'static' ? (
                       <>
                         <div className="flex justify-between py-1 border-b border-border/20">
                           <span className="text-muted-foreground">IP WAN:</span>
@@ -933,7 +939,7 @@ export function ClientProfilePage() {
               )}
 
               {/* Estado de la Sesión en tiempo real (solo si es pppoe) */}
-              {client.connection_type === 'pppoe' && (
+              {client.access_method === 'pppoe' && (
                 <div className="border-t border-border/50 pt-4 mt-4 space-y-3 font-sans">
                   <div className="bg-secondary/10 p-4 rounded-lg border border-border/30 space-y-3">
                     <div className="flex items-center justify-between">

@@ -26,21 +26,21 @@ interface PlanOption {
   name: string
 }
 
-type ConnectionType = 'static' | 'pppoe' | 'mixto'
+type ImportMode = 'static' | 'pppoe' | 'mixto'
 
 const SYSTEM_FIELDS = [
-  { key: 'apellidos',      label: 'Apellidos',                        showFor: ['static', 'pppoe', 'mixto'] as ConnectionType[], requiredFor: ['static', 'pppoe', 'mixto'] as ConnectionType[] },
-  { key: 'nombres',        label: 'Nombres',                          showFor: ['static', 'pppoe', 'mixto'] as ConnectionType[], requiredFor: ['static', 'pppoe', 'mixto'] as ConnectionType[] },
-  { key: 'cedula',         label: 'Cédula / RUC',                     showFor: ['static', 'pppoe', 'mixto'] as ConnectionType[], requiredFor: ['static', 'pppoe', 'mixto'] as ConnectionType[] },
-  { key: 'telefono',       label: 'Teléfono',                         showFor: ['static', 'pppoe', 'mixto'] as ConnectionType[], requiredFor: ['static', 'pppoe', 'mixto'] as ConnectionType[] },
-  { key: 'direccion',      label: 'Dirección',                        showFor: ['static', 'pppoe', 'mixto'] as ConnectionType[], requiredFor: ['static', 'pppoe', 'mixto'] as ConnectionType[] },
-  { key: 'email',          label: 'Correo Electrónico',               showFor: ['static', 'pppoe', 'mixto'] as ConnectionType[], requiredFor: [] as ConnectionType[] },
-  { key: 'plan',           label: 'Plan de Internet',                 showFor: ['pppoe', 'mixto'] as ConnectionType[],            requiredFor: ['pppoe'] as ConnectionType[] },
-  { key: 'tipo',           label: 'Tipo de Conexión (static/pppoe)', showFor: ['mixto'] as ConnectionType[],                    requiredFor: [] as ConnectionType[] },
-  { key: 'ip',             label: 'Dirección IP (Estático)',          showFor: ['static', 'mixto'] as ConnectionType[],          requiredFor: ['static'] as ConnectionType[] },
-  { key: 'mac',            label: 'Dirección MAC',                    showFor: ['static', 'mixto'] as ConnectionType[],          requiredFor: [] as ConnectionType[] },
-  { key: 'ppp_username',   label: 'Usuario PPPoE',                    showFor: ['pppoe', 'mixto'] as ConnectionType[],            requiredFor: ['pppoe'] as ConnectionType[] },
-  { key: 'ppp_password',   label: 'Contraseña PPPoE',                 showFor: ['pppoe', 'mixto'] as ConnectionType[],            requiredFor: ['pppoe'] as ConnectionType[] },
+  { key: 'apellidos',      label: 'Apellidos',                        showFor: ['static', 'pppoe', 'mixto'] as ImportMode[], requiredFor: ['static', 'pppoe', 'mixto'] as ImportMode[] },
+  { key: 'nombres',        label: 'Nombres',                          showFor: ['static', 'pppoe', 'mixto'] as ImportMode[], requiredFor: ['static', 'pppoe', 'mixto'] as ImportMode[] },
+  { key: 'cedula',         label: 'Cédula / RUC',                     showFor: ['static', 'pppoe', 'mixto'] as ImportMode[], requiredFor: ['static', 'pppoe', 'mixto'] as ImportMode[] },
+  { key: 'telefono',       label: 'Teléfono',                         showFor: ['static', 'pppoe', 'mixto'] as ImportMode[], requiredFor: ['static', 'pppoe', 'mixto'] as ImportMode[] },
+  { key: 'direccion',      label: 'Dirección',                        showFor: ['static', 'pppoe', 'mixto'] as ImportMode[], requiredFor: ['static', 'pppoe', 'mixto'] as ImportMode[] },
+  { key: 'email',          label: 'Correo Electrónico',               showFor: ['static', 'pppoe', 'mixto'] as ImportMode[], requiredFor: [] as ImportMode[] },
+  { key: 'plan',           label: 'Plan de Internet',                 showFor: ['pppoe', 'mixto'] as ImportMode[],            requiredFor: ['pppoe'] as ImportMode[] },
+  { key: 'tipo',           label: 'Tipo de Conexión (static/pppoe)', showFor: ['mixto'] as ImportMode[],                    requiredFor: [] as ImportMode[] },
+  { key: 'ip',             label: 'Dirección IP (Estático)',          showFor: ['static', 'mixto'] as ImportMode[],          requiredFor: ['static'] as ImportMode[] },
+  { key: 'mac',            label: 'Dirección MAC',                    showFor: ['static', 'mixto'] as ImportMode[],          requiredFor: [] as ImportMode[] },
+  { key: 'ppp_username',   label: 'Usuario PPPoE',                    showFor: ['pppoe', 'mixto'] as ImportMode[],            requiredFor: ['pppoe'] as ImportMode[] },
+  { key: 'ppp_password',   label: 'Contraseña PPPoE',                 showFor: ['pppoe', 'mixto'] as ImportMode[],            requiredFor: ['pppoe'] as ImportMode[] },
 ]
 
 const STEP_LABELS = ['Subir CSV', 'Configurar Lote', 'Mapear Columnas', 'Validar y Previsualizar', 'Finalizar']
@@ -66,7 +66,7 @@ export function ClientImportDialog({ isOpen, onClose, onSuccess }: ClientImportD
   const [columnMapping, setColumnMapping] = useState<Record<string, string>>({})
   const [mappedData, setMappedData] = useState<any[]>([])
 
-  const [connectionType, setConnectionType] = useState<ConnectionType>('static')
+  const [importMode, setImportMode] = useState<ImportMode>('static')
   const [selectedRouterId, setSelectedRouterId] = useState<string>('')
   const [assignCoordinates, setAssignCoordinates] = useState(true)
   const [planMappings, setPlanMappings] = useState<Record<string, string>>({})
@@ -99,7 +99,7 @@ export function ClientImportDialog({ isOpen, onClose, onSuccess }: ClientImportD
       setCsvRows([])
       setColumnMapping({})
       setMappedData([])
-      setConnectionType('static')
+      setImportMode('static')
       setSelectedRouterId('')
       setAssignCoordinates(true)
       setPlanMappings({})
@@ -113,8 +113,8 @@ export function ClientImportDialog({ isOpen, onClose, onSuccess }: ClientImportD
   const selectedRouter = dbMikroTiks.find(g => g.id === selectedRouterId) ?? null
   const routerHasCoords = !!(selectedRouter?.latitude != null && selectedRouter?.longitude != null)
 
-  const requiredFields = SYSTEM_FIELDS.filter(f => f.showFor.includes(connectionType) && f.requiredFor.includes(connectionType))
-  const optionalFields  = SYSTEM_FIELDS.filter(f => f.showFor.includes(connectionType) && !f.requiredFor.includes(connectionType))
+  const requiredFields = SYSTEM_FIELDS.filter(f => f.showFor.includes(importMode) && f.requiredFor.includes(importMode))
+  const optionalFields  = SYSTEM_FIELDS.filter(f => f.showFor.includes(importMode) && !f.requiredFor.includes(importMode))
   const activeFields    = [...requiredFields, ...optionalFields.filter(f => enabledOptionalKeys.has(f.key))]
 
   const toggleOptionalField = (key: string) => {
@@ -295,7 +295,8 @@ export function ClientImportDialog({ isOpen, onClose, onSuccess }: ClientImportD
             email: row.email || null,
             router_id: selectedRouterId,
             plan_id: row.plan || null,
-            connection_type: row.tipo || (connectionType !== 'mixto' ? connectionType : 'static'),
+            access_method: row.tipo || (importMode !== "mixto" ? importMode : "static"),
+            medium: row.medio || "unspecified",
             ip: row.ip || null,
             mac: row.mac || null,
             notes_ip: null,
@@ -338,12 +339,12 @@ export function ClientImportDialog({ isOpen, onClose, onSuccess }: ClientImportD
   }
 
   // ── Plantilla CSV según tipo ────────────────────────────────────────────────
-  const downloadTemplate = (type: ConnectionType) => {
+  const downloadTemplate = (type: ImportMode) => {
     const baseHeader = 'apellidos,nombres,cedula,telefono,direccion,email'
     const baseRow1 = 'Perez Garcia,Juan Andres,1712345678,0998887766,"Av. Amazonas 123 y Colon, Quito",juan@example.com'
     const baseRow2 = 'Lopez Lopez,Maria,1798765432,0991112233,"Av. 12 de Octubre, Quito",maria@example.com'
 
-    const ext: Record<ConnectionType, { h: string; r1: string; r2: string }> = {
+    const ext: Record<ImportMode, { h: string; r1: string; r2: string }> = {
       static: { h: ',ip,mac',         r1: ',192.168.10.50,AA:BB:CC:DD:EE:FF', r2: ',192.168.10.51,' },
       pppoe:  { h: ',plan,usuario_ppp,contraseña_ppp', r1: ',Plan Hogar 50Mbps,juan_ppp,clave123', r2: ',Plan Corporativo 100Mbps,maria_ppp,clave456' },
       mixto:  { h: ',tipo,ip,mac,plan,usuario_ppp,contraseña_ppp', r1: ',static,192.168.10.50,AA:BB:CC:DD:EE:FF,,,', r2: ',pppoe,,,Plan Hogar 50Mbps,maria_ppp,clave456' },
@@ -441,7 +442,7 @@ export function ClientImportDialog({ isOpen, onClose, onSuccess }: ClientImportD
                   </div>
                 </div>
                 <div className="flex gap-2 shrink-0">
-                  {(['static', 'pppoe', 'mixto'] as ConnectionType[]).map(t => (
+                  {(['static', 'pppoe', 'mixto'] as ImportMode[]).map(t => (
                     <button key={t} type="button" onClick={() => downloadTemplate(t)} className="btn-secondary px-3 py-1.5 text-xs flex items-center gap-1 cursor-pointer capitalize">
                       <Download className="w-3 h-3" /> {t === 'static' ? 'Estático' : t === 'pppoe' ? 'PPPoE' : 'Mixto'}
                     </button>
@@ -499,13 +500,13 @@ export function ClientImportDialog({ isOpen, onClose, onSuccess }: ClientImportD
                       { value: 'static', label: 'IP Estática' },
                       { value: 'pppoe',  label: 'PPPoE' },
                       { value: 'mixto',  label: 'Mixto' },
-                    ] as { value: ConnectionType; label: string }[]).map(({ value, label }) => (
+                    ] as { value: ImportMode; label: string }[]).map(({ value, label }) => (
                       <button
                         key={value}
                         type="button"
-                        onClick={() => setConnectionType(value)}
+                        onClick={() => setImportMode(value)}
                         className={`flex-1 py-2 rounded-lg text-xs font-semibold border transition-all cursor-pointer ${
-                          connectionType === value
+                          importMode === value
                             ? 'bg-brand-500/20 border-brand-500/50 text-brand-300'
                             : 'bg-secondary/30 border-border/40 text-muted-foreground hover:border-brand-500/30'
                         }`}
@@ -515,9 +516,9 @@ export function ClientImportDialog({ isOpen, onClose, onSuccess }: ClientImportD
                     ))}
                   </div>
                   <p className="text-[11px] text-muted-foreground leading-snug">
-                    {connectionType === 'static' && 'IP estática por cliente. El CSV debe incluir columna de IP.'}
-                    {connectionType === 'pppoe'  && 'PPPoE por cliente. El CSV debe incluir usuario, contraseña y plan.'}
-                    {connectionType === 'mixto'  && 'CSV mixto con columna "tipo" que indica static o pppoe por fila.'}
+                    {importMode === 'static' && 'IP estática por cliente. El CSV debe incluir columna de IP.'}
+                    {importMode === 'pppoe'  && 'PPPoE por cliente. El CSV debe incluir usuario, contraseña y plan.'}
+                    {importMode === 'mixto'  && 'CSV mixto con columna "tipo" que indica static o pppoe por fila.'}
                   </p>
                 </div>
 
@@ -563,7 +564,7 @@ export function ClientImportDialog({ isOpen, onClose, onSuccess }: ClientImportD
                     setErrorMsg(null)
                     // Inicializar todos los opcionales como habilitados al entrar al paso 3
                     const optionals = SYSTEM_FIELDS
-                      .filter(f => f.showFor.includes(connectionType) && !f.requiredFor.includes(connectionType))
+                      .filter(f => f.showFor.includes(importMode) && !f.requiredFor.includes(importMode))
                       .map(f => f.key)
                     setEnabledOptionalKeys(new Set(optionals))
                     setStep3Phase('mapping')
@@ -595,7 +596,7 @@ export function ClientImportDialog({ isOpen, onClose, onSuccess }: ClientImportD
                       </p>
                     </div>
                     <span className="text-[11px] font-semibold text-brand-300 bg-brand-500/10 border border-brand-500/20 px-2 py-1 rounded-md shrink-0 ml-4">
-                      {connectionType === 'static' ? 'IP Estática' : connectionType === 'pppoe' ? 'PPPoE' : 'Mixto'}
+                      {importMode === 'static' ? 'IP Estática' : importMode === 'pppoe' ? 'PPPoE' : 'Mixto'}
                     </span>
                   </div>
 

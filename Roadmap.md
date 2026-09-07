@@ -1,3 +1,39 @@
+# ISP SETUP — Roadmap de desarrollo
+
+> **Nota de actualización (2026-08-17):** Este roadmap se revisó y ajustó contra
+> el estado real del código. Cambios de fondo desde la versión anterior: se
+> agregó un modo de monitoreo por **NetFlow v9 ("Traffic Flow")** como
+> alternativa al polling, y se sumaron módulos que no estaban contemplados
+> originalmente: **Inventario/Proveedores**, **Servicios personalizados**,
+> **Datos de empresa (Company)** y **Auditoría**. El detalle de cada uno está
+> marcado inline abajo. La carpeta `mobile/` del árbol original todavía no
+> existe en el repo — ver nota en Fase 4.4.
+>
+> **Nota de actualización (2026-09-06):** La **Fase 4.4** deja de ser la "app móvil
+> para técnicos" (descartada) y pasa a ser un **módulo completo de gestión OLT/ONU
+> GPON** estilo SmartOLT: OLTs multi-vendor, aprovisionamiento de ONUs, perfiles de
+> velocidad/VLAN, monitoreo de señal óptica y enganche con el ciclo de vida del
+> cliente. Detalle en Fase 4.4; stack en "Módulo OLT / ONU".
+>
+> **Nota de actualización (2026-09-06):** La **subfase 3.5 (RADIUS Accounting)**
+> se **descartó por completo** — no hay caso de uso (servicio 100% PPPoE + IP
+> estática, sin Hotspot). Se eliminó del código el servidor FreeRADIUS
+> (contenedor `radius/`), la ingesta de Accounting, los modos de seguridad
+> `ppp_radius`/`hotspot_radius`, el secreto RADIUS por Router y `docs/radius.md`.
+> La IP del servidor ISPSETUP se conserva porque la usa Traffic Flow.
+>
+> **Nota de actualización (2026-09-07):** Rename **`Gateway` → `Router`** en todo
+> el stack (commit `07da040`): modelo `Router` (tabla `routers`), columnas
+> `router_id`, rutas `/api/routers`, paquete `app/services/router/`, componentes
+> `Router*` en el frontend. Se conservan los settings `mikrotik_*` /
+> `MikrotikApiConfig` (son de la API MikroTik RouterOS) y
+> `SystemSettings.ispsetup_server_ip` (lo usa Traffic Flow). **Aviso:** una BD
+> Postgres de desarrollo existente no migra sola (`create_all` corre antes que
+> `run_migrations`) — usar `docker compose down -v` o renombrar tabla/columnas a
+> mano antes del primer arranque.
+
+---
+
 ## Estructura del monorepo
 
 ```
@@ -10,7 +46,7 @@ isp-platform/
 │   │   ├── models/           # Modelos SQLAlchemy
 │   │   ├── schemas/          # Pydantic schemas
 │   │   ├── services/         # Lógica de negocio
-│   │   │   ├── router/     # librouteros — queues, PPPoE, firewall
+│   │   │   ├── router/       # librouteros — queues, PPPoE, firewall
 │   │   │   ├── netflow/      # Colector + parser NetFlow v9 (modo "Traffic Flow")
 │   │   │   ├── zerotier/     # Cliente ZeroTier Central API
 │   │   │   ├── olt/          # Drivers OLT/ONU por vendor (SSH/Telnet + SNMP) — pendiente (Fase 4.4)
@@ -52,7 +88,7 @@ isp-platform/
 ## Fase 1 — Fundación: infraestructura y núcleo
 
 **Duración estimada:** 3–4 semanas  
-**Objetivo:** Proyecto funcionando con auth, multi-router y conexión a Routers verificada.
+**Objetivo:** Proyecto funcionando con auth, multi-router y conexión a RouterOS verificada.
 
 ### 1.1 Setup del proyecto
 
@@ -76,16 +112,17 @@ isp-platform/
 
 ### 1.3 Modelo multi-router
 
-> Renombrado de `Router` → **`Router`** durante la implementación (ver nota al
-> inicio del documento). Los ítems abajo reflejan el modelo actual.
+> Renombrado `Router` (nombre original del plan) → `Gateway` durante el
+> desarrollo, y luego de vuelta a **`Router`** el 2026-09-07 (ver nota al inicio
+> del documento). Los ítems abajo reflejan el modelo actual.
 
-- [x] Modelo `Router` (antes `Router`): id, nombre, ip, api_port, api_username, contraseña (Fernet cifrada), activo, hw_model, notas, coordenadas
+- [x] Modelo `Router`: id, nombre, ip, api_port, api_username, contraseña (Fernet cifrada), activo, hw_model, notas, coordenadas
 - [x] Modelo `Site`: agrupa Routers por ubicación/nodo (nombre, coordenadas) — no estaba en el plan original
 - [x] Modos configurables por Router: `security_mode` (none_api / ppp_api / hotspot_api), `traffic_accounting` (polling / traffic_flow), `speed_control_type`
 - [x] Servicio: pool de conexiones `librouteros` con reconexión automática
 - [x] Health check automático cada 60 s (Celery Beat) → estado en Redis
 - [x] Endpoint `GET /routers/{id}/status`: ping, versión RouterOS, uptime, interfaces
-- [x] Cola de sincronización `MikroTiksSyncQueue`: reintenta operaciones (address-list, queues, PPPoE) si el Router está offline al momento del cambio — no estaba en el plan original
+- [x] Cola de sincronización `RouterSyncQueue`: reintenta operaciones (address-list, queues, PPPoE) si el Router está offline al momento del cambio — no estaba en el plan original
 - [x] UI: CRUD de Routers con indicador de estado en tiempo real (verde/rojo/amarillo), agrupados por Site
 - [x] UI: test de conexión manual desde el formulario
 
@@ -143,7 +180,7 @@ isp-platform/
 ### 3.1 Monitoreo en tiempo real
 
 - [x] Colector de tráfico: polling RouterOS API cada 5 s → guardar en tabla `traffic_samples` (PostgreSQL particionado por mes)
-- [x] **Modo alternativo "Traffic Flow" (no estaba en el plan original):** colector NetFlow v9 standalone (`netflow-collector`, servicio propio en `docker-compose.yml`) que recibe UDP delRouters y escribe en el mismo `traffic_samples` / canal Redis — se elige por Router vía `traffic_accounting` (`polling` vs `traffic_flow`), sin cambios en los endpoints de consumo
+- [x] **Modo alternativo "Traffic Flow" (no estaba en el plan original):** colector NetFlow v9 standalone (`netflow-collector`, servicio propio en `docker-compose.yml`) que recibe UDP del router y escribe en el mismo `traffic_samples` / canal Redis — se elige por Router vía `traffic_accounting` (`polling` vs `traffic_flow`), sin cambios en los endpoints de consumo
 - [x] WebSocket endpoint `/ws/traffic/{router_id}` — push de métricas al frontend
 - [x] UI: dashboard principal con gráficos en tiempo real por router (Recharts)
 - [x] UI: top 10 clientes por consumo en el momento actual
@@ -293,11 +330,10 @@ docs/olt.md
 ```
 
 Drivers por vendor = mismo enfoque que `services/router/`: CLI vía `scrapli[asyncssh]`
-
-- parsing con `ntc-templates`/textfsm, lecturas vía SNMP (`pysnmp`), plantillas de comandos
-  con Jinja2. Credenciales OLT cifradas con Fernet (`app.core.security`). Estado en vivo en
-  Redis + WebSocket `/ws/olt/{olt_id}`. `OnuSignalSample` particionada por mes como
-  `traffic_samples` (purga > 12 meses).
++ parsing con `ntc-templates`/textfsm, lecturas vía SNMP (`pysnmp`), plantillas de comandos
+con Jinja2. Credenciales OLT cifradas con Fernet (`app.core.security`). Estado en vivo en
+Redis + WebSocket `/ws/olt/{olt_id}`. `OnuSignalSample` particionada por mes como
+`traffic_samples` (purga > 12 meses).
 
 **Orden de construcción:** vertical slice con **un solo vendor** (4.4.1 + 4.4.2) hasta
 "registrar OLT → ver ONUs sin configurar → autorizar una → verla online con señal";
@@ -311,7 +347,7 @@ agregar vendors 2..N (~3–5 días cada uno sobre la ABC estable).
 - [ ] `services/olt/pool.py` + `registry.py` + `base.OLTDriver` (ABC) + **1 vendor real** como vertical slice
 - [ ] Worker `olt_health` (Celery Beat cada 60 s): alcanzabilidad, uptime, CPU/RAM/temp, estado de puertos PON, conteo de ONUs → Redis
 - [ ] Endpoints: CRUD OLT, `GET /olts/{id}/status`, test de conexión manual
-- [ ] UI: `OltsPage` (CRUD + badge de estado, agrupado por Site — reusar patrón `Router`/`RouterStatusBadge`); `OltProfilePage` con pestaña Puertos PON
+- [ ] UI: `OltsPage` (CRUD + badge de estado, agrupado por Site — reusar patrón `RouterPage`/`RouterStatusBadge`); `OltProfilePage` con pestaña Puertos PON
 - [ ] Nav: nuevo grupo **"Fibra / OLT"** en `AppLayout.tsx`
 
 #### 4.4.2 Descubrimiento y aprovisionamiento de ONUs (3–4 sem)
@@ -348,7 +384,12 @@ agregar vendors 2..N (~3–5 días cada uno sobre la ABC estable).
 
 #### 4.4.6 Integración con cliente y facturación (2 sem)
 
-- [ ] `Client.connection_type` nuevo valor **`gpon`** (junto a static/pppoe)
+- [x] `Client.medium` (`radio` | `fiber` | `unspecified`) y rename `Client.connection_type` →
+      `Client.access_method` — separan el medio físico del método de aprovisionamiento MikroTik
+      (`static` = address-list + cola, `pppoe` = ppp/secret). `medium` es informativo por ahora.
+- [ ] `Client.onu_id` (FK → `Onu`, nullable) para clientes con `medium="fiber"`; asignación de ONU
+      desde la pestaña "ONU / Fibra".
+- [ ] Infra de `medium="radio"` (`access_point` / `sector` / enlace) → eventual Fase 5.
 - [ ] Pestaña **"ONU / Fibra"** en `ClientProfilePage`: ONU asignada, SN, señal, puerto PON, ODB, botones reboot/diagnóstico, historial de señal
 - [ ] **Suspensión GPON:** extender worker `suspension` → deshabilitar ONU o poner su service-port a perfil 0, en vez de address-list de firewall
 - [ ] **Cambio de plan:** mapear `Plan` → `SpeedProfile`; aplicar en la ONU en tiempo real (análogo a `QueueService`)
@@ -374,7 +415,7 @@ agregar vendors 2..N (~3–5 días cada uno sobre la ABC estable).
 #### Decisiones a confirmar antes de arrancar
 
 - [ ] **Vendors/modelos prioritarios** (Huawei MA56xx, ZTE C320, V-SOL, C-Data, BDCOM…) — define el primer driver y la matriz de comandos. En Ecuador V-SOL / C-Data / Huawei son los más comunes
-- [ ] **Topología:** ¿la OLT es L2 puro y el BNG sigue siendo un Routers, o la OLT termina PPPoE/IPoE? — cambia por completo la lógica de suspensión y cambio de plan (4.4.6)
+- [ ] **Topología:** ¿la OLT es L2 puro y el BNG sigue siendo un router MikroTik, o la OLT termina PPPoE/IPoE? — cambia por completo la lógica de suspensión y cambio de plan (4.4.6)
 - [ ] **Método de acceso:** SSH/Telnet CLI + SNMP (recomendado) vs. NETCONF/NBI del vendor
 - [ ] **4.4.9 WiFi/TR-069:** ¿en alcance ahora o Fase 5? (recomendado: Fase 5)
 - [ ] Confirmar que la **app móvil para técnicos** queda descartada (o se mueve a Fase 5)
@@ -411,7 +452,7 @@ agregar vendors 2..N (~3–5 días cada uno sobre la ABC estable).
 | Validación    | Pydantic v2           | 2.7+    | Schemas + Settings                             |
 | Auth          | python-jose + passlib | —       | JWT + bcrypt                                   |
 | Cifrado       | cryptography (Fernet) | 42+     | Credenciales de routers                        |
-| RouterOS API  | librouteros           | 3.2+    | Comunicación Routers                           |
+| RouterOS API  | librouteros           | 3.2+    | Comunicación con routers RouterOS              |
 | NetFlow       | Parser propio (v9)    | —       | Colector "Traffic Flow" alternativo al polling |
 | Jobs async    | Celery + Redis        | 5.3+    | Cron, alertas, colector                        |
 | WebSockets    | FastAPI WebSocket     | —       | Tráfico en tiempo real                         |
@@ -475,6 +516,6 @@ agregar vendors 2..N (~3–5 días cada uno sobre la ABC estable).
 | Contenedores         | Docker + Docker Compose           | Dev y producción           |
 | Proxy inverso        | Nginx                             | SSL, routing, static files |
 | CI/CD                | GitHub Actions                    | Lint, tests, build         |
-| Conectividad routers | ZeroTier VPN                      | Túnel seguro a Routers     |
+| Conectividad routers | ZeroTier VPN                      | Túnel seguro a los routers |
 | Secretos             | python-dotenv + Pydantic Settings | Variables de entorno       |
 | Monitoreo servidor   | Uptime Kuma (self-hosted)         | Health checks internos     |

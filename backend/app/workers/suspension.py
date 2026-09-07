@@ -96,10 +96,10 @@ def daily_suspension_check():
                     active_plan.estado = "suspendido"
 
                 # 3. Aplicar suspensión en MikroTik (según tipo de conexión)
-                if client.connection_type == "static" and client.static_ip:
+                if client.access_method == "static" and client.static_ip:
                     suspend_ip_in_firewall(client.router, client.static_ip.ip, client.full_name)
                     toggle_client_queue(client.router, client.static_ip.ip, disabled=True)
-                elif client.connection_type == "pppoe" and client.pppoe_secret:
+                elif client.access_method == "pppoe" and client.pppoe_secret:
                     password_dec = decrypt_secret(client.pppoe_secret.ppp_password)
                     profile_name = client.pppoe_secret.profile.name if client.pppoe_secret.profile else "default"
                     sync_pppoe_secret_in_router(
@@ -189,10 +189,10 @@ def process_scheduled_suspensions():
                 if active_plan:
                     active_plan.estado = "suspendido"
 
-                if client.connection_type == "static" and client.static_ip:
+                if client.access_method == "static" and client.static_ip:
                     suspend_ip_in_firewall(client.router, client.static_ip.ip, client.full_name)
                     toggle_client_queue(client.router, client.static_ip.ip, disabled=True)
-                elif client.connection_type == "pppoe" and client.pppoe_secret:
+                elif client.access_method == "pppoe" and client.pppoe_secret:
                     password_dec = decrypt_secret(client.pppoe_secret.ppp_password)
                     profile_name = client.pppoe_secret.profile.name if client.pppoe_secret.profile else "default"
                     sync_pppoe_secret_in_router(
@@ -275,10 +275,10 @@ def process_scheduled_reactivations():
                 if suspended_plan:
                     suspended_plan.estado = "activo"
 
-                if client.connection_type == "static" and client.static_ip:
+                if client.access_method == "static" and client.static_ip:
                     unsuspend_ip_in_firewall(client.router, client.static_ip.ip)
                     toggle_client_queue(client.router, client.static_ip.ip, disabled=False)
-                elif client.connection_type == "pppoe" and client.pppoe_secret:
+                elif client.access_method == "pppoe" and client.pppoe_secret:
                     password_dec = decrypt_secret(client.pppoe_secret.ppp_password)
                     profile_name = client.pppoe_secret.profile.name if client.pppoe_secret.profile else "default"
                     sync_pppoe_secret_in_router(

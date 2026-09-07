@@ -169,7 +169,7 @@ def test_poll_traffic_task(mock_connect_to):
         phone="0999999999",
         address="Quito",
         router_id=router.id,
-        connection_type="static",
+        access_method="static",
         active=True
     )
     db.add(c)
@@ -253,7 +253,7 @@ def test_poll_traffic_skips_simple_queues_for_traffic_flow_router(mock_connect_t
         phone="0999999996",
         address="Quito",
         router_id=gw.id,
-        connection_type="static",
+        access_method="static",
         active=True,
     )
     db.add(c)
@@ -296,7 +296,7 @@ def test_get_client_traffic_history_api(client: TestClient):
         phone="0999999999",
         address="Quito",
         router_id=router.id,
-        connection_type="static",
+        access_method="static",
         active=True
     )
     db.add(c)
@@ -382,7 +382,7 @@ def test_get_client_traffic_custom_range(client: TestClient):
         phone="0999999997",
         address="Quito",
         router_id=router.id,
-        connection_type="static",
+        access_method="static",
         active=True,
     )
     db.add(customer)
@@ -498,7 +498,7 @@ def test_get_router_traffic_history_api(client: TestClient):
         phone="0999999999",
         address="Quito",
         router_id=router.id,
-        connection_type="static",
+        access_method="static",
         active=True
     )
     c2 = Client(
@@ -507,7 +507,7 @@ def test_get_router_traffic_history_api(client: TestClient):
         phone="0999999998",
         address="Quito",
         router_id=router.id,
-        connection_type="static",
+        access_method="static",
         active=True
     )
     db.add(c1)

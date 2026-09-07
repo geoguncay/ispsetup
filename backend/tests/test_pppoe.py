@@ -305,7 +305,7 @@ def test_client_pppoe_flow_in_api(mock_connect_to, client: TestClient):
             "phone": "0999999999",
             "address": "Quito",
             "router_id": str(router_id),
-            "connection_type": "pppoe",
+            "access_method": "pppoe",
             "ppp_username": "esteban_ppp",
             "ppp_password": "estebanpass",
             "plan_id": str(plan_id),
@@ -330,7 +330,7 @@ def test_client_pppoe_flow_in_api(mock_connect_to, client: TestClient):
     db = TestingSessionLocal()
     import uuid
     db_client = db.query(Client).filter(Client.id == uuid.UUID(client_id)).first()
-    assert db_client.connection_type == "pppoe"
+    assert db_client.access_method == "pppoe"
     assert db_client.pppoe_secret is not None
     assert db_client.pppoe_secret.ppp_username == "esteban_ppp"
     # Password should be decrypted cleanly via property / API response

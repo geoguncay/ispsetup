@@ -30,7 +30,8 @@ interface Client {
   latitude: number | null
   longitude: number | null
   router_id: string
-  connection_type: 'static' | 'pppoe'
+  access_method: 'static' | 'pppoe'
+  medium?: 'radio' | 'fiber' | 'unspecified'
   active: boolean
   scheduled_suspension?: string | null
   scheduled_reactivation?: string | null
@@ -136,7 +137,8 @@ export function ClientsPage() {
   const [planId, setPlanId] = useState('')
   const [siteId, setSiteId] = useState('')
   const [active, setActive] = useState('')
-  const [connectionType, setConnectionType] = useState('')
+  const [accessMethod, setAccessMethod] = useState('')
+  const [medium, setMedium] = useState('')
   const [page, setPage] = useState(1)
   const [viewMode, setViewMode] = useState<'list' | 'map'>('list')
   const limit = 10
@@ -177,7 +179,7 @@ export function ClientsPage() {
 
   // Consultar Clientes
   const { data: clientsData = { items: [], total: 0 }, isLoading, isFetching, refetch } = useQuery({
-    queryKey: ['clients', page, search, routerId, planId, siteId, active, connectionType, sortField, sortDir],
+    queryKey: ['clients', page, search, routerId, planId, siteId, active, accessMethod, medium, sortField, sortDir],
     queryFn: async () => {
       const params: any = {
         skip: (page - 1) * limit,
@@ -190,7 +192,8 @@ export function ClientsPage() {
       if (planId) params.plan_id = planId
       if (siteId) params.site_id = siteId
       if (active) params.active = active === 'true'
-      if (connectionType) params.connection_type = connectionType
+      if (accessMethod) params.access_method = accessMethod
+      if (medium) params.medium = medium
 
       const { data } = await api.get('/clients', { params })
       return data
@@ -295,7 +298,7 @@ export function ClientsPage() {
               className="input-field pl-9"
             />
           </div>
-          <div className="hidden sm:grid  md:grid-cols-4 gap-3">
+          <div className="hidden sm:grid  md:grid-cols-6 gap-3">
           {/* Router */}
           <select
             value={routerId}
@@ -342,6 +345,29 @@ export function ClientsPage() {
             <option value="">Cualquier estado</option>
             <option value="true">Activos</option>
             <option value="false">Inactivos / Suspendidos</option>
+          </select>
+
+          {/* Medio físico */}
+          <select
+            value={medium}
+            onChange={(e) => { setMedium(e.target.value); setPage(1) }}
+            className="input-field cursor-pointer"
+          >
+            <option value="">Cualquier medio</option>
+            <option value="radio">Radioenlace</option>
+            <option value="fiber">Fibra óptica</option>
+            <option value="unspecified">Sin especificar</option>
+          </select>
+
+          {/* Método de asignación de IP */}
+          <select
+            value={accessMethod}
+            onChange={(e) => { setAccessMethod(e.target.value); setPage(1) }}
+            className="input-field cursor-pointer"
+          >
+            <option value="">Cualquier método</option>
+            <option value="static">IP Estática</option>
+            <option value="pppoe">PPPoE</option>
           </select>
           </div>
         </div>
@@ -544,6 +570,16 @@ export function ClientsPage() {
                           )}
                         </div>
                       </th>
+                      <th onClick={() => handleSort('medium')} className="hidden lg:table-cell cursor-pointer select-none hover:bg-secondary/20 transition-colors">
+                        <div className="flex items-center gap-1">
+                          <span>Medio</span>
+                          {sortField === 'medium' ? (
+                            sortDir === 'asc' ? <ChevronUp className="w-3.5 h-3.5 text-brand-400" /> : <ChevronDown className="w-3.5 h-3.5 text-brand-400" />
+                          ) : (
+                            <ArrowUpDown className="w-3 h-3 opacity-30" />
+                          )}
+                        </div>
+                      </th>
                       <th className="hidden lg:table-cell">
                         Sitio
                       </th>
@@ -613,6 +649,15 @@ export function ClientsPage() {
                             client.static_ip.ip
                           ) : (
                             <span className="text-muted-foreground font-normal italic">—</span>
+                          )}
+                        </td>
+                        <td className="hidden lg:table-cell">
+                          {client.medium === 'radio' ? (
+                            <span className="text-xs font-semibold px-2 py-0.5 rounded bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">Radio</span>
+                          ) : client.medium === 'fiber' ? (
+                            <span className="text-xs font-semibold px-2 py-0.5 rounded bg-cyan-500/10 text-cyan-400 border border-cyan-500/20">Fibra</span>
+                          ) : (
+                            <span className="text-xs text-muted-foreground italic">—</span>
                           )}
                         </td>
                         <td className="hidden sm:table-cell">
