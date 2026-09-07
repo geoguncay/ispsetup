@@ -48,9 +48,9 @@ const settingsSchema = z.object({
   }),
 })
 
-type GatewaySettingsForm = z.infer<typeof settingsSchema>
+type RouterSettingsForm = z.infer<typeof settingsSchema>
 
-const DEFAULT_RESOURCES: GatewaySettingsForm['resource_config'] = {
+const DEFAULT_RESOURCES: RouterSettingsForm['resource_config'] = {
   security: { suspend_list: 'Suspendidos' },
   traffic: {},
   speed_control: {
@@ -72,16 +72,16 @@ const DEFAULT_RESOURCES: GatewaySettingsForm['resource_config'] = {
   },
 }
 
-interface GatewayServicesDialogProps {
+interface RouterServicesDialogProps {
   open: boolean
   onClose: () => void
-  gateway: {
+  router: {
     id: string
     name: string
-    security_mode?: GatewaySettingsForm['security_mode']
-    traffic_accounting?: GatewaySettingsForm['traffic_accounting']
-    speed_control_type?: GatewaySettingsForm['speed_control_type']
-    resource_config?: GatewaySettingsForm['resource_config'] | null
+    security_mode?: RouterSettingsForm['security_mode']
+    traffic_accounting?: RouterSettingsForm['traffic_accounting']
+    speed_control_type?: RouterSettingsForm['speed_control_type']
+    resource_config?: RouterSettingsForm['resource_config'] | null
     parent_queue?: string | null
     address_list?: string | null
     suspend_list?: string | null
@@ -91,25 +91,25 @@ interface GatewayServicesDialogProps {
   onSuccess: () => void
 }
 
-function resourcesFor(gateway: GatewayServicesDialogProps['gateway']): GatewaySettingsForm['resource_config'] {
-  const stored = gateway.resource_config
+function resourcesFor(router: RouterServicesDialogProps['router']): RouterSettingsForm['resource_config'] {
+  const stored = router.resource_config
   return {
     security: {
       ...DEFAULT_RESOURCES.security,
       ...(stored?.security ?? {}),
-      ...(!stored && gateway.suspend_list ? { suspend_list: gateway.suspend_list } : {}),
+      ...(!stored && router.suspend_list ? { suspend_list: router.suspend_list } : {}),
     },
     traffic: {},
     speed_control: {
       ...DEFAULT_RESOURCES.speed_control,
       ...(stored?.speed_control ?? {}),
-      ...(!stored && gateway.parent_queue ? { parent_queue: gateway.parent_queue } : {}),
-      ...(!stored && gateway.address_list ? { client_address_list: gateway.address_list } : {}),
+      ...(!stored && router.parent_queue ? { parent_queue: router.parent_queue } : {}),
+      ...(!stored && router.address_list ? { client_address_list: router.address_list } : {}),
     },
   }
 }
 
-export function GatewayServicesDialog({ open, onClose, gateway, onSuccess }: GatewayServicesDialogProps) {
+export function RouterServicesDialog({ open, onClose, router, onSuccess }: RouterServicesDialogProps) {
   const queryClient = useQueryClient()
   const { data: systemSettings } = useQuery({
     queryKey: ['system-settings'],
@@ -117,7 +117,7 @@ export function GatewayServicesDialog({ open, onClose, gateway, onSuccess }: Gat
     enabled: open,
   })
   const ispsetupIpMissing = open && !systemSettings?.ispsetup.ispsetup_server_ip
-  const { register, handleSubmit, reset, watch, formState: { errors } } = useForm<GatewaySettingsForm>({
+  const { register, handleSubmit, reset, watch, formState: { errors } } = useForm<RouterSettingsForm>({
     resolver: zodResolver(settingsSchema),
     defaultValues: {
       security_mode: 'none_api',
@@ -130,19 +130,19 @@ export function GatewayServicesDialog({ open, onClose, gateway, onSuccess }: Gat
   useEffect(() => {
     if (open) {
       reset({
-        security_mode: gateway.security_mode ?? 'none_api',
-        traffic_accounting: gateway.traffic_accounting ?? 'traffic_flow',
-        speed_control_type: gateway.speed_control_type ?? 'simple_queues',
-        resource_config: resourcesFor(gateway),
+        security_mode: router.security_mode ?? 'none_api',
+        traffic_accounting: router.traffic_accounting ?? 'traffic_flow',
+        speed_control_type: router.speed_control_type ?? 'simple_queues',
+        resource_config: resourcesFor(router),
       })
     }
-  }, [gateway, open, reset])
+  }, [router, open, reset])
 
   const saveMutation = useMutation({
-    mutationFn: async (values: GatewaySettingsForm) => api.put(`/gateways/${gateway.id}/settings`, values),
+    mutationFn: async (values: RouterSettingsForm) => api.put(`/routers/${router.id}/settings`, values),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['gateway', gateway.id] })
-      queryClient.invalidateQueries({ queryKey: ['gateways'] })
+      queryClient.invalidateQueries({ queryKey: ['router', router.id] })
+      queryClient.invalidateQueries({ queryKey: ['routers'] })
       onSuccess()
       onClose()
     },
@@ -156,7 +156,7 @@ export function GatewayServicesDialog({ open, onClose, gateway, onSuccess }: Gat
   const simpleQueueStructure = watch('resource_config.speed_control.simple_queue_structure')
   const errorDetail = (saveMutation.error as { response?: { data?: { detail?: string } } } | null)
     ?.response?.data?.detail
-  const isRouterOs7 = gateway.ros_version?.trim().startsWith('7.') ?? false
+  const isRouterOs7 = router.ros_version?.trim().startsWith('7.') ?? false
   const fieldError = (message?: string) => message && <p className="mt-1 text-xs text-destructive">{message}</p>
   const input = (name: Parameters<typeof register>[0], label: string, hint?: string) => (
     <div>
@@ -173,8 +173,8 @@ export function GatewayServicesDialog({ open, onClose, gateway, onSuccess }: Gat
           <div className="flex items-center gap-3">
             <Settings2 className="h-5 w-5 text-brand-400" />
             <div>
-              <h2 className="text-base font-semibold text-foreground">Ajustes de Gateway</h2>
-              <p className="mt-0.5 text-xs text-muted-foreground">{gateway.name}</p>
+              <h2 className="text-base font-semibold text-foreground">Ajustes de Router</h2>
+              <p className="mt-0.5 text-xs text-muted-foreground">{router.name}</p>
             </div>
           </div>
           <button type="button" onClick={onClose} className="text-muted-foreground hover:text-foreground"><X className="h-5 w-5" /></button>
@@ -190,8 +190,8 @@ export function GatewayServicesDialog({ open, onClose, gateway, onSuccess }: Gat
           <div className="min-h-0 flex-1 space-y-5 overflow-y-auto p-5">
             <section className="rounded-xl border border-border/50 bg-secondary/10 p-4 space-y-4">
               <div>
-                <label htmlFor="gateway-security-mode" className="mb-1.5 block text-sm font-semibold text-foreground">Seguridad</label>
-                <select id="gateway-security-mode" {...register('security_mode')} className="input-field cursor-pointer">
+                <label htmlFor="router-security-mode" className="mb-1.5 block text-sm font-semibold text-foreground">Seguridad</label>
+                <select id="router-security-mode" {...register('security_mode')} className="input-field cursor-pointer">
                   <option value="none_api">Ninguno / Accounting API</option>
                   <option value="ppp_api">PPP / Accounting API</option>
                   <option value="hotspot_api">Hotspot / Accounting API</option>
@@ -203,8 +203,8 @@ export function GatewayServicesDialog({ open, onClose, gateway, onSuccess }: Gat
             </section>
 
             <section className="rounded-xl border border-border/50 bg-secondary/10 p-4 space-y-3">
-              <label htmlFor="gateway-traffic-accounting" className="block text-sm font-semibold text-foreground">Registro de tráfico</label>
-              <select id="gateway-traffic-accounting" {...register('traffic_accounting')} className="input-field cursor-pointer">
+              <label htmlFor="router-traffic-accounting" className="block text-sm font-semibold text-foreground">Registro de tráfico</label>
+              <select id="router-traffic-accounting" {...register('traffic_accounting')} className="input-field cursor-pointer">
                 <option value="traffic_flow">Traffic Flow (RouterOS V6.x, V7.x)</option>
                 <option value="accounting_v6" disabled={isRouterOs7}>Accounting (RouterOS V6.x)</option>
                 <option value="queue_accounting">Colas / Queue accounting</option><option value="none">Ninguno</option>
@@ -223,8 +223,8 @@ export function GatewayServicesDialog({ open, onClose, gateway, onSuccess }: Gat
 
             <section className="rounded-xl border border-border/50 bg-secondary/10 p-4 space-y-4">
               <div>
-                <label htmlFor="gateway-speed-control" className="mb-1.5 block text-sm font-semibold text-foreground">Control de velocidad</label>
-                <select id="gateway-speed-control" {...register('speed_control_type')} className="input-field cursor-pointer">
+                <label htmlFor="router-speed-control" className="mb-1.5 block text-sm font-semibold text-foreground">Control de velocidad</label>
+                <select id="router-speed-control" {...register('speed_control_type')} className="input-field cursor-pointer">
                   <option value="pcq_addresslist">PCQ + Address List</option><option value="simple_queues">Colas Simples (Estáticas)</option>
                   <option value="dhcp_lease_dynamic">DHCP Lease (Colas simples dinámicas)</option><option value="none">Ninguno</option>
                 </select>

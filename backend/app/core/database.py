@@ -25,32 +25,35 @@ class Base(DeclarativeBase):
 
 def run_migrations(bind_engine) -> None:
     """
-    Ejecuta migraciones simples de base de datos para agregar las nuevas columnas a la tabla gateways.
+    Ejecuta migraciones simples de base de datos para agregar las nuevas columnas a la tabla routers.
     """
     if not str(bind_engine.url).startswith("sqlite"):
         with bind_engine.connect() as conn:
-            # ── Migración: Router → Gateway (Renombrar tabla principal primero si existe como 'routers') ──
+            # ── Migración: Gateway → Router (renombrar la tabla principal si aún existe como 'gateways') ──
             conn.execute(text("""
             DO $$
             BEGIN
                 IF EXISTS (
                     SELECT 1 FROM information_schema.tables
+                    WHERE table_schema = 'public' AND table_name = 'gateways'
+                ) AND NOT EXISTS (
+                    SELECT 1 FROM information_schema.tables
                     WHERE table_schema = 'public' AND table_name = 'routers'
                 ) THEN
-                    ALTER TABLE routers RENAME TO gateways;
+                    ALTER TABLE gateways RENAME TO routers;
                 END IF;
             END $$;
             """))
-            # Renombrar columnas en español de gateways que tenían un ADD COLUMN histórico
+            # Renombrar columnas en español de routers que tenían un ADD COLUMN histórico
             # con el nombre viejo (deben ejecutarse antes de los ADD COLUMN de abajo).
             conn.execute(text("""
             DO $$
             BEGIN
                 IF EXISTS (
                     SELECT 1 FROM information_schema.columns
-                    WHERE table_name = 'gateways' AND column_name = 'cola_padre'
+                    WHERE table_name = 'routers' AND column_name = 'cola_padre'
                 ) THEN
-                    ALTER TABLE gateways RENAME COLUMN cola_padre TO parent_queue;
+                    ALTER TABLE routers RENAME COLUMN cola_padre TO parent_queue;
                 END IF;
             END $$;
             """))
@@ -59,9 +62,9 @@ def run_migrations(bind_engine) -> None:
             BEGIN
                 IF EXISTS (
                     SELECT 1 FROM information_schema.columns
-                    WHERE table_name = 'gateways' AND column_name = 'ancho_banda_up'
+                    WHERE table_name = 'routers' AND column_name = 'ancho_banda_up'
                 ) THEN
-                    ALTER TABLE gateways RENAME COLUMN ancho_banda_up TO bandwidth_up;
+                    ALTER TABLE routers RENAME COLUMN ancho_banda_up TO bandwidth_up;
                 END IF;
             END $$;
             """))
@@ -70,22 +73,22 @@ def run_migrations(bind_engine) -> None:
             BEGIN
                 IF EXISTS (
                     SELECT 1 FROM information_schema.columns
-                    WHERE table_name = 'gateways' AND column_name = 'ancho_banda_down'
+                    WHERE table_name = 'routers' AND column_name = 'ancho_banda_down'
                 ) THEN
-                    ALTER TABLE gateways RENAME COLUMN ancho_banda_down TO bandwidth_down;
+                    ALTER TABLE routers RENAME COLUMN ancho_banda_down TO bandwidth_down;
                 END IF;
             END $$;
             """))
 
-            conn.execute(text("ALTER TABLE gateways ADD COLUMN IF NOT EXISTS parent_queue VARCHAR(100);"))
-            conn.execute(text("ALTER TABLE gateways ADD COLUMN IF NOT EXISTS address_list VARCHAR(100);"))
-            conn.execute(text("ALTER TABLE gateways ADD COLUMN IF NOT EXISTS bandwidth_up INTEGER DEFAULT 0;"))
-            conn.execute(text("ALTER TABLE gateways ADD COLUMN IF NOT EXISTS bandwidth_down INTEGER DEFAULT 0;"))
-            conn.execute(text("ALTER TABLE gateways ADD COLUMN IF NOT EXISTS config_mode VARCHAR(20) NOT NULL DEFAULT 'system';"))
-            conn.execute(text("ALTER TABLE gateways ADD COLUMN IF NOT EXISTS security_mode VARCHAR(30) NOT NULL DEFAULT 'none_api';"))
-            conn.execute(text("ALTER TABLE gateways ADD COLUMN IF NOT EXISTS traffic_accounting VARCHAR(30) NOT NULL DEFAULT 'traffic_flow';"))
-            conn.execute(text("ALTER TABLE gateways ADD COLUMN IF NOT EXISTS speed_control_type VARCHAR(30) NOT NULL DEFAULT 'simple_queues';"))
-            conn.execute(text("ALTER TABLE gateways ADD COLUMN IF NOT EXISTS resource_config JSONB;"))
+            conn.execute(text("ALTER TABLE routers ADD COLUMN IF NOT EXISTS parent_queue VARCHAR(100);"))
+            conn.execute(text("ALTER TABLE routers ADD COLUMN IF NOT EXISTS address_list VARCHAR(100);"))
+            conn.execute(text("ALTER TABLE routers ADD COLUMN IF NOT EXISTS bandwidth_up INTEGER DEFAULT 0;"))
+            conn.execute(text("ALTER TABLE routers ADD COLUMN IF NOT EXISTS bandwidth_down INTEGER DEFAULT 0;"))
+            conn.execute(text("ALTER TABLE routers ADD COLUMN IF NOT EXISTS config_mode VARCHAR(20) NOT NULL DEFAULT 'system';"))
+            conn.execute(text("ALTER TABLE routers ADD COLUMN IF NOT EXISTS security_mode VARCHAR(30) NOT NULL DEFAULT 'none_api';"))
+            conn.execute(text("ALTER TABLE routers ADD COLUMN IF NOT EXISTS traffic_accounting VARCHAR(30) NOT NULL DEFAULT 'traffic_flow';"))
+            conn.execute(text("ALTER TABLE routers ADD COLUMN IF NOT EXISTS speed_control_type VARCHAR(30) NOT NULL DEFAULT 'simple_queues';"))
+            conn.execute(text("ALTER TABLE routers ADD COLUMN IF NOT EXISTS resource_config JSONB;"))
             # Volumen incremental por muestra para reportar consumo real por período.
             conn.execute(text(
                 "ALTER TABLE traffic_samples "
@@ -100,13 +103,13 @@ def run_migrations(bind_engine) -> None:
             BEGIN
                 IF NOT EXISTS (
                     SELECT 1 FROM information_schema.columns
-                    WHERE table_name = 'gateways' AND column_name = 'settings_configured'
+                    WHERE table_name = 'routers' AND column_name = 'settings_configured'
                 ) THEN
-                    -- Los gateways existentes conservan el panel habilitado; los
+                    -- Los routers existentes conservan el panel habilitado; los
                     -- creados después de esta migración comienzan sin configurar.
-                    ALTER TABLE gateways
+                    ALTER TABLE routers
                         ADD COLUMN settings_configured BOOLEAN NOT NULL DEFAULT TRUE;
-                    ALTER TABLE gateways
+                    ALTER TABLE routers
                         ALTER COLUMN settings_configured SET DEFAULT FALSE;
                 END IF;
             END $$;
@@ -187,7 +190,7 @@ def run_migrations(bind_engine) -> None:
                     SELECT 1 FROM information_schema.columns
                     WHERE table_name = 'users' AND column_name = 'permisos_router'
                 ) THEN
-                    ALTER TABLE users RENAME COLUMN permisos_router TO gateway_permissions;
+                    ALTER TABLE users RENAME COLUMN permisos_router TO router_permissions;
                 END IF;
             END $$;
             """))
@@ -215,13 +218,13 @@ def run_migrations(bind_engine) -> None:
                     UPDATE users SET permissions = replace(permissions, 'pagos:registrar', 'payments:register');
                     UPDATE users SET permissions = replace(permissions, 'facturas:administrar', 'invoices:manage');
                     UPDATE users SET permissions = replace(permissions, 'inventario:administrar', 'inventory:manage');
-                    UPDATE users SET permissions = replace(permissions, 'routers:administrar', 'gateways:manage');
+                    UPDATE users SET permissions = replace(permissions, 'routers:administrar', 'routers:manage');
                 END IF;
             END $$;
             """))
             conn.execute(text("ALTER TABLE users ADD COLUMN IF NOT EXISTS inactivity_timeout INTEGER DEFAULT 0;"))
             conn.execute(text("ALTER TABLE users ADD COLUMN IF NOT EXISTS operator_type VARCHAR(50);"))
-            conn.execute(text("ALTER TABLE users ADD COLUMN IF NOT EXISTS gateway_permissions VARCHAR(255);"))
+            conn.execute(text("ALTER TABLE users ADD COLUMN IF NOT EXISTS router_permissions VARCHAR(255);"))
             conn.execute(text("ALTER TABLE users ADD COLUMN IF NOT EXISTS access_schedule VARCHAR(100);"))
             conn.execute(text("ALTER TABLE users ADD COLUMN IF NOT EXISTS permissions VARCHAR(500);"))
             conn.execute(text("ALTER TABLE users ADD COLUMN IF NOT EXISTS avatar_url VARCHAR(500);"))
@@ -245,7 +248,7 @@ def run_migrations(bind_engine) -> None:
                 updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
             );
             """))
-            conn.execute(text("ALTER TABLE gateways ADD COLUMN IF NOT EXISTS site_id VARCHAR(36) REFERENCES sites(id);"))
+            conn.execute(text("ALTER TABLE routers ADD COLUMN IF NOT EXISTS site_id VARCHAR(36) REFERENCES sites(id);"))
             conn.execute(text("""
             CREATE TABLE IF NOT EXISTS invoices (
                 id VARCHAR(36) PRIMARY KEY,
@@ -636,7 +639,7 @@ def run_migrations(bind_engine) -> None:
             SET
                 entity_type = COALESCE(NULLIF(entity_type, ''),
                     CASE
-                        WHEN action LIKE '%GATEWAY%' OR action = 'IMPORT_CLIENTS' THEN 'Gateway'
+                        WHEN action LIKE '%GATEWAY%' OR action = 'IMPORT_CLIENTS' THEN 'Router'
                         WHEN action LIKE '%CLIENT%' OR action IN ('ASSIGN_PLAN', 'TOGGLE_QUEUE') THEN 'Client'
                         WHEN action LIKE 'USER_%' THEN 'User'
                         WHEN action LIKE '%SETTINGS%' OR action = 'SYSTEM_BACKUP' THEN 'SystemSettings'
@@ -680,8 +683,8 @@ def run_migrations(bind_engine) -> None:
             SET detail = jsonb_build_object(
                 'summary',
                 CASE action
-                    WHEN 'GATEWAY_ONLINE' THEN 'Gateway en línea'
-                    WHEN 'GATEWAY_OFFLINE' THEN 'Gateway fuera de línea'
+                    WHEN 'GATEWAY_ONLINE' THEN 'Router en línea'
+                    WHEN 'GATEWAY_OFFLINE' THEN 'Router fuera de línea'
                     WHEN 'AUTHORIZE_ZT_MEMBER' THEN 'Miembro de ZeroTier autorizado'
                     ELSE INITCAP(REPLACE(action, '_', ' '))
                 END,
@@ -784,10 +787,25 @@ def run_migrations(bind_engine) -> None:
             conn.execute(text("ALTER TABLE clients ADD COLUMN IF NOT EXISTS scheduled_suspension TIMESTAMP WITH TIME ZONE;"))
             conn.execute(text("ALTER TABLE clients ADD COLUMN IF NOT EXISTS scheduled_suspension_reason VARCHAR(255);"))
             conn.execute(text("ALTER TABLE clients ADD COLUMN IF NOT EXISTS scheduled_reactivation TIMESTAMP WITH TIME ZONE;"))
+            # Renombrar la cola de sync si aún existe con el nombre viejo.
             conn.execute(text("""
-            CREATE TABLE IF NOT EXISTS mikrotik_sync_queue (
+            DO $$
+            BEGIN
+                IF EXISTS (
+                    SELECT 1 FROM information_schema.tables
+                    WHERE table_schema = 'public' AND table_name = 'mikrotik_sync_queue'
+                ) AND NOT EXISTS (
+                    SELECT 1 FROM information_schema.tables
+                    WHERE table_schema = 'public' AND table_name = 'router_sync_queue'
+                ) THEN
+                    ALTER TABLE mikrotik_sync_queue RENAME TO router_sync_queue;
+                END IF;
+            END $$;
+            """))
+            conn.execute(text("""
+            CREATE TABLE IF NOT EXISTS router_sync_queue (
                 id          UUID NOT NULL DEFAULT gen_random_uuid() PRIMARY KEY,
-                gateway_id  UUID NOT NULL REFERENCES gateways(id) ON DELETE CASCADE,
+                router_id  UUID NOT NULL REFERENCES routers(id) ON DELETE CASCADE,
                 client_id   UUID REFERENCES clients(id) ON DELETE SET NULL,
                 operation   VARCHAR(50) NOT NULL,
                 payload     JSONB NOT NULL DEFAULT '{}',
@@ -798,7 +816,7 @@ def run_migrations(bind_engine) -> None:
                 next_retry_at TIMESTAMPTZ
             );
             """))
-            conn.execute(text("CREATE INDEX IF NOT EXISTS ix_msq_gateway_status ON mikrotik_sync_queue(gateway_id, status);"))
+            conn.execute(text("CREATE INDEX IF NOT EXISTS ix_rsq_router_status ON router_sync_queue(router_id, status);"))
 
             # ── Ajustes de Sistema: localización, fiscal, notificaciones, seguridad, mantenimiento, integraciones ──
             conn.execute(text("ALTER TABLE system_settings ADD COLUMN IF NOT EXISTS loc_timezone VARCHAR(60) NOT NULL DEFAULT 'UTC';"))
@@ -833,7 +851,7 @@ def run_migrations(bind_engine) -> None:
             conn.execute(text("ALTER TABLE system_settings ADD COLUMN IF NOT EXISTS zt_network_id VARCHAR(32);"))
             conn.execute(text("ALTER TABLE system_settings ADD COLUMN IF NOT EXISTS zt_api_token_encrypted TEXT;"))
             conn.execute(text("ALTER TABLE system_settings ADD COLUMN IF NOT EXISTS zt_enabled BOOLEAN NOT NULL DEFAULT FALSE;"))
-            conn.execute(text("ALTER TABLE gateways ADD COLUMN IF NOT EXISTS zerotier_node_id VARCHAR(20);"))
+            conn.execute(text("ALTER TABLE routers ADD COLUMN IF NOT EXISTS zerotier_node_id VARCHAR(20);"))
             # Renombrar columnas en español de system_settings que tenían un ADD COLUMN
             # histórico con el nombre viejo (deben ejecutarse antes de los ADD COLUMN de abajo).
             conn.execute(text("""
@@ -1130,7 +1148,7 @@ def run_migrations(bind_engine) -> None:
             conn.execute(text("ALTER TABLE system_settings ADD COLUMN IF NOT EXISTS payment_methods JSONB;"))
             conn.execute(text("ALTER TABLE system_settings ADD COLUMN IF NOT EXISTS cutoff_dates JSONB;"))
             conn.execute(text("ALTER TABLE system_settings ADD COLUMN IF NOT EXISTS ispsetup_server_ip VARCHAR(255);"))
-            conn.execute(text("ALTER TABLE gateways ADD COLUMN IF NOT EXISTS suspend_list VARCHAR(100);"))
+            conn.execute(text("ALTER TABLE routers ADD COLUMN IF NOT EXISTS suspend_list VARCHAR(100);"))
             # Corrige bases donde resource_config quedó como `json` (creado por
             # Base.metadata.create_all antes de que este ADD COLUMN JSONB pudiera aplicarse);
             # las UPDATE de abajo usan jsonb_set/jsonb_build_object y requieren jsonb real.
@@ -1139,9 +1157,9 @@ def run_migrations(bind_engine) -> None:
                 BEGIN
                     IF (
                         SELECT data_type FROM information_schema.columns
-                        WHERE table_name = 'gateways' AND column_name = 'resource_config'
+                        WHERE table_name = 'routers' AND column_name = 'resource_config'
                     ) = 'json' THEN
-                        ALTER TABLE gateways ALTER COLUMN resource_config TYPE JSONB USING resource_config::jsonb;
+                        ALTER TABLE routers ALTER COLUMN resource_config TYPE JSONB USING resource_config::jsonb;
                     END IF;
                 END $$;
             """))
@@ -1149,10 +1167,10 @@ def run_migrations(bind_engine) -> None:
             # (SQLAlchemy sin none_as_null=True lo guarda así en vez de SQL NULL),
             # lo que rompe tanto el WHERE ... IS NULL de abajo como jsonb_set().
             conn.execute(text("""
-                UPDATE gateways SET resource_config = NULL WHERE resource_config = 'null'::jsonb;
+                UPDATE routers SET resource_config = NULL WHERE resource_config = 'null'::jsonb;
             """))
             conn.execute(text("""
-                UPDATE gateways
+                UPDATE routers
                 SET resource_config = jsonb_build_object(
                     'security', jsonb_build_object(
                         'suspend_list', COALESCE(NULLIF(TRIM(suspend_list), ''), 'suspendidos')
@@ -1187,7 +1205,7 @@ def run_migrations(bind_engine) -> None:
                 WHERE resource_config IS NULL;
             """))
             conn.execute(text("""
-                UPDATE gateways
+                UPDATE routers
                 SET resource_config = jsonb_set(
                     resource_config,
                     '{speed_control}',
@@ -1208,15 +1226,15 @@ def run_migrations(bind_engine) -> None:
                     DROP COLUMN IF EXISTS colas_padre;
             """))
 
-            # Renombrar columna router_id → gateway_id en cada tabla relacionada
+            # Renombrar columna gateway_id → router_id en cada tabla relacionada
             conn.execute(text("""
             DO $$
             BEGIN
                 IF EXISTS (
                     SELECT 1 FROM information_schema.columns
-                    WHERE table_name = 'clients' AND column_name = 'router_id'
+                    WHERE table_name = 'clients' AND column_name = 'gateway_id'
                 ) THEN
-                    ALTER TABLE clients RENAME COLUMN router_id TO gateway_id;
+                    ALTER TABLE clients RENAME COLUMN gateway_id TO router_id;
                 END IF;
             END $$;
             """))
@@ -1225,9 +1243,9 @@ def run_migrations(bind_engine) -> None:
             BEGIN
                 IF EXISTS (
                     SELECT 1 FROM information_schema.columns
-                    WHERE table_name = 'pppoe_profiles' AND column_name = 'router_id'
+                    WHERE table_name = 'pppoe_profiles' AND column_name = 'gateway_id'
                 ) THEN
-                    ALTER TABLE pppoe_profiles RENAME COLUMN router_id TO gateway_id;
+                    ALTER TABLE pppoe_profiles RENAME COLUMN gateway_id TO router_id;
                 END IF;
             END $$;
             """))
@@ -1236,9 +1254,9 @@ def run_migrations(bind_engine) -> None:
             BEGIN
                 IF EXISTS (
                     SELECT 1 FROM information_schema.columns
-                    WHERE table_name = 'pppoe_secrets' AND column_name = 'router_id'
+                    WHERE table_name = 'pppoe_secrets' AND column_name = 'gateway_id'
                 ) THEN
-                    ALTER TABLE pppoe_secrets RENAME COLUMN router_id TO gateway_id;
+                    ALTER TABLE pppoe_secrets RENAME COLUMN gateway_id TO router_id;
                 END IF;
             END $$;
             """))
@@ -1247,9 +1265,9 @@ def run_migrations(bind_engine) -> None:
             BEGIN
                 IF EXISTS (
                     SELECT 1 FROM information_schema.columns
-                    WHERE table_name = 'static_ips' AND column_name = 'router_id'
+                    WHERE table_name = 'static_ips' AND column_name = 'gateway_id'
                 ) THEN
-                    ALTER TABLE static_ips RENAME COLUMN router_id TO gateway_id;
+                    ALTER TABLE static_ips RENAME COLUMN gateway_id TO router_id;
                 END IF;
             END $$;
             """))
@@ -1258,9 +1276,9 @@ def run_migrations(bind_engine) -> None:
             BEGIN
                 IF EXISTS (
                     SELECT 1 FROM information_schema.columns
-                    WHERE table_name = 'traffic_samples' AND column_name = 'router_id'
+                    WHERE table_name = 'traffic_samples' AND column_name = 'gateway_id'
                 ) THEN
-                    ALTER TABLE traffic_samples RENAME COLUMN router_id TO gateway_id;
+                    ALTER TABLE traffic_samples RENAME COLUMN gateway_id TO router_id;
                 END IF;
             END $$;
             """))
@@ -1758,9 +1776,9 @@ def run_migrations(bind_engine) -> None:
             DO $$
             BEGIN
                 IF EXISTS (
-                    SELECT 1 FROM pg_constraint WHERE conname = 'uq_gateway_usuario_ppp'
+                    SELECT 1 FROM pg_constraint WHERE conname = 'uq_router_usuario_ppp'
                 ) THEN
-                    ALTER TABLE pppoe_secrets RENAME CONSTRAINT uq_gateway_usuario_ppp TO uq_gateway_ppp_username;
+                    ALTER TABLE pppoe_secrets RENAME CONSTRAINT uq_router_usuario_ppp TO uq_router_ppp_username;
                 END IF;
             END $$;
             """))
@@ -1803,9 +1821,9 @@ def run_migrations(bind_engine) -> None:
             DO $$
             BEGIN
                 IF EXISTS (
-                    SELECT 1 FROM pg_constraint WHERE conname = 'uq_gateway_profile_nombre'
+                    SELECT 1 FROM pg_constraint WHERE conname = 'uq_router_profile_nombre'
                 ) THEN
-                    ALTER TABLE pppoe_profiles RENAME CONSTRAINT uq_gateway_profile_nombre TO uq_gateway_profile_name;
+                    ALTER TABLE pppoe_profiles RENAME CONSTRAINT uq_router_profile_nombre TO uq_router_profile_name;
                 END IF;
             END $$;
             """))
@@ -1867,15 +1885,15 @@ def run_migrations(bind_engine) -> None:
             END $$;
             """))
 
-            # Renombrar columnas en español de la tabla gateways
+            # Renombrar columnas en español de la tabla routers
             conn.execute(text("""
             DO $$
             BEGIN
                 IF EXISTS (
                     SELECT 1 FROM information_schema.columns
-                    WHERE table_name = 'gateways' AND column_name = 'nombre'
+                    WHERE table_name = 'routers' AND column_name = 'nombre'
                 ) THEN
-                    ALTER TABLE gateways RENAME COLUMN nombre TO name;
+                    ALTER TABLE routers RENAME COLUMN nombre TO name;
                 END IF;
             END $$;
             """))
@@ -1884,9 +1902,9 @@ def run_migrations(bind_engine) -> None:
             BEGIN
                 IF EXISTS (
                     SELECT 1 FROM information_schema.columns
-                    WHERE table_name = 'gateways' AND column_name = 'puerto_api'
+                    WHERE table_name = 'routers' AND column_name = 'puerto_api'
                 ) THEN
-                    ALTER TABLE gateways RENAME COLUMN puerto_api TO api_port;
+                    ALTER TABLE routers RENAME COLUMN puerto_api TO api_port;
                 END IF;
             END $$;
             """))
@@ -1895,9 +1913,9 @@ def run_migrations(bind_engine) -> None:
             BEGIN
                 IF EXISTS (
                     SELECT 1 FROM information_schema.columns
-                    WHERE table_name = 'gateways' AND column_name = 'usuario_api'
+                    WHERE table_name = 'routers' AND column_name = 'usuario_api'
                 ) THEN
-                    ALTER TABLE gateways RENAME COLUMN usuario_api TO api_username;
+                    ALTER TABLE routers RENAME COLUMN usuario_api TO api_username;
                 END IF;
             END $$;
             """))
@@ -1906,9 +1924,9 @@ def run_migrations(bind_engine) -> None:
             BEGIN
                 IF EXISTS (
                     SELECT 1 FROM information_schema.columns
-                    WHERE table_name = 'gateways' AND column_name = 'modelo_hw'
+                    WHERE table_name = 'routers' AND column_name = 'modelo_hw'
                 ) THEN
-                    ALTER TABLE gateways RENAME COLUMN modelo_hw TO hw_model;
+                    ALTER TABLE routers RENAME COLUMN modelo_hw TO hw_model;
                 END IF;
             END $$;
             """))
@@ -1917,9 +1935,9 @@ def run_migrations(bind_engine) -> None:
             BEGIN
                 IF EXISTS (
                     SELECT 1 FROM information_schema.columns
-                    WHERE table_name = 'gateways' AND column_name = 'notas'
+                    WHERE table_name = 'routers' AND column_name = 'notas'
                 ) THEN
-                    ALTER TABLE gateways RENAME COLUMN notas TO notes;
+                    ALTER TABLE routers RENAME COLUMN notas TO notes;
                 END IF;
             END $$;
             """))
@@ -1928,9 +1946,9 @@ def run_migrations(bind_engine) -> None:
             BEGIN
                 IF EXISTS (
                     SELECT 1 FROM information_schema.columns
-                    WHERE table_name = 'gateways' AND column_name = 'latitud'
+                    WHERE table_name = 'routers' AND column_name = 'latitud'
                 ) THEN
-                    ALTER TABLE gateways RENAME COLUMN latitud TO latitude;
+                    ALTER TABLE routers RENAME COLUMN latitud TO latitude;
                 END IF;
             END $$;
             """))
@@ -1939,9 +1957,9 @@ def run_migrations(bind_engine) -> None:
             BEGIN
                 IF EXISTS (
                     SELECT 1 FROM information_schema.columns
-                    WHERE table_name = 'gateways' AND column_name = 'longitud'
+                    WHERE table_name = 'routers' AND column_name = 'longitud'
                 ) THEN
-                    ALTER TABLE gateways RENAME COLUMN longitud TO longitude;
+                    ALTER TABLE routers RENAME COLUMN longitud TO longitude;
                 END IF;
             END $$;
             """))
@@ -1950,9 +1968,9 @@ def run_migrations(bind_engine) -> None:
             BEGIN
                 IF EXISTS (
                     SELECT 1 FROM information_schema.columns
-                    WHERE table_name = 'gateways' AND column_name = 'monitoreo_trafico'
+                    WHERE table_name = 'routers' AND column_name = 'monitoreo_trafico'
                 ) THEN
-                    ALTER TABLE gateways RENAME COLUMN monitoreo_trafico TO traffic_monitoring;
+                    ALTER TABLE routers RENAME COLUMN monitoreo_trafico TO traffic_monitoring;
                 END IF;
             END $$;
             """))
@@ -1961,9 +1979,9 @@ def run_migrations(bind_engine) -> None:
             BEGIN
                 IF EXISTS (
                     SELECT 1 FROM information_schema.columns
-                    WHERE table_name = 'gateways' AND column_name = 'control_velocidad'
+                    WHERE table_name = 'routers' AND column_name = 'control_velocidad'
                 ) THEN
-                    ALTER TABLE gateways RENAME COLUMN control_velocidad TO speed_control;
+                    ALTER TABLE routers RENAME COLUMN control_velocidad TO speed_control;
                 END IF;
             END $$;
             """))
@@ -1972,9 +1990,9 @@ def run_migrations(bind_engine) -> None:
             BEGIN
                 IF EXISTS (
                     SELECT 1 FROM information_schema.columns
-                    WHERE table_name = 'gateways' AND column_name = 'sincronizar_logs'
+                    WHERE table_name = 'routers' AND column_name = 'sincronizar_logs'
                 ) THEN
-                    ALTER TABLE gateways RENAME COLUMN sincronizar_logs TO sync_logs;
+                    ALTER TABLE routers RENAME COLUMN sincronizar_logs TO sync_logs;
                 END IF;
             END $$;
             """))
@@ -1983,9 +2001,9 @@ def run_migrations(bind_engine) -> None:
             BEGIN
                 IF EXISTS (
                     SELECT 1 FROM information_schema.columns
-                    WHERE table_name = 'gateways' AND column_name = 'notificaciones_alertas'
+                    WHERE table_name = 'routers' AND column_name = 'notificaciones_alertas'
                 ) THEN
-                    ALTER TABLE gateways RENAME COLUMN notificaciones_alertas TO alert_notifications;
+                    ALTER TABLE routers RENAME COLUMN notificaciones_alertas TO alert_notifications;
                 END IF;
             END $$;
             """))
@@ -1994,9 +2012,9 @@ def run_migrations(bind_engine) -> None:
             BEGIN
                 IF EXISTS (
                     SELECT 1 FROM information_schema.columns
-                    WHERE table_name = 'gateways' AND column_name = 'activo'
+                    WHERE table_name = 'routers' AND column_name = 'activo'
                 ) THEN
-                    ALTER TABLE gateways RENAME COLUMN activo TO active;
+                    ALTER TABLE routers RENAME COLUMN activo TO active;
                 END IF;
             END $$;
             """))
@@ -2121,13 +2139,13 @@ def run_migrations(bind_engine) -> None:
 
             # ── Retiro del módulo RADIUS (subfase 3.5 descartada) ────────────
             # Se elimina el servidor RADIUS de Accounting y los modos de
-            # seguridad basados en RADIUS. Los Gateways que estuvieran en un
+            # seguridad basados en RADIUS. Los routers que estuvieran en un
             # modo *_radius se normalizan a 'none_api'.
             conn.execute(text(
-                "UPDATE gateways SET security_mode = 'none_api' "
+                "UPDATE routers SET security_mode = 'none_api' "
                 "WHERE security_mode IN ('ppp_radius', 'hotspot_radius');"
             ))
-            conn.execute(text("ALTER TABLE gateways DROP COLUMN IF EXISTS radius_secret_encrypted;"))
+            conn.execute(text("ALTER TABLE routers DROP COLUMN IF EXISTS radius_secret_encrypted;"))
             conn.execute(text("DROP TABLE IF EXISTS radius_ingest_state;"))
             conn.execute(text("DROP TABLE IF EXISTS radius_accounting_sessions;"))
 

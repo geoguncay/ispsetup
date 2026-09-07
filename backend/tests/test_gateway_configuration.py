@@ -3,9 +3,9 @@ from unittest.mock import MagicMock
 
 import pytest
 
-from app.services.mikrotik.gateway_configuration import (
-    GatewayConfigurationError,
-    cleanup_gateway_configuration,
+from app.services.router.router_configuration import (
+    RouterConfigurationError,
+    cleanup_router_configuration,
     configure_traffic_accounting,
 )
 
@@ -16,7 +16,7 @@ def test_accounting_v6_uses_only_ip(monkeypatch):
         [{"version": "6.49.17"}] if command == "/system/resource/print" else []
     )
     monkeypatch.setattr(
-        "app.services.mikrotik.gateway_configuration._get_ispsetup_ip",
+        "app.services.router.router_configuration._get_ispsetup_ip",
         lambda: "10.20.30.40",
     )
 
@@ -37,7 +37,7 @@ def test_traffic_flow_does_not_call_removed_accounting_menu_on_routeros_7(monkey
     )
     api.path.return_value.select.return_value.where.return_value = []
     monkeypatch.setattr(
-        "app.services.mikrotik.gateway_configuration._get_ispsetup_ip",
+        "app.services.router.router_configuration._get_ispsetup_ip",
         lambda: "10.20.30.40",
     )
 
@@ -79,11 +79,11 @@ def test_accounting_v6_is_rejected_on_routeros_7(monkeypatch):
         [{"version": "7.20.1"}] if command == "/system/resource/print" else []
     )
     monkeypatch.setattr(
-        "app.services.mikrotik.gateway_configuration._get_ispsetup_ip",
+        "app.services.router.router_configuration._get_ispsetup_ip",
         lambda: "10.20.30.40",
     )
 
-    with pytest.raises(GatewayConfigurationError, match="RouterOS 6"):
+    with pytest.raises(RouterConfigurationError, match="RouterOS 6"):
         configure_traffic_accounting(api, "accounting_v6")
 
 
@@ -117,22 +117,22 @@ def test_cleanup_removes_only_identified_resources(monkeypatch):
     connection = MagicMock()
     connection.__enter__.return_value = api
     monkeypatch.setattr(
-        "app.services.mikrotik.gateway_configuration.gateway_pool.connect_to",
+        "app.services.router.router_configuration.router_pool.connect_to",
         MagicMock(return_value=connection),
     )
     monkeypatch.setattr(
-        "app.services.mikrotik.gateway_configuration._get_ispsetup_ip",
+        "app.services.router.router_configuration._get_ispsetup_ip",
         lambda: "10.20.30.40",
     )
-    gateway = SimpleNamespace(
-        name="Gateway Test",
+    router = SimpleNamespace(
+        name="Router Test",
         address_list="test",
         suspend_list="suspendidos_test",
         parent_queue="test",
     )
 
-    summary = cleanup_gateway_configuration(
-        gateway,
+    summary = cleanup_router_configuration(
+        router,
         client_ips=["192.168.1.10"],
         ppp_usernames=["cliente_ppp"],
         ppp_profile_names=["Plan 20M"],

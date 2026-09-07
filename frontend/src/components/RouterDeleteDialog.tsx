@@ -2,32 +2,32 @@ import { useEffect, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { Database, Loader2, Server, Trash2, X } from 'lucide-react'
 
-type GatewayDeletionChoice = 'preserve_all' | 'remove_routeros' | 'remove_history' | 'remove_all'
+type RouterDeletionChoice = 'preserve_all' | 'remove_routeros' | 'remove_history' | 'remove_all'
 
-export interface GatewayDeletionOptions {
+export interface RouterDeletionOptions {
   cleanupRouterOs: boolean
   deleteHistoricalData: boolean
   confirmation?: string
 }
 
-interface GatewayDeleteDialogProps {
+interface RouterDeleteDialogProps {
   open: boolean
-  gatewayName: string
+  routerName: string
   pending: boolean
   error?: string | null
   onClose: () => void
-  onConfirm: (options: GatewayDeletionOptions) => void
+  onConfirm: (options: RouterDeletionOptions) => void
 }
 
-export function GatewayDeleteDialog({
+export function RouterDeleteDialog({
   open,
-  gatewayName,
+  routerName,
   pending,
   error,
   onClose,
   onConfirm,
-}: GatewayDeleteDialogProps) {
-  const [choice, setChoice] = useState<GatewayDeletionChoice>('preserve_all')
+}: RouterDeleteDialogProps) {
+  const [choice, setChoice] = useState<RouterDeletionChoice>('preserve_all')
   const [confirmation, setConfirmation] = useState('')
 
   useEffect(() => {
@@ -44,8 +44,8 @@ export function GatewayDeleteDialog({
       <div className="glass-card flex h-5/6 max-w-6xl animate-fade-in flex-col overflow-hidden border border-border/50">
         <div className="flex shrink-0 items-center justify-between border-b border-border p-5">
           <div>
-            <h3 className="text-lg font-semibold text-foreground">Eliminar Gateway</h3>
-            <p className="mt-0.5 text-xs text-muted-foreground">{gatewayName}</p>
+            <h3 className="text-lg font-semibold text-foreground">Eliminar Router</h3>
+            <p className="mt-0.5 text-xs text-muted-foreground">{routerName}</p>
           </div>
           <button type="button" onClick={onClose} disabled={pending} className="text-muted-foreground hover:text-foreground">
             <X className="h-5 w-5" />
@@ -61,7 +61,7 @@ export function GatewayDeleteDialog({
             <div className="flex items-start gap-3">
               <input
                 type="radio"
-                name="gateway-deletion"
+                name="router-deletion"
                 checked={choice === 'preserve_all'}
                 onChange={() => setChoice('preserve_all')}
                 className="mt-1"
@@ -70,7 +70,7 @@ export function GatewayDeleteDialog({
               <div>
                 <span className="block text-sm font-semibold text-foreground">1. Conservar configuración en RouterOS y datos históricos</span>
                 <span className="mt-1 block text-xs leading-relaxed text-muted-foreground">
-                  Solo desactiva el Gateway en el ISPSETUP. No modifica el MikroTik ni elimina información.
+                  Solo desactiva el Router en el ISPSETUP. No modifica el router ni elimina información.
                 </span>
               </div>
             </div>
@@ -80,7 +80,7 @@ export function GatewayDeleteDialog({
             <div className="flex items-start gap-3">
               <input
                 type="radio"
-                name="gateway-deletion"
+                name="router-deletion"
                 checked={choice === 'remove_routeros'}
                 onChange={() => setChoice('remove_routeros')}
                 className="mt-1"
@@ -97,12 +97,12 @@ export function GatewayDeleteDialog({
 
           <label className={`block cursor-pointer rounded-xl border p-4 transition-colors ${choice === 'remove_history' ? 'border-destructive bg-destructive/10' : 'border-border hover:border-border/80'}`}>
             <div className="flex items-start gap-3">
-              <input type="radio" name="gateway-deletion" checked={choice === 'remove_history'} onChange={() => setChoice('remove_history')} className="mt-1" />
+              <input type="radio" name="router-deletion" checked={choice === 'remove_history'} onChange={() => setChoice('remove_history')} className="mt-1" />
               <Database className="mt-0.5 h-5 w-5 shrink-0 text-destructive" />
               <div>
                 <span className="block text-sm font-semibold text-foreground">3. Conservar configuración en RouterOS y eliminar datos históricos</span>
                 <span className="mt-1 block text-xs leading-relaxed text-muted-foreground">
-                  No modifica el MikroTik, pero elimina definitivamente el Gateway, clientes asociados, tráfico, facturas, pagos, tickets y auditorías relacionadas.
+                  No modifica el router, pero elimina definitivamente el Router, clientes asociados, tráfico, facturas, pagos, tickets y auditorías relacionadas.
                 </span>
               </div>
             </div>
@@ -110,12 +110,12 @@ export function GatewayDeleteDialog({
 
           <label className={`block cursor-pointer rounded-xl border p-4 transition-colors ${choice === 'remove_all' ? 'border-destructive bg-destructive/10' : 'border-border hover:border-border/80'}`}>
             <div className="flex items-start gap-3">
-              <input type="radio" name="gateway-deletion" checked={choice === 'remove_all'} onChange={() => setChoice('remove_all')} className="mt-1" />
+              <input type="radio" name="router-deletion" checked={choice === 'remove_all'} onChange={() => setChoice('remove_all')} className="mt-1" />
               <Trash2 className="mt-0.5 h-5 w-5 shrink-0 text-destructive" />
               <div>
                 <span className="block text-sm font-semibold text-foreground">4. Eliminar datos históricos y configuración en RouterOS</span>
                 <span className="mt-1 block text-xs leading-relaxed text-muted-foreground">
-                  Limpia el MikroTik y elimina definitivamente toda la información asociada en el ISPSETUP.
+                  Limpia el router y elimina definitivamente toda la información asociada en el ISPSETUP.
                 </span>
               </div>
             </div>
@@ -125,13 +125,13 @@ export function GatewayDeleteDialog({
             <div className="rounded-xl border border-destructive/40 bg-destructive/10 p-4">
               <p className="text-sm font-semibold text-destructive">Esta acción es irreversible</p>
               <p className="mt-1 text-xs leading-relaxed text-muted-foreground">
-                Escribe <strong className="text-foreground">{gatewayName}</strong> para confirmar la eliminación física de los datos.
+                Escribe <strong className="text-foreground">{routerName}</strong> para confirmar la eliminación física de los datos.
               </p>
               <input
                 type="text"
                 value={confirmation}
                 onChange={(event) => setConfirmation(event.target.value)}
-                placeholder={gatewayName}
+                placeholder={routerName}
                 className="input-field mt-3"
                 autoComplete="off"
               />
@@ -154,7 +154,7 @@ export function GatewayDeleteDialog({
               deleteHistoricalData: choice === 'remove_history' || choice === 'remove_all',
               confirmation: choice === 'remove_history' || choice === 'remove_all' ? confirmation : undefined,
             })}
-            disabled={pending || ((choice === 'remove_history' || choice === 'remove_all') && confirmation !== gatewayName)}
+            disabled={pending || ((choice === 'remove_history' || choice === 'remove_all') && confirmation !== routerName)}
             className="btn-destructive"
           >
             {pending && <Loader2 className="h-4 w-4 animate-spin" />}
@@ -162,7 +162,7 @@ export function GatewayDeleteDialog({
               ? 'Eliminando…'
               : choice === 'remove_history' || choice === 'remove_all'
                 ? 'Eliminar definitivamente'
-                : 'Desactivar Gateway'}
+                : 'Desactivar Router'}
           </button>
         </div>
       </div>

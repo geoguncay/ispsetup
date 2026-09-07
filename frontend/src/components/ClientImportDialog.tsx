@@ -1,6 +1,6 @@
 /**
  * ClientImportDialog — Modal Asistente para importar clientes desde un CSV.
- * v2: Gateway global por lote, tipo de conexión, coordenadas aleatorias dentro de 1km.
+ * v2: Router global por lote, tipo de conexión, coordenadas aleatorias dentro de 1km.
  */
 import { useState, useEffect } from 'react'
 import { createPortal } from 'react-dom'
@@ -14,7 +14,7 @@ interface ClientImportDialogProps {
   onSuccess?: () => void
 }
 
-interface GatewayOption {
+interface RouterOption {
   id: string
   name: string
   latitude: number | null
@@ -67,7 +67,7 @@ export function ClientImportDialog({ isOpen, onClose, onSuccess }: ClientImportD
   const [mappedData, setMappedData] = useState<any[]>([])
 
   const [connectionType, setConnectionType] = useState<ConnectionType>('static')
-  const [selectedGatewayId, setSelectedGatewayId] = useState<string>('')
+  const [selectedRouterId, setSelectedRouterId] = useState<string>('')
   const [assignCoordinates, setAssignCoordinates] = useState(true)
   const [planMappings, setPlanMappings] = useState<Record<string, string>>({})
 
@@ -76,9 +76,9 @@ export function ClientImportDialog({ isOpen, onClose, onSuccess }: ClientImportD
   const [errorMsg, setErrorMsg] = useState<string | null>(null)
   const [selectedRowIndexes, setSelectedRowIndexes] = useState<Set<number>>(new Set())
 
-  const { data: dbGateways = [] } = useQuery<GatewayOption[]>({
-    queryKey: ['gateways-import-dropdown'],
-    queryFn: async () => { const { data } = await api.get('/gateways'); return data },
+  const { data: dbMikroTiks = [] } = useQuery<RouterOption[]>({
+    queryKey: ['routers-import-dropdown'],
+    queryFn: async () => { const { data } = await api.get('/routers'); return data },
     enabled: isOpen,
   })
 
@@ -100,7 +100,7 @@ export function ClientImportDialog({ isOpen, onClose, onSuccess }: ClientImportD
       setColumnMapping({})
       setMappedData([])
       setConnectionType('static')
-      setSelectedGatewayId('')
+      setSelectedRouterId('')
       setAssignCoordinates(true)
       setPlanMappings({})
       setValidationResult(null)
@@ -110,8 +110,8 @@ export function ClientImportDialog({ isOpen, onClose, onSuccess }: ClientImportD
     }
   }, [isOpen])
 
-  const selectedGateway = dbGateways.find(g => g.id === selectedGatewayId) ?? null
-  const gatewayHasCoords = !!(selectedGateway?.latitude != null && selectedGateway?.longitude != null)
+  const selectedRouter = dbMikroTiks.find(g => g.id === selectedRouterId) ?? null
+  const routerHasCoords = !!(selectedRouter?.latitude != null && selectedRouter?.longitude != null)
 
   const requiredFields = SYSTEM_FIELDS.filter(f => f.showFor.includes(connectionType) && f.requiredFor.includes(connectionType))
   const optionalFields  = SYSTEM_FIELDS.filter(f => f.showFor.includes(connectionType) && !f.requiredFor.includes(connectionType))
@@ -206,7 +206,7 @@ export function ClientImportDialog({ isOpen, onClose, onSuccess }: ClientImportD
     setErrorMsg(null)
 
     const mapped = csvRows.map(row => {
-      const obj: any = { router: selectedGatewayId }
+      const obj: any = { router: selectedRouterId }
       activeFields.forEach(field => {
         const col = columnMapping[field.key]
         obj[field.key] = col ? row[col] : ''
@@ -251,8 +251,8 @@ export function ClientImportDialog({ isOpen, onClose, onSuccess }: ClientImportD
     const finalized = mappedData.map(row => {
       const resolvedPlan = planMappings[row.plan] ?? ''
       const coords =
-        assignCoordinates && selectedGateway?.latitude != null && selectedGateway?.longitude != null
-          ? randomCoordNear(selectedGateway.latitude, selectedGateway.longitude)
+        assignCoordinates && selectedRouter?.latitude != null && selectedRouter?.longitude != null
+          ? randomCoordNear(selectedRouter.latitude, selectedRouter.longitude)
           : {}
       return { ...row, plan: resolvedPlan, ...coords }
     })
@@ -282,8 +282,8 @@ export function ClientImportDialog({ isOpen, onClose, onSuccess }: ClientImportD
         clients: clientsToImport.map(row => {
           // Coordenadas: usar las ya generadas o generar ahora si el path fue directo (static sin planes)
           const coords =
-            assignCoordinates && selectedGateway?.latitude != null && selectedGateway?.longitude != null && row.latitude == null
-              ? randomCoordNear(selectedGateway.latitude, selectedGateway.longitude)
+            assignCoordinates && selectedRouter?.latitude != null && selectedRouter?.longitude != null && row.latitude == null
+              ? randomCoordNear(selectedRouter.latitude, selectedRouter.longitude)
               : { latitude: row.latitude ?? null, longitude: row.longitude ?? null }
           return {
             full_name: row.nombre || null,
@@ -293,7 +293,7 @@ export function ClientImportDialog({ isOpen, onClose, onSuccess }: ClientImportD
             phone: row.telefono,
             address: row.direccion,
             email: row.email || null,
-            gateway_id: selectedGatewayId,
+            router_id: selectedRouterId,
             plan_id: row.plan || null,
             connection_type: row.tipo || (connectionType !== 'mixto' ? connectionType : 'static'),
             ip: row.ip || null,
@@ -437,7 +437,7 @@ export function ClientImportDialog({ isOpen, onClose, onSuccess }: ClientImportD
                   <Download className="w-4 h-4 text-brand-400 mt-0.5 shrink-0" />
                   <div>
                     <p className="text-sm font-semibold text-foreground">Plantillas CSV</p>
-                    <p className="text-xs text-muted-foreground mt-0.5">Sin columna de gateway — se asigna en el siguiente paso.</p>
+                    <p className="text-xs text-muted-foreground mt-0.5">Sin columna de router — se asigna en el siguiente paso.</p>
                   </div>
                 </div>
                 <div className="flex gap-2 shrink-0">
@@ -460,32 +460,32 @@ export function ClientImportDialog({ isOpen, onClose, onSuccess }: ClientImportD
                   Configuración del Lote
                 </h4>
                 <p className="text-xs text-muted-foreground">
-                  Define el gateway destino y el tipo de conexión para todos los clientes de este CSV.
+                  Define el router destino y el tipo de conexión para todos los clientes de este CSV.
                 </p>
               </div>
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                {/* Gateway selector */}
+                {/* Router selector */}
                 <div className="space-y-2 md:col-span-2">
                   <label className="text-xs font-bold text-foreground flex items-center gap-1">
-                    Gateway de Destino <span className="text-red-500">*</span>
+                    Router de Destino <span className="text-red-500">*</span>
                   </label>
                   <select
-                    value={selectedGatewayId}
-                    onChange={e => setSelectedGatewayId(e.target.value)}
+                    value={selectedRouterId}
+                    onChange={e => setSelectedRouterId(e.target.value)}
                     className="input-field cursor-pointer text-sm"
                   >
-                    <option value="">-- Seleccionar Gateway --</option>
-                    {dbGateways.map(g => (
+                    <option value="">-- Seleccionar Router --</option>
+                    {dbMikroTiks.map(g => (
                       <option key={g.id} value={g.id}>{g.name}</option>
                     ))}
                   </select>
-                  {selectedGateway && (
-                    <p className={`text-xs flex items-center gap-1.5 mt-1 ${gatewayHasCoords ? 'text-brand-400' : 'text-amber-400'}`}>
+                  {selectedRouter && (
+                    <p className={`text-xs flex items-center gap-1.5 mt-1 ${routerHasCoords ? 'text-brand-400' : 'text-amber-400'}`}>
                       <MapPin className="w-3.5 h-3.5 shrink-0" />
-                      {gatewayHasCoords
-                        ? `Coordenadas: ${selectedGateway.latitude?.toFixed(5)}, ${selectedGateway.longitude?.toFixed(5)}`
-                        : 'Este gateway no tiene coordenadas configuradas — ubicación aleatoria no disponible.'
+                      {routerHasCoords
+                        ? `Coordenadas: ${selectedRouter.latitude?.toFixed(5)}, ${selectedRouter.longitude?.toFixed(5)}`
+                        : 'Este router no tiene coordenadas configuradas — ubicación aleatoria no disponible.'
                       }
                     </p>
                   )}
@@ -529,10 +529,10 @@ export function ClientImportDialog({ isOpen, onClose, onSuccess }: ClientImportD
                   </label>
                   <button
                     type="button"
-                    disabled={!gatewayHasCoords}
+                    disabled={!routerHasCoords}
                     onClick={() => setAssignCoordinates(v => !v)}
                     className={`flex items-center gap-3 w-full p-3 rounded-lg border text-left transition-all ${
-                      !gatewayHasCoords
+                      !routerHasCoords
                         ? 'opacity-40 cursor-not-allowed bg-secondary/20 border-border/30'
                         : assignCoordinates
                           ? 'bg-brand-500/10 border-brand-500/30 cursor-pointer'
@@ -540,15 +540,15 @@ export function ClientImportDialog({ isOpen, onClose, onSuccess }: ClientImportD
                     }`}
                   >
                     {/* Toggle visual */}
-                    <div className={`w-10 h-5 rounded-full transition-colors relative shrink-0 ${assignCoordinates && gatewayHasCoords ? 'bg-brand-500' : 'bg-muted'}`}>
-                      <div className={`absolute top-0.5 w-4 h-4 bg-white rounded-full shadow transition-all ${assignCoordinates && gatewayHasCoords ? 'left-5' : 'left-0.5'}`} />
+                    <div className={`w-10 h-5 rounded-full transition-colors relative shrink-0 ${assignCoordinates && routerHasCoords ? 'bg-brand-500' : 'bg-muted'}`}>
+                      <div className={`absolute top-0.5 w-4 h-4 bg-white rounded-full shadow transition-all ${assignCoordinates && routerHasCoords ? 'left-5' : 'left-0.5'}`} />
                     </div>
                     <div>
                       <p className="text-xs font-semibold text-foreground">
-                        {assignCoordinates && gatewayHasCoords ? 'Activo' : 'Inactivo'}
+                        {assignCoordinates && routerHasCoords ? 'Activo' : 'Inactivo'}
                       </p>
                       <p className="text-[11px] text-muted-foreground leading-tight">
-                        Asigna una ubicación aleatoria dentro de 1km del gateway para proteger la dirección exacta del cliente.
+                        Asigna una ubicación aleatoria dentro de 1km del router para proteger la dirección exacta del cliente.
                       </p>
                     </div>
                   </button>
@@ -559,7 +559,7 @@ export function ClientImportDialog({ isOpen, onClose, onSuccess }: ClientImportD
                 <button onClick={() => setStep(1)} className="btn-secondary px-4 py-2">Atrás</button>
                 <button
                   onClick={() => {
-                    if (!selectedGatewayId) { setErrorMsg('Debe seleccionar un gateway de destino.'); return }
+                    if (!selectedRouterId) { setErrorMsg('Debe seleccionar un router de destino.'); return }
                     setErrorMsg(null)
                     // Inicializar todos los opcionales como habilitados al entrar al paso 3
                     const optionals = SYSTEM_FIELDS
@@ -798,10 +798,10 @@ export function ClientImportDialog({ isOpen, onClose, onSuccess }: ClientImportD
                     </div>
                   </div>
 
-                  {assignCoordinates && gatewayHasCoords && (
+                  {assignCoordinates && routerHasCoords && (
                     <div className="flex items-center gap-2 px-3 py-2 bg-brand-500/5 border border-brand-500/20 rounded-lg text-xs text-brand-300">
                       <MapPin className="w-3.5 h-3.5 shrink-0" />
-                      Se asignarán coordenadas aleatorias dentro de 1km de <span className="font-semibold ml-1">{selectedGateway?.name}</span> a cada cliente importado.
+                      Se asignarán coordenadas aleatorias dentro de 1km de <span className="font-semibold ml-1">{selectedRouter?.name}</span> a cada cliente importado.
                     </div>
                   )}
 
@@ -929,9 +929,9 @@ export function ClientImportDialog({ isOpen, onClose, onSuccess }: ClientImportD
                   <AlertTriangle className="w-4 h-4 text-amber-400 shrink-0 mt-0.5" />
                   <div className="text-xs text-amber-300">
                     <span className="font-semibold block mb-0.5">
-                      {importResult.sync_pending_count} cliente{importResult.sync_pending_count > 1 ? 's fueron guardados' : ' fue guardado'} en la base de datos pero la sincronización con MikroTik quedó pendiente.
+                      {importResult.sync_pending_count} cliente{importResult.sync_pending_count > 1 ? 's fueron guardados' : ' fue guardado'} en la base de datos pero la sincronización con el router quedó pendiente.
                     </span>
-                    Cuando el gateway restablezca la conexión, la sincronización se ejecutará automáticamente. También puedes lanzarla manualmente desde la página del gateway → <span className="font-semibold">Sync Pendiente</span>.
+                    Cuando el router restablezca la conexión, la sincronización se ejecutará automáticamente. También puedes lanzarla manualmente desde la página del router → <span className="font-semibold">Sync Pendiente</span>.
                   </div>
                 </div>
               )}

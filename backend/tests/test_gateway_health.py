@@ -1,5 +1,5 @@
 """
-Tests del health-check de Gateways, en particular el cruce con ZeroTier para
+Tests del health-check de routers, en particular el cruce con ZeroTier para
 distinguir "túnel caído" (tunnel_down) de "RouterOS caído" (offline).
 """
 import uuid
@@ -8,13 +8,13 @@ from unittest.mock import AsyncMock
 
 import pytest
 
-from app.models.gateway import Gateway
-from app.services.mikrotik import health
-from app.services.mikrotik.gateway_pool import GatewayConnectionError
+from app.models.router import Router
+from app.services.router import health
+from app.services.router.router_pool import RouterConnectionError
 
 
-def _gateway(zerotier_node_id: str | None = None) -> Gateway:
-    return Gateway(
+def _router(zerotier_node_id: str | None = None) -> Router:
+    return Router(
         id=uuid.uuid4(),
         name="GW-Test",
         ip="10.147.20.5",
@@ -37,11 +37,11 @@ def _mock_redis(monkeypatch):
 @pytest.fixture
 def _router_unreachable(monkeypatch):
     @contextmanager
-    def _raise_cm(_gateway):
-        raise GatewayConnectionError("connection refused")
+    def _raise_cm(_router):
+        raise RouterConnectionError("connection refused")
         yield  # pragma: no cover
 
-    monkeypatch.setattr(health.gateway_pool, "connect_to", _raise_cm)
+    monkeypatch.setattr(health.router_pool, "connect_to", _raise_cm)
 
 
 @pytest.mark.asyncio
@@ -49,7 +49,7 @@ async def test_router_down_without_zerotier_is_offline(_router_unreachable, monk
     monkeypatch.setattr(
         health, "_check_zerotier_tunnel_sync", lambda _nid: pytest.fail("no debe consultarse")
     )
-    status = await health.check_gateway_health(_gateway(zerotier_node_id=None))
+    status = await health.check_router_health(_router(zerotier_node_id=None))
 
     assert status.status == "offline"
     assert status.zerotier_checked is False
@@ -59,7 +59,7 @@ async def test_router_down_without_zerotier_is_offline(_router_unreachable, monk
 @pytest.mark.asyncio
 async def test_tunnel_down_when_zerotier_node_offline(_router_unreachable, monkeypatch):
     monkeypatch.setattr(health, "_check_zerotier_tunnel_sync", lambda _nid: False)
-    status = await health.check_gateway_health(_gateway(zerotier_node_id="abc1234567"))
+    status = await health.check_router_health(_router(zerotier_node_id="abc1234567"))
 
     assert status.status == "tunnel_down"
     assert status.zerotier_checked is True
@@ -70,7 +70,7 @@ async def test_tunnel_down_when_zerotier_node_offline(_router_unreachable, monke
 @pytest.mark.asyncio
 async def test_router_offline_when_zerotier_node_online(_router_unreachable, monkeypatch):
     monkeypatch.setattr(health, "_check_zerotier_tunnel_sync", lambda _nid: True)
-    status = await health.check_gateway_health(_gateway(zerotier_node_id="abc1234567"))
+    status = await health.check_router_health(_router(zerotier_node_id="abc1234567"))
 
     assert status.status == "offline"
     assert status.zerotier_checked is True
@@ -82,7 +82,7 @@ async def test_router_offline_when_zerotier_node_online(_router_unreachable, mon
 async def test_tunnel_check_inconclusive_keeps_offline(_router_unreachable, monkeypatch):
     # ZeroTier deshabilitado / sin configurar / nodo ausente → None
     monkeypatch.setattr(health, "_check_zerotier_tunnel_sync", lambda _nid: None)
-    status = await health.check_gateway_health(_gateway(zerotier_node_id="abc1234567"))
+    status = await health.check_router_health(_router(zerotier_node_id="abc1234567"))
 
     assert status.status == "offline"
     assert status.zerotier_checked is False

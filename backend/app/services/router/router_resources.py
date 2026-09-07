@@ -1,4 +1,4 @@
-"""Resolución centralizada de nombres de recursos RouterOS por gateway."""
+"""Resolución centralizada de nombres de recursos RouterOS por router."""
 from copy import deepcopy
 
 
@@ -27,10 +27,10 @@ DEFAULT_RESOURCE_CONFIG = {
 }
 
 
-def get_gateway_resource_config(gateway) -> dict:
-    """Devuelve configuración completa, incluyendo fallbacks de gateways legados."""
+def get_router_resource_config(router) -> dict:
+    """Devuelve configuración completa, incluyendo fallbacks de routers legados."""
     resolved = deepcopy(DEFAULT_RESOURCE_CONFIG)
-    stored = getattr(gateway, "resource_config", None) or {}
+    stored = getattr(router, "resource_config", None) or {}
     for section in resolved:
         values = stored.get(section)
         if isinstance(values, dict):
@@ -38,23 +38,23 @@ def get_gateway_resource_config(gateway) -> dict:
 
     # Los campos anteriores siguen siendo la fuente para registros aún no migrados.
     if not stored:
-        if getattr(gateway, "suspend_list", None):
-            resolved["security"]["suspend_list"] = gateway.suspend_list.strip()
-        if getattr(gateway, "parent_queue", None):
-            legacy_parent = gateway.parent_queue.strip()
+        if getattr(router, "suspend_list", None):
+            resolved["security"]["suspend_list"] = router.suspend_list.strip()
+        if getattr(router, "parent_queue", None):
+            legacy_parent = router.parent_queue.strip()
             resolved["speed_control"]["parent_queue"] = (
                 legacy_parent if legacy_parent.startswith("isp_") else f"Clients{legacy_parent}"
             )
-        if getattr(gateway, "address_list", None):
-            legacy_list = gateway.address_list.strip()
+        if getattr(router, "address_list", None):
+            legacy_list = router.address_list.strip()
             resolved["speed_control"]["client_address_list"] = (
                 legacy_list if legacy_list.startswith("isp_") else f"clients{legacy_list}"
             )
     return resolved
 
 
-def resource_name(gateway, section: str, key: str) -> str:
-    return get_gateway_resource_config(gateway)[section][key]
+def resource_name(router, section: str, key: str) -> str:
+    return get_router_resource_config(router)[section][key]
 
 
 def render_resource_template(template: str, **values: str) -> str:

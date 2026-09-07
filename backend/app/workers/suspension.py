@@ -11,9 +11,9 @@ from app.models.client_plan import ClientPlan
 from app.models.invoice import Invoice
 from app.models.suspension_log import SuspensionLog
 from app.models.system_settings import SystemSettings
-from app.services.mikrotik.address_list import suspend_ip_in_firewall, unsuspend_ip_in_firewall
-from app.services.mikrotik.queue import toggle_client_queue
-from app.services.mikrotik.pppoe import sync_pppoe_secret_in_gateway, disconnect_pppoe_session
+from app.services.router.address_list import suspend_ip_in_firewall, unsuspend_ip_in_firewall
+from app.services.router.queue import toggle_client_queue
+from app.services.router.pppoe import sync_pppoe_secret_in_router, disconnect_pppoe_session
 from app.services.notifications.twilio_service import send_suspension_notification
 from app.services.audit_service import AuditAction, audit_detail, log_event
 from app.workers.celery_app import celery_app
@@ -97,20 +97,20 @@ def daily_suspension_check():
 
                 # 3. Aplicar suspensión en MikroTik (según tipo de conexión)
                 if client.connection_type == "static" and client.static_ip:
-                    suspend_ip_in_firewall(client.gateway, client.static_ip.ip, client.full_name)
-                    toggle_client_queue(client.gateway, client.static_ip.ip, disabled=True)
+                    suspend_ip_in_firewall(client.router, client.static_ip.ip, client.full_name)
+                    toggle_client_queue(client.router, client.static_ip.ip, disabled=True)
                 elif client.connection_type == "pppoe" and client.pppoe_secret:
                     password_dec = decrypt_secret(client.pppoe_secret.ppp_password)
                     profile_name = client.pppoe_secret.profile.name if client.pppoe_secret.profile else "default"
-                    sync_pppoe_secret_in_gateway(
-                        gateway=client.gateway,
+                    sync_pppoe_secret_in_router(
+                        router=client.router,
                         username=client.pppoe_secret.ppp_username,
                         password=password_dec,
                         profile_name=profile_name,
                         client_name=client.full_name,
                         disabled=True
                     )
-                    disconnect_pppoe_session(client.gateway, client.pppoe_secret.ppp_username)
+                    disconnect_pppoe_session(client.router, client.pppoe_secret.ppp_username)
 
                 # 4. Crear log de suspensión
                 log = SuspensionLog(
@@ -190,20 +190,20 @@ def process_scheduled_suspensions():
                     active_plan.estado = "suspendido"
 
                 if client.connection_type == "static" and client.static_ip:
-                    suspend_ip_in_firewall(client.gateway, client.static_ip.ip, client.full_name)
-                    toggle_client_queue(client.gateway, client.static_ip.ip, disabled=True)
+                    suspend_ip_in_firewall(client.router, client.static_ip.ip, client.full_name)
+                    toggle_client_queue(client.router, client.static_ip.ip, disabled=True)
                 elif client.connection_type == "pppoe" and client.pppoe_secret:
                     password_dec = decrypt_secret(client.pppoe_secret.ppp_password)
                     profile_name = client.pppoe_secret.profile.name if client.pppoe_secret.profile else "default"
-                    sync_pppoe_secret_in_gateway(
-                        gateway=client.gateway,
+                    sync_pppoe_secret_in_router(
+                        router=client.router,
                         username=client.pppoe_secret.ppp_username,
                         password=password_dec,
                         profile_name=profile_name,
                         client_name=client.full_name,
                         disabled=True
                     )
-                    disconnect_pppoe_session(client.gateway, client.pppoe_secret.ppp_username)
+                    disconnect_pppoe_session(client.router, client.pppoe_secret.ppp_username)
 
                 log = SuspensionLog(
                     client_id=client.id,
@@ -276,13 +276,13 @@ def process_scheduled_reactivations():
                     suspended_plan.estado = "activo"
 
                 if client.connection_type == "static" and client.static_ip:
-                    unsuspend_ip_in_firewall(client.gateway, client.static_ip.ip)
-                    toggle_client_queue(client.gateway, client.static_ip.ip, disabled=False)
+                    unsuspend_ip_in_firewall(client.router, client.static_ip.ip)
+                    toggle_client_queue(client.router, client.static_ip.ip, disabled=False)
                 elif client.connection_type == "pppoe" and client.pppoe_secret:
                     password_dec = decrypt_secret(client.pppoe_secret.ppp_password)
                     profile_name = client.pppoe_secret.profile.name if client.pppoe_secret.profile else "default"
-                    sync_pppoe_secret_in_gateway(
-                        gateway=client.gateway,
+                    sync_pppoe_secret_in_router(
+                        router=client.router,
                         username=client.pppoe_secret.ppp_username,
                         password=password_dec,
                         profile_name=profile_name,

@@ -380,7 +380,7 @@ export function PlansPage() {
                 {/* Col 2: Configuración de Velocidad */}
                 <div className="space-y-4">
                   <h3 className="text-sm font-semibold text-brand-400 border-b border-border pb-1.5 mb-3">
-                    Velocidad (MikroTik)
+                    Velocidad (router)
                   </h3>
 
                   {/* Down / Up Kbps */}

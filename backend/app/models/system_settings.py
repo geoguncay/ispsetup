@@ -17,7 +17,7 @@ class SystemSettings(Base):
         Uuid(native_uuid=False), primary_key=True, default=uuid.uuid4
     )
 
-    # MikroTik API
+    # API del router
     mikrotik_timeout: Mapped[int] = mapped_column(Integer, nullable=False, default=10)
     mikrotik_attempts: Mapped[int] = mapped_column(Integer, nullable=False, default=1)
     mikrotik_debug: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
@@ -69,7 +69,7 @@ class SystemSettings(Base):
     zt_api_token_encrypted: Mapped[str | None] = mapped_column(Text, nullable=True)
     zt_enabled: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False, server_default="false")
 
-    # ISPSETUP (IP alcanzable desde los Gateways para Traffic Flow)
+    # ISPSETUP (IP alcanzable desde los routers para Traffic Flow)
     ispsetup_server_ip: Mapped[str | None] = mapped_column(String(255), nullable=True)
 
     # Facturación 

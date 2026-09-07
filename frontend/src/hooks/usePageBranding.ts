@@ -7,7 +7,7 @@ import { getLogoUrl } from '@/lib/utils'
 import defaultIcon from '@/assets/icon.svg'
 
 const DEFAULT_TITLE = 'ISP SETUP — ISP Management'
-const DEFAULT_DESCRIPTION = 'ISP SETUP — Gestión centralizada para ISP con MikroTik'
+const DEFAULT_DESCRIPTION = 'ISP SETUP — Gestión centralizada para ISP con routers MikroTik'
 // Nombres de placeholder que trae el registro de empresa por defecto (aún no editado por el usuario).
 const PLACEHOLDER_NAMES = ['Mi ISP', 'Mi WISP']
 

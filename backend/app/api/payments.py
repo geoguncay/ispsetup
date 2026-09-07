@@ -17,9 +17,9 @@ from app.models.suspension_log import SuspensionLog
 from app.models.company import Company
 from app.schemas.payment import PaymentCreate, PaymentResponse
 from app.core.security import decrypt_secret
-from app.services.mikrotik.pppoe import sync_pppoe_secret_in_gateway
-from app.services.mikrotik.address_list import unsuspend_ip_in_firewall
-from app.services.mikrotik.queue import toggle_client_queue
+from app.services.router.pppoe import sync_pppoe_secret_in_router
+from app.services.router.address_list import unsuspend_ip_in_firewall
+from app.services.router.queue import toggle_client_queue
 from app.services.notifications.twilio_service import send_suspension_notification
 from app.services.pdf_generator import generate_receipt_pdf
 from app.services.audit_service import AuditAction, audit_detail, log_event
@@ -89,8 +89,8 @@ def create_payment(
         # Reactivar en MikroTik
         if client.connection_type == "static" and client.static_ip:
             try:
-                unsuspend_ip_in_firewall(client.gateway, client.static_ip.ip)
-                toggle_client_queue(client.gateway, client.static_ip.ip, disabled=False)
+                unsuspend_ip_in_firewall(client.router, client.static_ip.ip)
+                toggle_client_queue(client.router, client.static_ip.ip, disabled=False)
             except Exception as e:
                 db.rollback()
                 logger.error(f"Fallo al reactivar en MikroTik para IP Estática: {str(e)}")
@@ -102,8 +102,8 @@ def create_payment(
             try:
                 password_dec = decrypt_secret(client.pppoe_secret.ppp_password)
                 profile_name = client.pppoe_secret.profile.name if client.pppoe_secret.profile else "default"
-                sync_pppoe_secret_in_gateway(
-                    gateway=client.gateway,
+                sync_pppoe_secret_in_router(
+                    router=client.router,
                     username=client.pppoe_secret.ppp_username,
                     password=password_dec,
                     profile_name=profile_name,

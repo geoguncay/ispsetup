@@ -1,7 +1,7 @@
 /**
  * IspsetupSettingsSection — tarjeta "Servidor ISPSETUP" dentro de la categoría
- * "Integraciones" de Ajustes. Configura la IP alcanzable desde los Gateways
- * MikroTik que usan el modo de registro de tráfico "Traffic Flow" (NetFlow v9).
+ * "Integraciones" de Ajustes. Configura la IP alcanzable desde los routers
+ * routers que usan el modo de registro de tráfico "Traffic Flow" (NetFlow v9).
  */
 import { useEffect } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
@@ -53,7 +53,7 @@ function SettingsForm({
           placeholder="10.0.0.10"
         />
         <span className="text-[10px] text-muted-foreground block">
-          Dirección alcanzable desde todos los Gateways (LAN, VPN o ZeroTier). La usan los Gateways
+          Dirección alcanzable desde todos los routers (LAN, VPN o ZeroTier). La usan los routers
           en modo Traffic Flow como destino de los paquetes NetFlow v9.
         </span>
       </div>
@@ -86,7 +86,7 @@ export function IspsetupSettingsSection({ setStatusMessage }: { setStatusMessage
           Servidor ISPSETUP
         </h3>
         <p className="text-muted-foreground text-xs mt-1">
-          IP del servidor local que los Gateways usan como destino de Traffic Flow (NetFlow v9).
+          IP del servidor local que los routers usan como destino de Traffic Flow (NetFlow v9).
         </p>
       </div>
 

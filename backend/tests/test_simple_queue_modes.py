@@ -3,15 +3,15 @@ from unittest.mock import MagicMock
 
 import pytest
 
-from app.services.mikrotik.queue import (
+from app.services.router.queue import (
     apply_simple_queue_structure,
     sync_client_queue,
 )
 
 
-def _gateway(structure: str = 'standalone', upload: str = 'cake', download: str = 'cake'):
+def _router(structure: str = 'standalone', upload: str = 'cake', download: str = 'cake'):
     return SimpleNamespace(
-        name='Gateway CAKE',
+        name='Router CAKE',
         speed_control=True,
         speed_control_type='simple_queues',
         resource_config={
@@ -36,12 +36,12 @@ def test_standalone_queue_is_created_without_parent(monkeypatch):
     api = MagicMock()
     api.path.return_value.select.return_value.where.return_value = []
     monkeypatch.setattr(
-        'app.services.mikrotik.queue.gateway_pool.connect_to',
+        'app.services.router.queue.router_pool.connect_to',
         MagicMock(return_value=_connection(api)),
     )
 
     sync_client_queue(
-        gateway=_gateway(),
+        router=_router(),
         client_name='Cliente Uno',
         ip='192.0.2.10',
         speed_up=10000,
@@ -73,11 +73,11 @@ def test_standalone_transition_detaches_existing_client_queues(monkeypatch):
 
     api.path.side_effect = path_entries
     monkeypatch.setattr(
-        'app.services.mikrotik.queue.gateway_pool.connect_to',
+        'app.services.router.queue.router_pool.connect_to',
         MagicMock(return_value=_connection(api)),
     )
 
-    apply_simple_queue_structure(_gateway(), ['192.0.2.10'])
+    apply_simple_queue_structure(_router(), ['192.0.2.10'])
 
     api.assert_any_call(
         '/queue/simple/set',
@@ -88,7 +88,7 @@ def test_standalone_transition_detaches_existing_client_queues(monkeypatch):
 
 
 def test_parented_transition_assigns_configured_parent(monkeypatch):
-    gateway = _gateway('parented', 'default-small', 'default-small')
+    router = _router('parented', 'default-small', 'default-small')
     api = MagicMock()
 
     def path_entries(path):
@@ -100,15 +100,15 @@ def test_parented_transition_assigns_configured_parent(monkeypatch):
 
     api.path.side_effect = path_entries
     monkeypatch.setattr(
-        'app.services.mikrotik.queue.get_or_create_parent_queue',
+        'app.services.router.queue.get_or_create_parent_queue',
         MagicMock(return_value='isp_padre'),
     )
     monkeypatch.setattr(
-        'app.services.mikrotik.queue.gateway_pool.connect_to',
+        'app.services.router.queue.router_pool.connect_to',
         MagicMock(return_value=_connection(api)),
     )
 
-    apply_simple_queue_structure(gateway, ['192.0.2.10'])
+    apply_simple_queue_structure(router, ['192.0.2.10'])
 
     api.assert_any_call(
         '/queue/simple/set',
@@ -120,11 +120,11 @@ def test_queue_types_must_exist_before_applying_structure(monkeypatch):
     api = MagicMock()
     api.path.side_effect = lambda path: [{'name': 'default-small'}] if path == '/queue/type' else []
     monkeypatch.setattr(
-        'app.services.mikrotik.queue.gateway_pool.connect_to',
+        'app.services.router.queue.router_pool.connect_to',
         MagicMock(return_value=_connection(api)),
     )
 
     with pytest.raises(ValueError, match='cake'):
-        apply_simple_queue_structure(_gateway(), [])
+        apply_simple_queue_structure(_router(), [])
 
     assert not any(call.args[0] == '/queue/simple/set' for call in api.call_args_list)

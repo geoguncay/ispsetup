@@ -1,7 +1,7 @@
 """
 Cliente para la API de ZeroTier Central (https://api.zerotier.com/api/v1).
 
-Se usa para administrar la red ZeroTier de los Gateways MikroTik y del propio
+Se usa para administrar la red ZeroTier de los routers y del propio
 stack de la plataforma: autorizar nodos, consultar estado y asignar IPs,
 todo desde la UI en vez de la consola de my.zerotier.com.
 """

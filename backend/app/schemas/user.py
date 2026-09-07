@@ -35,7 +35,7 @@ class UserCreate(BaseModel):
     active: bool = True
     inactivity_timeout: int = 0
     operator_type: str | None = None
-    gateway_permissions: str | None = None
+    router_permissions: str | None = None
     access_schedule: str | None = None
     permissions: str | None = None
 
@@ -48,7 +48,7 @@ class UserUpdate(BaseModel):
     active: bool | None = None
     inactivity_timeout: int | None = None
     operator_type: str | None = None
-    gateway_permissions: str | None = None
+    router_permissions: str | None = None
     access_schedule: str | None = None
     permissions: str | None = None
 
@@ -64,7 +64,7 @@ class UserRead(BaseModel):
     inactivity_timeout: int
     avatar_url: str | None = None
     operator_type: str | None
-    gateway_permissions: str | None
+    router_permissions: str | None
     access_schedule: str | None
     permissions: str | None
     created_at: datetime

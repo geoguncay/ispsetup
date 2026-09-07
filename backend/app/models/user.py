@@ -30,7 +30,7 @@ class User(Base):
     inactivity_timeout: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     avatar_url: Mapped[str | None] = mapped_column(String(500), nullable=True)
     operator_type: Mapped[str | None] = mapped_column(String(50), nullable=True)
-    gateway_permissions: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    router_permissions: Mapped[str | None] = mapped_column(String(255), nullable=True)
     access_schedule: Mapped[str | None] = mapped_column(String(100), nullable=True)
     permissions: Mapped[str | None] = mapped_column(String(500), nullable=True)
     created_at: Mapped[datetime] = mapped_column(

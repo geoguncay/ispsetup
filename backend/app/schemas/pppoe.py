@@ -13,14 +13,14 @@ class PPPoEProfileBase(BaseModel):
 
 
 class PPPoEProfileCreate(PPPoEProfileBase):
-    gateway_id: uuid.UUID
+    router_id: uuid.UUID
 
 
 class PPPoEProfileRead(PPPoEProfileBase):
     model_config = {"from_attributes": True}
 
     id: uuid.UUID
-    gateway_id: uuid.UUID
+    router_id: uuid.UUID
     created_at: datetime
     updated_at: datetime
 
@@ -33,7 +33,7 @@ class PPPoESecretBase(BaseModel):
 class PPPoESecretCreate(PPPoESecretBase):
     client_id: uuid.UUID
     ppp_password: str = Field(min_length=1, max_length=255)
-    gateway_id: uuid.UUID
+    router_id: uuid.UUID
 
 
 class PPPoESecretUpdate(BaseModel):
@@ -47,7 +47,7 @@ class PPPoESecretRead(PPPoESecretBase):
 
     id: uuid.UUID
     client_id: uuid.UUID
-    gateway_id: uuid.UUID
+    router_id: uuid.UUID
     ppp_password: str | None = None
     created_at: datetime
     updated_at: datetime

@@ -29,7 +29,7 @@ const customMarkerIcon = L.icon({
   popupAnchor: [0, -30],
 })
 
-interface FormGateway {
+interface FormRouter {
   id: string
   name: string
   ip?: string
@@ -99,7 +99,7 @@ const clientSchema = z.object({
   address: z.string().min(5, 'Mínimo 5 caracteres').max(255),
   latitude: z.coerce.number().optional().nullable(),
   longitude: z.coerce.number().optional().nullable(),
-  gateway_id: z.string().min(1, 'Debe seleccionar un router'),
+  router_id: z.string().min(1, 'Debe seleccionar un router'),
   connection_type: z.enum(['static', 'pppoe']),
   plan_id: z.string().optional().nullable(),
   custom_service_ids: z.array(z.string()).optional(),
@@ -217,7 +217,7 @@ interface FormClient {
   email?: string | null
   active: boolean
   connection_type: 'static' | 'pppoe'
-  gateway_id: string
+  router_id: string
   latitude?: number | null
   longitude?: number | null
   created_at?: string | null
@@ -301,11 +301,11 @@ export function ClientFormDialog({ open, onClose, client, onSuccess }: ClientFor
     }
   }, [watchCedula, setValue])
 
-  // Obtener Gateways
-  const { data: gateways = [] } = useQuery<FormGateway[]>({
-    queryKey: ['gateways-form'],
+  // Obtener Routers
+  const { data: routers = [] } = useQuery<FormRouter[]>({
+    queryKey: ['routers-form'],
     queryFn: async () => {
-      const { data } = await api.get('/gateways')
+      const { data } = await api.get('/routers')
       return data
     },
     enabled: open,
@@ -675,7 +675,7 @@ export function ClientFormDialog({ open, onClose, client, onSuccess }: ClientFor
           address: client.address,
           latitude: client.latitude,
           longitude: client.longitude,
-          gateway_id: client.gateway_id,
+          router_id: client.router_id,
           connection_type: client.connection_type,
           plan_id: client.plan_activo?.id ?? '',
           active: client.active,
@@ -732,7 +732,7 @@ export function ClientFormDialog({ open, onClose, client, onSuccess }: ClientFor
           address: '',
           latitude: null,
           longitude: null,
-          gateway_id: '',
+          router_id: '',
           connection_type: 'static',
           plan_id: '',
           active: true,
@@ -890,7 +890,7 @@ export function ClientFormDialog({ open, onClose, client, onSuccess }: ClientFor
       return
     }
 
-    const step4Fields = ['gateway_id', 'connection_type', 'ip', 'mac', 'notes_ip', 'ppp_username', 'ppp_password', 'profile_id']
+    const step4Fields = ['router_id', 'connection_type', 'ip', 'mac', 'notes_ip', 'ppp_username', 'ppp_password', 'profile_id']
     if (errorKeys.some((key) => step4Fields.includes(key))) {
       setStep(4)
       return
@@ -1151,17 +1151,17 @@ export function ClientFormDialog({ open, onClose, client, onSuccess }: ClientFor
                     <select
                       onChange={(e) => {
                         const rId = e.target.value
-                        const gatewayObj = gateways.find((r) => r.id === rId)
-                        if (gatewayObj && gatewayObj.latitude && gatewayObj.longitude) {
-                          setValue('latitude', Number(gatewayObj.latitude))
-                          setValue('longitude', Number(gatewayObj.longitude))
+                        const routerObj = routers.find((r) => r.id === rId)
+                        if (routerObj && routerObj.latitude && routerObj.longitude) {
+                          setValue('latitude', Number(routerObj.latitude))
+                          setValue('longitude', Number(routerObj.longitude))
                         }
                       }}
                       className="bg-secondary/40 border border-border/60 text-[11px] text-foreground rounded px-2 py-1 font-sans cursor-pointer focus:outline-none focus:border-brand-500 max-w-[180px]"
                       defaultValue=""
                     >
                       <option value="" disabled>📍 Ir a Nodo / Router...</option>
-                      {gateways
+                      {routers
                         .filter((r) => r.latitude && r.longitude)
                         .map((r) => (
                           <option key={r.id} value={r.id}>
@@ -1652,17 +1652,17 @@ export function ClientFormDialog({ open, onClose, client, onSuccess }: ClientFor
               </div>
 
               <div className="glass-card p-6 border border-border/60 space-y-4 bg-secondary/10">
-                {/* Gateway y Tipo de Conexión */}
+                {/* Router y Tipo de Conexión */}
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 font-sans">
                   <div>
-                    <label className="block text-sm font-medium text-foreground mb-1.5">Gateway *</label>
-                    <select {...register('gateway_id')} className="input-field cursor-pointer font-sans">
-                      <option value="">Seleccione gateway</option>
-                      {gateways.map((r) => (
+                    <label className="block text-sm font-medium text-foreground mb-1.5">Router *</label>
+                    <select {...register('router_id')} className="input-field cursor-pointer font-sans">
+                      <option value="">Seleccione router</option>
+                      {routers.map((r) => (
                         <option key={r.id} value={r.id}>{r.name} ({r.ip})</option>
                       ))}
                     </select>
-                    {errors.gateway_id && <p className="text-xs text-destructive mt-1">{errors.gateway_id.message}</p>}
+                    {errors.router_id && <p className="text-xs text-destructive mt-1">{errors.router_id.message}</p>}
                   </div>
                   <div>
                     <label className="block text-sm font-medium text-foreground mb-1.5">Tipo de Conexión *</label>

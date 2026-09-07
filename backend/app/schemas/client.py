@@ -46,7 +46,7 @@ class ClientBase(BaseModel):
     address: str = Field(min_length=5, max_length=255)
     latitude: float | None = None
     longitude: float | None = None
-    gateway_id: uuid.UUID
+    router_id: uuid.UUID
     connection_type: str = Field(default="static")  # "static" o "pppoe"
     email: str | None = Field(default=None, max_length=100)
     billing_start: datetime | None = None
@@ -96,7 +96,7 @@ class ClientUpdate(BaseModel):
     address: str | None = Field(default=None, min_length=5, max_length=255)
     latitude: float | None = None
     longitude: float | None = None
-    gateway_id: uuid.UUID | None = None
+    router_id: uuid.UUID | None = None
     connection_type: str | None = None
     active: bool | None = None
     email: str | None = Field(default=None, max_length=100)
@@ -168,7 +168,7 @@ class ClientResponse(ClientBase):
 
     # Campos enriquecidos
     plan_activo: PlanResponse | None = None
-    gateway_name: str | None = None
+    router_name: str | None = None
     static_ip: StaticIPResponse | None = None
     pppoe_secret: PPPoESecretRead | None = None
     site_id: uuid.UUID | None = None

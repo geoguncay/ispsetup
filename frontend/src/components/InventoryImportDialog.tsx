@@ -53,7 +53,7 @@ const TEMPLATE_EXAMPLE_ROW = [
   '3',
   '55.00',
   '85.00',
-  'MikroTik Distribuidor',
+  'Routers Distribuidor',
   'Router doble banda 2.4/5GHz con 5 puertos gigabit',
 ]
 

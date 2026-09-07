@@ -24,7 +24,7 @@ class AuditAction:
     USER_DELETE = "USER_DELETE"
     USER_AVATAR_UPDATE = "USER_AVATAR_UPDATE"
 
-    # Gateways
+    # MikroTik
     CREATE_GATEWAY = "CREATE_GATEWAY"
     UPDATE_GATEWAY = "UPDATE_GATEWAY"
     DELETE_GATEWAY = "DELETE_GATEWAY"
@@ -112,23 +112,23 @@ ACTION_DEFAULTS: dict[str, tuple[str, str, str]] = {
     AuditAction.USER_UPDATE: ("User", "Usuario", "Usuario actualizado"),
     AuditAction.USER_DELETE: ("User", "Usuario", "Usuario eliminado"),
     AuditAction.USER_AVATAR_UPDATE: ("User", "Usuario", "Avatar actualizado"),
-    AuditAction.CREATE_GATEWAY: ("Gateway", "Gateway", "Gateway creado"),
-    AuditAction.UPDATE_GATEWAY: ("Gateway", "Gateway", "Gateway actualizado"),
-    AuditAction.DELETE_GATEWAY: ("Gateway", "Gateway", "Gateway eliminado"),
-    AuditAction.GATEWAY_ONLINE: ("Gateway", "Gateway", "Gateway en línea"),
-    AuditAction.GATEWAY_OFFLINE: ("Gateway", "Gateway", "Gateway fuera de línea"),
-    AuditAction.IMPORT_CLIENTS: ("Gateway", "Gateway", "Clientes importados desde el gateway"),
-    AuditAction.TEST_GATEWAY_CONNECTION: ("Gateway", "Gateway", "Prueba de conexión ejecutada"),
-    AuditAction.UPDATE_GATEWAY_QUEUE: ("Gateway", "Gateway", "Cola padre actualizada"),
-    AuditAction.SYNC_PPPOE_PROFILES: ("Gateway", "Gateway", "Perfiles PPPoE sincronizados"),
-    AuditAction.SYNC_GATEWAY: ("Gateway", "Gateway", "Sincronización con gateway ejecutada"),
-    AuditAction.TERMINATE_PPPOE_SESSION: ("Gateway", "Gateway", "Sesión PPPoE terminada"),
+    AuditAction.CREATE_GATEWAY: ("Router", "Router", "Router creado"),
+    AuditAction.UPDATE_GATEWAY: ("Router", "Router", "Router actualizado"),
+    AuditAction.DELETE_GATEWAY: ("Router", "Router", "Router eliminado"),
+    AuditAction.GATEWAY_ONLINE: ("Router", "Router", "Router en línea"),
+    AuditAction.GATEWAY_OFFLINE: ("Router", "Router", "Router fuera de línea"),
+    AuditAction.IMPORT_CLIENTS: ("Router", "Router", "Clientes importados desde el router"),
+    AuditAction.TEST_GATEWAY_CONNECTION: ("Router", "Router", "Prueba de conexión ejecutada"),
+    AuditAction.UPDATE_GATEWAY_QUEUE: ("Router", "Router", "Cola padre actualizada"),
+    AuditAction.SYNC_PPPOE_PROFILES: ("Router", "Router", "Perfiles PPPoE sincronizados"),
+    AuditAction.SYNC_GATEWAY: ("Router", "Router", "Sincronización con router ejecutada"),
+    AuditAction.TERMINATE_PPPOE_SESSION: ("Router", "Router", "Sesión PPPoE terminada"),
     AuditAction.CREATE_CLIENT: ("Client", "Cliente", "Cliente creado"),
     AuditAction.UPDATE_CLIENT: ("Client", "Cliente", "Cliente actualizado"),
     AuditAction.DELETE_CLIENT: ("Client", "Cliente", "Cliente eliminado"),
     AuditAction.SUSPEND_CLIENT: ("Client", "Cliente", "Suspensión de cliente"),
     AuditAction.ACTIVATE_CLIENT: ("Client", "Cliente", "Activación de cliente"),
-    AuditAction.SYNC_CLIENT: ("Client", "Cliente", "Cliente sincronizado con su gateway"),
+    AuditAction.SYNC_CLIENT: ("Client", "Cliente", "Cliente sincronizado con su router"),
     AuditAction.IMPORT_CLIENT_FILE: ("ClientImport", "Importación de clientes", "Archivo de clientes importado"),
     AuditAction.CREATE_TICKET: ("Ticket", "Ticket", "Ticket creado"),
     AuditAction.ASSIGN_PLAN: ("Client", "Cliente", "Plan asignado"),
@@ -257,11 +257,11 @@ def log_event(
 
 
 def log_connectivity_change(
-    gateway_id: str, gateway_name: str, action: str, reason: str | None = None
+    router_id: str, router_name: str, action: str, reason: str | None = None
 ) -> None:
     """
-    Registra cambios de conectividad de un gateway (online/offline).
-    `reason` distingue la causa cuando el gateway sale de línea:
+    Registra cambios de conectividad de un router (online/offline).
+    `reason` distingue la causa cuando el router sale de línea:
     "offline" (RouterOS no responde) o "tunnel_down" (túnel ZeroTier caído).
     Abre su propia sesión de BD — seguro de llamar desde Celery workers.
     """
@@ -274,9 +274,9 @@ def log_connectivity_change(
         log_event(
             db=db,
             action=action,
-            entity_type="Gateway",
-            entity_id=gateway_id,
-            entity_name=gateway_name,
+            entity_type="Router",
+            entity_id=router_id,
+            entity_name=router_name,
             detail=detail,
         )
     finally:

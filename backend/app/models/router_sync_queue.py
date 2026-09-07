@@ -10,15 +10,15 @@ from sqlalchemy.sql import func
 from app.core.database import Base
 
 
-class MikroTikSyncQueue(Base):
-    __tablename__ = "mikrotik_sync_queue"
+class RouterSyncQueue(Base):
+    __tablename__ = "router_sync_queue"
 
     id: Mapped[uuid.UUID] = mapped_column(
         Uuid(native_uuid=False), primary_key=True, default=uuid.uuid4
     )
-    gateway_id: Mapped[uuid.UUID] = mapped_column(
+    router_id: Mapped[uuid.UUID] = mapped_column(
         Uuid(native_uuid=False),
-        ForeignKey("gateways.id", ondelete="CASCADE"),
+        ForeignKey("routers.id", ondelete="CASCADE"),
         nullable=False,
         index=True,
     )
@@ -42,8 +42,8 @@ class MikroTikSyncQueue(Base):
         DateTime(timezone=True), nullable=True
     )
 
-    gateway = relationship("Gateway")
+    router = relationship("Router")
     client = relationship("Client")
 
     def __repr__(self) -> str:
-        return f"<MikroTikSyncQueue id={self.id} op={self.operation} status={self.status}>"
+        return f"<RouterSyncQueue id={self.id} op={self.operation} status={self.status}>"

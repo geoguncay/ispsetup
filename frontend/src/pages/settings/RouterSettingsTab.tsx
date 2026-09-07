@@ -10,19 +10,19 @@ import { saveButtonClass } from '@/lib/utils'
 
 type StatusSetter = (msg: { type: 'success' | 'error'; text: string } | null) => void
 
-export function GatewaySettingsTab({ isAdmin, setStatusMessage }: { isAdmin: boolean; setStatusMessage: StatusSetter }) {
+export function RouterSettingsTab({ isAdmin, setStatusMessage }: { isAdmin: boolean; setStatusMessage: StatusSetter }) {
   const queryClient = useQueryClient()
 
-  // ── MikroTik API ─────────────────────────────────────────────────────────
+  // ── Routers API ─────────────────────────────────────────────────────────
   const [mikrotikAttempts, setMikrotikAttempts] = useState(1)
   const [mikrotikTimeout, setMikrotikTimeout] = useState(10)
   const [mikrotikDebug, setMikrotikDebug] = useState(false)
   const [mikrotikSsl, setMikrotikSsl] = useState(false)
 
   const { data: mikrotikConfig } = useQuery({
-    queryKey: ['mikrotik-api-config'],
+    queryKey: ['router-api-config'],
     queryFn: async () => {
-      const { data } = await api.get('/settings/mikrotik-api')
+      const { data } = await api.get('/settings/router-api')
       return data
     },
     enabled: isAdmin,
@@ -46,12 +46,12 @@ export function GatewaySettingsTab({ isAdmin, setStatusMessage }: { isAdmin: boo
 
   const mikrotikApiMutation = useMutation({
     mutationFn: async (payload: object) => {
-      const { data } = await api.put('/settings/mikrotik-api', payload)
+      const { data } = await api.put('/settings/router-api', payload)
       return data
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['mikrotik-api-config'] })
-      setStatusMessage({ type: 'success', text: 'Configuración de MikroTik API guardada.' })
+      queryClient.invalidateQueries({ queryKey: ['router-api-config'] })
+      setStatusMessage({ type: 'success', text: 'Configuración de la API MikroTik guardada.' })
     },
     onError: (err: unknown) => {
       const msg = (err as { response?: { data?: { detail?: string } } })?.response?.data?.detail
@@ -86,7 +86,7 @@ export function GatewaySettingsTab({ isAdmin, setStatusMessage }: { isAdmin: boo
   return (
     <div className="space-y-4">
 
-      {/* ── Sección: MikroTik API ──────────────────────────────────────── */}
+      {/* ── Sección: Routers API ──────────────────────────────────────── */}
       <div className="glass-card p-6 space-y-5">
         <div>
           <h3 className="text-lg font-semibold text-foreground flex items-center gap-2">
@@ -94,7 +94,7 @@ export function GatewaySettingsTab({ isAdmin, setStatusMessage }: { isAdmin: boo
             MikroTik API
           </h3>
           <p className="text-muted-foreground text-xs mt-1">
-            Parámetros globales de conexión a la API de MikroTik aplicados a todos los gateways.
+            Parámetros globales de conexión a la API de MikroTik aplicados a todos los routers.
           </p>
         </div>
 
@@ -112,7 +112,7 @@ export function GatewaySettingsTab({ isAdmin, setStatusMessage }: { isAdmin: boo
               onChange={(e) => setMikrotikAttempts(Math.max(1, parseInt(e.target.value) || 1))}
               className="input-field font-mono max-w-[160px]"
             />
-            <p className="text-[11px] text-muted-foreground">Intentos de reconexión antes de marcar el gateway como offline.</p>
+            <p className="text-[11px] text-muted-foreground">Intentos de reconexión antes de marcar el router como offline.</p>
           </div>
 
           {/* Timeout */}
@@ -164,14 +164,14 @@ export function GatewaySettingsTab({ isAdmin, setStatusMessage }: { isAdmin: boo
             <div className="flex items-start gap-2.5 px-4 py-3 rounded-xl bg-amber-500/10 border border-amber-500/30 text-xs text-amber-300 leading-relaxed">
               <Clock className="w-4 h-4 shrink-0 mt-0.5 text-amber-400" />
               <span>
-                Con los valores actuales, un gateway sin respuesta tardará hasta{' '}
+                Con los valores actuales, un router sin respuesta tardará hasta{' '}
                 <strong className="text-amber-200">{worstCase} seg</strong> en ser marcado como{' '}
                 <span className="font-semibold">offline</span>
                 {' '}({mikrotikAttempts} intento{mikrotikAttempts !== 1 ? 's' : ''} × {mikrotikTimeout}s
                 {waitBetween > 0 ? ` + ${waitBetween}s de espera entre intentos` : ''}).
                 {worstCase > 60 && (
                   <span className="block mt-1 text-amber-400/80">
-                    ⚠ Esto supera el intervalo del health check (60s) — algunos ciclos podrían saltarse gateways lentos.
+                    ⚠ Esto supera el intervalo del health check (60s) — algunos ciclos podrían saltarse routers lentos.
                   </span>
                 )}
               </span>
@@ -203,7 +203,7 @@ export function GatewaySettingsTab({ isAdmin, setStatusMessage }: { isAdmin: boo
               Sitios
             </h3>
             <p className="text-muted-foreground text-xs mt-1">
-              Sitios disponibles para gateways y zona de clientes. Cada sitio puede tener coordenadas GPS.
+              Sitios disponibles para routers y zona de clientes. Cada sitio puede tener coordenadas GPS.
             </p>
           </div>
           <button
@@ -301,7 +301,7 @@ export function GatewaySettingsTab({ isAdmin, setStatusMessage }: { isAdmin: boo
                 <h3 className="text-base font-semibold text-foreground">¿Eliminar sitio?</h3>
                 <p className="text-sm text-muted-foreground mt-1">
                   Vas a eliminar el sitio <span className="font-semibold text-foreground">"{confirmDeleteSite.name}"</span>.
-                  Los gateways asignados a este sitio quedarán sin sitio asignado.
+                  Los routers asignados a este sitio quedarán sin sitio asignado.
                 </p>
               </div>
             </div>

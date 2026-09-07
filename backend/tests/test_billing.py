@@ -13,7 +13,7 @@ from app.core.security import hash_password
 from app.main import app
 from app.models.user import User
 from app.models.plan import Plan
-from app.models.gateway import Gateway
+from app.models.router import Router
 from app.models.client import Client
 from app.models.client_plan import ClientPlan
 from app.models.static_ip import StaticIP
@@ -63,8 +63,8 @@ def setup_db(monkeypatch):
         role="admin",
         active=True,
     ))
-    # Agregar un gateway
-    r = Gateway(
+    # Agregar un router
+    r = Router(
         name="Router Central",
         ip="10.0.0.1",
         api_port=8728,
@@ -101,7 +101,7 @@ def client():
 
 def test_generate_monthly_invoices_task():
     db = TestingSessionLocal()
-    gateway = db.query(Gateway).first()
+    router = db.query(Router).first()
     plan = db.query(Plan).first()
 
     # Crear cliente activo con plan activo
@@ -110,7 +110,7 @@ def test_generate_monthly_invoices_task():
         cedula="1724024888",
         phone="0999999999",
         address="Quito",
-        gateway_id=gateway.id,
+        router_id=router.id,
         connection_type="static",
         active=True
     )
@@ -139,7 +139,7 @@ def test_generate_monthly_invoices_task():
 
 def test_check_overdue_invoices_task():
     db = TestingSessionLocal()
-    gateway = db.query(Gateway).first()
+    router = db.query(Router).first()
     plan = db.query(Plan).first()
 
     c = Client(
@@ -147,7 +147,7 @@ def test_check_overdue_invoices_task():
         cedula="1724024888",
         phone="0999999999",
         address="Quito",
-        gateway_id=gateway.id,
+        router_id=router.id,
         connection_type="static",
         active=True
     )
@@ -192,7 +192,7 @@ def test_register_payment_and_reactivation_flow(mock_send_notif, mock_toggle_que
     headers = {"Authorization": f"Bearer {token}"}
 
     db = TestingSessionLocal()
-    gateway = db.query(Gateway).first()
+    router = db.query(Router).first()
     plan = db.query(Plan).first()
 
     # Crear cliente suspendido
@@ -201,13 +201,13 @@ def test_register_payment_and_reactivation_flow(mock_send_notif, mock_toggle_que
         cedula="1724024888",
         phone="0999999999",
         address="Quito",
-        gateway_id=gateway.id,
+        router_id=router.id,
         connection_type="static",
         active=False
     )
     db.add(c)
     db.flush()
-    db.add(StaticIP(client_id=c.id, ip="10.0.0.50", gateway_id=gateway.id))
+    db.add(StaticIP(client_id=c.id, ip="10.0.0.50", router_id=router.id))
     db.add(ClientPlan(cliente_id=c.id, plan_id=plan.id, estado="suspendido"))
 
     # Crear log de suspensión activo (reactivated_at es nulo)
@@ -284,7 +284,7 @@ def test_get_daily_cash(client: TestClient):
     headers = {"Authorization": f"Bearer {token}"}
 
     db = TestingSessionLocal()
-    gateway = db.query(Gateway).first()
+    router = db.query(Router).first()
     plan = db.query(Plan).first()
 
     c = Client(
@@ -292,7 +292,7 @@ def test_get_daily_cash(client: TestClient):
         cedula="1724024888",
         phone="0999999999",
         address="Quito",
-        gateway_id=gateway.id,
+        router_id=router.id,
         connection_type="static",
         active=True
     )
@@ -336,7 +336,7 @@ def test_get_daily_cash(client: TestClient):
 def test_generate_monthly_invoices_with_custom_services():
     from app.models.custom_service import CustomService
     db = TestingSessionLocal()
-    gateway = db.query(Gateway).first()
+    router = db.query(Router).first()
     plan = db.query(Plan).first()
 
     # Agregar servicio personalizado
@@ -356,7 +356,7 @@ def test_generate_monthly_invoices_with_custom_services():
         cedula="1724024888",
         phone="0999999999",
         address="Quito",
-        gateway_id=gateway.id,
+        router_id=router.id,
         connection_type="static",
         active=True
     )
@@ -390,7 +390,7 @@ def test_create_manual_invoice_endpoint(client: TestClient):
     headers = {"Authorization": f"Bearer {token}"}
 
     db = TestingSessionLocal()
-    gateway = db.query(Gateway).first()
+    router = db.query(Router).first()
     plan = db.query(Plan).first()
 
     c = Client(
@@ -398,7 +398,7 @@ def test_create_manual_invoice_endpoint(client: TestClient):
         cedula="1724024888",
         phone="0999999999",
         address="Quito",
-        gateway_id=gateway.id,
+        router_id=router.id,
         connection_type="static",
         active=True
     )
@@ -437,7 +437,7 @@ def test_generate_monthly_invoices_with_non_recurring_custom_services(client: Te
     db = TestingSessionLocal()
 
     # 1. Limpiar o buscar datos base
-    gateway = db.query(Gateway).first()
+    router = db.query(Router).first()
     plan = db.query(Plan).first()
 
     # 2. Crear servicios adicionales: uno recurrente y uno no recurrente
@@ -463,7 +463,7 @@ def test_generate_monthly_invoices_with_non_recurring_custom_services(client: Te
         cedula="0999888777",
         phone="0987654321",
         address="Guayaquil",
-        gateway_id=gateway.id,
+        router_id=router.id,
         connection_type="static",
         active=True
     )

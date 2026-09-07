@@ -1,5 +1,5 @@
 """
-Modelo SQLAlchemy: Gateway (anteriormente Router)
+Modelo SQLAlchemy: Router (anteriormente Router)
 """
 import uuid
 from datetime import datetime
@@ -11,8 +11,8 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 from app.core.database import Base
 
 
-class Gateway(Base):
-    __tablename__ = "gateways"
+class Router(Base):
+    __tablename__ = "routers"
 
     id: Mapped[uuid.UUID] = mapped_column(
         Uuid(native_uuid=False), primary_key=True, default=uuid.uuid4
@@ -53,7 +53,7 @@ class Gateway(Base):
         JSON(none_as_null=True).with_variant(JSONB(none_as_null=True), "postgresql"), nullable=True
     )
 
-    # Campos de colas y firewall MikroTik
+    # Campos de colas y firewall del router
     parent_queue: Mapped[str | None] = mapped_column(String(100), nullable=True)
     address_list: Mapped[str | None] = mapped_column(String(100), nullable=True)
     suspend_list: Mapped[str | None] = mapped_column(String(100), nullable=True)
@@ -72,14 +72,14 @@ class Gateway(Base):
     )
 
     # Relaciones PPPoE
-    pppoe_profiles = relationship("PPPoEProfile", back_populates="gateway", cascade="all, delete-orphan")
-    pppoe_secrets = relationship("PPPoESecret", back_populates="gateway", cascade="all, delete-orphan")
+    pppoe_profiles = relationship("PPPoEProfile", back_populates="router", cascade="all, delete-orphan")
+    pppoe_secrets = relationship("PPPoESecret", back_populates="router", cascade="all, delete-orphan")
 
     # Relación con Site
     site_id: Mapped[uuid.UUID | None] = mapped_column(
         Uuid(native_uuid=False), ForeignKey("sites.id"), nullable=True
     )
-    site = relationship("Site", back_populates="gateways")
+    site = relationship("Site", back_populates="routers")
 
     # Nodo ZeroTier vinculado (autoriza/consulta estado vía ZeroTier Central).
     zerotier_node_id: Mapped[str | None] = mapped_column(String(20), nullable=True)
@@ -89,4 +89,4 @@ class Gateway(Base):
         return self.site.name if self.site else None
 
     def __repr__(self) -> str:
-        return f"<Gateway id={self.id} name={self.name} ip={self.ip}>"
+        return f"<Router id={self.id} name={self.name} ip={self.ip}>"

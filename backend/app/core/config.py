@@ -37,7 +37,7 @@ class Settings(BaseSettings):
     # ── Fernet (cifrado de credenciales de routers) ───────────
     FERNET_KEY: str
 
-    # ── Integraciones locales ISPSETUP / MikroTik ──────────────────────
+    # ── Integraciones locales ISPSETUP ──────────────────────
     # La IP del ISPSETUP ahora se configura desde la plataforma
     # (Ajustes ▸ Integraciones), no por variables de entorno.
     # Ver SystemSettings.ispsetup_server_ip.

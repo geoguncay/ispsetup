@@ -9,12 +9,12 @@ import { ProtectedRoute } from '@/components/ProtectedRoute'
 import { AppLayout } from '@/components/AppLayout'
 import { LoginPage } from '@/pages/LoginPage'
 import { DashboardPage } from '@/pages/DashboardPage'
-import { GatewaysPage } from '@/pages/GatewaysPage'
+import { Router } from '@/pages/RouterPage'
 import { ProfilePage } from '@/pages/ProfilePage'
 import { ClientsPage } from '@/pages/ClientsPage'
 import { ClientProfilePage } from '@/pages/ClientProfilePage'
 import { PlansPage } from '@/pages/PlansPage'
-import { GatewayProfilePage } from '@/pages/GatewayProfilePage'
+import { RouterProfilePage } from '@/pages/RouterProfilePage'
 import { TrafficPage } from '@/pages/TrafficPage'
 import { CustomServicesPage } from '@/pages/CustomServicesPage'
 import { SubscribersStatsPage } from '@/pages/SubscribersStatsPage'
@@ -54,8 +54,8 @@ function AppContent() {
       <Route element={<ProtectedRoute />}>
         <Route element={<AppLayout />}>
           <Route path="/dashboard" element={<DashboardPage />} />
-          <Route path="/gateways" element={<GatewaysPage />} />
-          <Route path="/gateways/:id" element={<GatewayProfilePage />} />
+          <Route path="/routers" element={<Router />} />
+          <Route path="/routers/:id" element={<RouterProfilePage />} />
           <Route path="/traffic" element={<TrafficPage />} />
           <Route path="/clients" element={<ClientsPage />} />
           <Route path="/clients/:id" element={<ClientProfilePage />} />

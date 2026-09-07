@@ -11,16 +11,16 @@ from app.core.deps import get_db
 from app.core.security import hash_password
 from app.main import app
 from app.models.user import User
-from app.models.gateway import Gateway
+from app.models.router import Router
 from app.models.client import Client
 from app.models.pppoe_profile import PPPoEProfile
 from app.models.pppoe_secret import PPPoESecret
-from app.services.mikrotik.pppoe import (
+from app.services.router.pppoe import (
     parse_rate_limit,
     bytes_to_human,
-    sync_pppoe_profiles_from_gateway,
-    sync_pppoe_secret_in_gateway,
-    remove_pppoe_secret_from_gateway,
+    sync_pppoe_profiles_from_router,
+    sync_pppoe_secret_in_router,
+    remove_pppoe_secret_from_router,
     fetch_active_pppoe_sessions,
     disconnect_pppoe_session,
 )
@@ -66,8 +66,8 @@ def setup_db(monkeypatch):
         role="admin",
         active=True,
     ))
-    # Add gateway
-    db.add(Gateway(
+    # Add router
+    db.add(Router(
         name="Router Quito PPPoE",
         ip="10.0.0.5",
         api_port=8728,
@@ -112,7 +112,7 @@ def test_bytes_to_human():
     assert bytes_to_human(1073741824) == "1.0 GB"
 
 
-@patch("app.services.mikrotik.pppoe.gateway_pool.connect_to")
+@patch("app.services.router.pppoe.router_pool.connect_to")
 def test_sync_pppoe_profiles(mock_connect_to):
     # Setup mock for MikroTik connection
     api_mock = MagicMock()
@@ -120,7 +120,7 @@ def test_sync_pppoe_profiles(mock_connect_to):
     mock_connect_to.return_value.__enter__.return_value = api_mock
 
     db = TestingSessionLocal()
-    gateway = db.query(Gateway).first()
+    router = db.query(Router).first()
 
     # Pre-add three plans
     from app.models.plan import Plan
@@ -135,16 +135,16 @@ def test_sync_pppoe_profiles(mock_connect_to):
         name="Plan_Old",
         speed_down_mbps=5,
         speed_up_mbps=2,
-        gateway_id=gateway.id,
+        router_id=router.id,
     )
     db.add(old_profile)
     db.commit()
 
-    count = sync_pppoe_profiles_from_gateway(db, gateway)
+    count = sync_pppoe_profiles_from_router(db, router)
     assert count == 3
 
     # Check profiles in database
-    profiles = db.query(PPPoEProfile).filter(PPPoEProfile.gateway_id == gateway.id).all()
+    profiles = db.query(PPPoEProfile).filter(PPPoEProfile.router_id == router.id).all()
     assert len(profiles) == 3
     names = {p.name for p in profiles}
     assert names == {"default", "Plan_10M", "Plan_20M"}
@@ -160,7 +160,7 @@ def test_sync_pppoe_profiles(mock_connect_to):
     db.close()
 
 
-@patch("app.services.mikrotik.pppoe.gateway_pool.connect_to")
+@patch("app.services.router.pppoe.router_pool.connect_to")
 def test_sync_pppoe_secret(mock_connect_to):
     # Setup mock: first query returns empty (does not exist), second exists
     api_mock = MagicMock()
@@ -168,11 +168,11 @@ def test_sync_pppoe_secret(mock_connect_to):
     mock_connect_to.return_value.__enter__.return_value = api_mock
 
     db = TestingSessionLocal()
-    gateway = db.query(Gateway).first()
+    router = db.query(Router).first()
     db.close()
 
     # Call sync (creation)
-    sync_pppoe_secret_in_gateway(gateway, "user1", "pass123", "default", "Client 1")
+    sync_pppoe_secret_in_router(router, "user1", "pass123", "default", "Client 1")
 
     # Assert api was called with "/ppp/secret/add"
     api_mock.assert_called_with(
@@ -189,7 +189,7 @@ def test_sync_pppoe_secret(mock_connect_to):
     api_mock.path.return_value.select.return_value.where.return_value = [
         {".id": "*1", "name": "user1"}
     ]
-    sync_pppoe_secret_in_gateway(gateway, "user1", "newpass", "Plan_10M", "Client 1", disabled=True)
+    sync_pppoe_secret_in_router(router, "user1", "newpass", "Plan_10M", "Client 1", disabled=True)
 
     api_mock.assert_called_with(
         "/ppp/secret/set",
@@ -205,7 +205,7 @@ def test_sync_pppoe_secret(mock_connect_to):
     )
 
 
-@patch("app.services.mikrotik.pppoe.gateway_pool.connect_to")
+@patch("app.services.router.pppoe.router_pool.connect_to")
 def test_remove_pppoe_secret(mock_connect_to):
     api_mock = MagicMock()
     api_mock.path.return_value.select.return_value.where.return_value = [
@@ -214,14 +214,14 @@ def test_remove_pppoe_secret(mock_connect_to):
     mock_connect_to.return_value.__enter__.return_value = api_mock
 
     db = TestingSessionLocal()
-    gateway = db.query(Gateway).first()
+    router = db.query(Router).first()
     db.close()
 
-    remove_pppoe_secret_from_gateway(gateway, "user1")
+    remove_pppoe_secret_from_router(router, "user1")
     api_mock.assert_called_with("/ppp/secret/remove", **{".id": "*1"})
 
 
-@patch("app.services.mikrotik.pppoe.gateway_pool.connect_to")
+@patch("app.services.router.pppoe.router_pool.connect_to")
 def test_fetch_active_pppoe_sessions(mock_connect_to):
     api_mock = MagicMock()
     api_mock.path.return_value = [
@@ -238,10 +238,10 @@ def test_fetch_active_pppoe_sessions(mock_connect_to):
     mock_connect_to.return_value.__enter__.return_value = api_mock
 
     db = TestingSessionLocal()
-    gateway = db.query(Gateway).first()
+    router = db.query(Router).first()
     db.close()
 
-    sessions = fetch_active_pppoe_sessions(gateway)
+    sessions = fetch_active_pppoe_sessions(router)
     assert len(sessions) == 1
     assert sessions[0]["username"] == "user1"
     assert sessions[0]["ip_address"] == "10.10.10.10"
@@ -251,7 +251,7 @@ def test_fetch_active_pppoe_sessions(mock_connect_to):
     assert sessions[0]["bytes_rx_human"] == "512.0 KB"
 
 
-@patch("app.services.mikrotik.pppoe.gateway_pool.connect_to")
+@patch("app.services.router.pppoe.router_pool.connect_to")
 def test_disconnect_pppoe_session(mock_connect_to):
     api_mock = MagicMock()
     api_mock.path.return_value.select.return_value.where.return_value = [
@@ -260,15 +260,15 @@ def test_disconnect_pppoe_session(mock_connect_to):
     mock_connect_to.return_value.__enter__.return_value = api_mock
 
     db = TestingSessionLocal()
-    gateway = db.query(Gateway).first()
+    router = db.query(Router).first()
     db.close()
 
-    res = disconnect_pppoe_session(gateway, "user1")
+    res = disconnect_pppoe_session(router, "user1")
     assert res is True
     api_mock.assert_called_with("/ppp/active/remove", **{".id": "*A1"})
 
 
-@patch("app.services.mikrotik.pppoe.gateway_pool.connect_to")
+@patch("app.services.router.pppoe.router_pool.connect_to")
 def test_client_pppoe_flow_in_api(mock_connect_to, client: TestClient):
     login = client.post(
         "/api/auth/login",
@@ -277,7 +277,7 @@ def test_client_pppoe_flow_in_api(mock_connect_to, client: TestClient):
     token = login.json()["access_token"]
 
     db = TestingSessionLocal()
-    gateway = db.query(Gateway).first()
+    router = db.query(Router).first()
 
     # Pre-add a plan
     from app.models.plan import Plan
@@ -292,7 +292,7 @@ def test_client_pppoe_flow_in_api(mock_connect_to, client: TestClient):
     db.add(plan)
     db.commit()
     plan_id = plan.id
-    gateway_id = gateway.id
+    router_id = router.id
     db.close()
 
     # 1. Create a client with connection type PPPoE
@@ -304,7 +304,7 @@ def test_client_pppoe_flow_in_api(mock_connect_to, client: TestClient):
             "cedula": "1724024888",
             "phone": "0999999999",
             "address": "Quito",
-            "gateway_id": str(gateway_id),
+            "router_id": str(router_id),
             "connection_type": "pppoe",
             "ppp_username": "esteban_ppp",
             "ppp_password": "estebanpass",
@@ -353,7 +353,7 @@ def test_client_pppoe_flow_in_api(mock_connect_to, client: TestClient):
 
     # 3. Suspend PPPoE Client (should disable secret and kick active session)
     with patch("app.api.clients.disconnect_pppoe_session") as mock_kick, \
-         patch("app.api.clients.sync_pppoe_secret_in_gateway") as mock_sync_secret:
+         patch("app.api.clients.sync_pppoe_secret_in_router") as mock_sync_secret:
         response = client.post(
             f"/api/clients/{client_id}/suspend",
             headers={"Authorization": f"Bearer {token}"},
@@ -373,7 +373,7 @@ def test_client_pppoe_flow_in_api(mock_connect_to, client: TestClient):
         mock_kick.assert_called_once_with(ANY, "esteban_ppp_updated")
 
     # 4. Reactivate PPPoE Client (should re-enable secret)
-    with patch("app.api.clients.sync_pppoe_secret_in_gateway") as mock_sync_secret:
+    with patch("app.api.clients.sync_pppoe_secret_in_router") as mock_sync_secret:
         response = client.post(
             f"/api/clients/{client_id}/reactivate",
             headers={"Authorization": f"Bearer {token}"},

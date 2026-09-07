@@ -109,16 +109,16 @@ def update_plan(
 
     for cp in active_client_plans:
         client = cp.client
-        if client and client.active and client.connection_type == "static" and client.static_ip and client.gateway:
+        if client and client.active and client.connection_type == "static" and client.static_ip and client.router:
             try:
-                from app.services.mikrotik.address_list import sync_ip_in_address_list, get_clean_list_name
-                from app.services.mikrotik.queue import sync_client_queue, get_clean_parent_name
+                from app.services.router.address_list import sync_ip_in_address_list, get_clean_list_name
+                from app.services.router.queue import sync_client_queue, get_clean_parent_name
 
-                addr_list_name = get_clean_list_name(client.gateway.address_list or p.address_list)
+                addr_list_name = get_clean_list_name(client.router.address_list or p.address_list)
 
                 # Sincronizar address-list
                 sync_ip_in_address_list(
-                    client.gateway,
+                    client.router,
                     client.static_ip.ip,
                     client.full_name,
                     list_name=addr_list_name
@@ -126,7 +126,7 @@ def update_plan(
 
                 # Sincronizar cola en MikroTik con los datos actualizados del plan
                 sync_client_queue(
-                    gateway=client.gateway,
+                    router=client.router,
                     client_name=client.full_name,
                     ip=client.static_ip.ip,
                     speed_up=p.speed_up_kbps,
@@ -137,7 +137,7 @@ def update_plan(
                     burst_threshold_up=p.burst_threshold_up_kbps,
                     burst_threshold_down=p.burst_threshold_down_kbps,
                     priority=p.priority,
-                    parent=get_clean_parent_name(client.gateway.parent_queue or p.parent),
+                    parent=get_clean_parent_name(client.router.parent_queue or p.parent),
                 )
             except Exception as e:
                 # Registrar error, pero no cancelar la actualización del plan comercial general

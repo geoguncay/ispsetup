@@ -16,8 +16,8 @@ class TrafficSample(Base):
     id: Mapped[uuid.UUID] = mapped_column(
         Uuid(native_uuid=False), default=uuid.uuid4, nullable=False
     )
-    gateway_id: Mapped[uuid.UUID] = mapped_column(
-        Uuid(native_uuid=False), ForeignKey("gateways.id", ondelete="CASCADE"), nullable=False, index=True
+    router_id: Mapped[uuid.UUID] = mapped_column(
+        Uuid(native_uuid=False), ForeignKey("routers.id", ondelete="CASCADE"), nullable=False, index=True
     )
     client_id: Mapped[uuid.UUID | None] = mapped_column(
         Uuid(native_uuid=False), ForeignKey("clients.id", ondelete="CASCADE"), nullable=True, index=True
@@ -28,7 +28,7 @@ class TrafficSample(Base):
     rx_bytes: Mapped[int] = mapped_column(BigInteger, default=0, nullable=False)
     tx_bytes: Mapped[int] = mapped_column(BigInteger, default=0, nullable=False)
     # Volumen transferido desde la muestra anterior. A diferencia de rx_bytes/tx_bytes,
-    # estos valores no son contadores acumulados del MikroTik y se pueden sumar.
+    # estos valores no son contadores acumulados del router y se pueden sumar.
     rx_delta_bytes: Mapped[int] = mapped_column(BigInteger, default=0, nullable=False)
     tx_delta_bytes: Mapped[int] = mapped_column(BigInteger, default=0, nullable=False)
     rx_rate: Mapped[int] = mapped_column(BigInteger, default=0, nullable=False)  # bps
@@ -47,7 +47,7 @@ class TrafficSample(Base):
     )
 
     # Relaciones
-    gateway = relationship("Gateway")
+    router = relationship("Router")
     client = relationship("Client")
 
     def __repr__(self) -> str:

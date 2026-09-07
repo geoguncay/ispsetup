@@ -13,7 +13,7 @@ from app.core.security import hash_password
 from app.main import app
 from app.models.user import User
 from app.models.plan import Plan
-from app.models.gateway import Gateway
+from app.models.router import Router
 from app.models.client import Client
 from app.models.client_plan import ClientPlan
 from app.models.static_ip import StaticIP
@@ -70,8 +70,8 @@ def setup_db(monkeypatch):
         role="technician",
         active=True,
     ))
-    # Agregar un gateway
-    r = Gateway(
+    # Agregar un router
+    r = Router(
         name="Router Central",
         ip="10.0.0.1",
         api_port=8728,
@@ -117,7 +117,7 @@ def test_suspend_client_flow(mock_send_notif, mock_toggle_queue, mock_suspend_fw
     token = login.json()["access_token"]
 
     db = TestingSessionLocal()
-    gateway = db.query(Gateway).first()
+    router = db.query(Router).first()
     plan = db.query(Plan).first()
 
     # Crear cliente activo con plan e IP estática
@@ -126,13 +126,13 @@ def test_suspend_client_flow(mock_send_notif, mock_toggle_queue, mock_suspend_fw
         cedula="1724024888",
         phone="0999999999",
         address="Quito",
-        gateway_id=gateway.id,
+        router_id=router.id,
         connection_type="static",
         active=True
     )
     db.add(c)
     db.flush()
-    db.add(StaticIP(client_id=c.id, ip="192.168.10.15", gateway_id=gateway.id))
+    db.add(StaticIP(client_id=c.id, ip="192.168.10.15", router_id=router.id))
     db.add(ClientPlan(cliente_id=c.id, plan_id=plan.id, estado="activo"))
     db.commit()
     client_uuid = c.id
@@ -181,7 +181,7 @@ def test_reactivate_client_flow(mock_send_notif, mock_toggle_queue, mock_unsuspe
     token = login.json()["access_token"]
 
     db = TestingSessionLocal()
-    gateway = db.query(Gateway).first()
+    router = db.query(Router).first()
     plan = db.query(Plan).first()
     admin_user = db.query(User).filter(User.role == "admin").first()
 
@@ -191,13 +191,13 @@ def test_reactivate_client_flow(mock_send_notif, mock_toggle_queue, mock_unsuspe
         cedula="1724024888",
         phone="0999999999",
         address="Quito",
-        gateway_id=gateway.id,
+        router_id=router.id,
         connection_type="static",
         active=False
     )
     db.add(c)
     db.flush()
-    db.add(StaticIP(client_id=c.id, ip="192.168.10.16", gateway_id=gateway.id))
+    db.add(StaticIP(client_id=c.id, ip="192.168.10.16", router_id=router.id))
     db.add(ClientPlan(cliente_id=c.id, plan_id=plan.id, estado="suspendido"))
 
     log = SuspensionLog(
@@ -245,37 +245,37 @@ def test_reactivate_client_flow(mock_send_notif, mock_toggle_queue, mock_unsuspe
 @patch("app.workers.suspension.send_suspension_notification")
 def test_daily_suspension_check_task(mock_send_notif, mock_toggle_queue, mock_suspend_fw):
     db = TestingSessionLocal()
-    gateway = db.query(Gateway).first()
+    router = db.query(Router).first()
     plan = db.query(Plan).first()
 
     # 1. Cliente al día (factura pagada) -> No suspender
-    c1 = Client(full_name="Cliente Al Dia", cedula="1724024888", phone="0991111111", address="Direccion", gateway_id=gateway.id, connection_type="static", active=True)
+    c1 = Client(full_name="Cliente Al Dia", cedula="1724024888", phone="0991111111", address="Direccion", router_id=router.id, connection_type="static", active=True)
     db.add(c1)
     db.flush()
-    db.add(StaticIP(client_id=c1.id, ip="192.168.10.101", gateway_id=gateway.id))
+    db.add(StaticIP(client_id=c1.id, ip="192.168.10.101", router_id=router.id))
     db.add(ClientPlan(cliente_id=c1.id, plan_id=plan.id, estado="activo"))
     db.add(Invoice(client_id=c1.id, period="06/2026", amount=22.40, due_date=datetime.now() - timedelta(days=10), status="paid"))
 
     # 2. Cliente en mora (factura vencida hace 35 días) -> Suspender
-    c2 = Client(full_name="Cliente En Mora", cedula="0926079971", phone="0992222222", address="Direccion", gateway_id=gateway.id, connection_type="static", active=True)
+    c2 = Client(full_name="Cliente En Mora", cedula="0926079971", phone="0992222222", address="Direccion", router_id=router.id, connection_type="static", active=True)
     db.add(c2)
     db.flush()
-    db.add(StaticIP(client_id=c2.id, ip="192.168.10.102", gateway_id=gateway.id))
+    db.add(StaticIP(client_id=c2.id, ip="192.168.10.102", router_id=router.id))
     db.add(ClientPlan(cliente_id=c2.id, plan_id=plan.id, estado="activo"))
     db.add(Invoice(client_id=c2.id, period="05/2026", amount=22.40, due_date=datetime.now() - timedelta(days=35), status="overdue"))
 
     # 3. Cliente sin facturas -> No suspender
-    c3 = Client(full_name="Cliente Sin Facturas", cedula="1790011674001", phone="0993333333", address="Direccion", gateway_id=gateway.id, connection_type="static", active=True)
+    c3 = Client(full_name="Cliente Sin Facturas", cedula="1790011674001", phone="0993333333", address="Direccion", router_id=router.id, connection_type="static", active=True)
     db.add(c3)
     db.flush()
-    db.add(StaticIP(client_id=c3.id, ip="192.168.10.103", gateway_id=gateway.id))
+    db.add(StaticIP(client_id=c3.id, ip="192.168.10.103", router_id=router.id))
     db.add(ClientPlan(cliente_id=c3.id, plan_id=plan.id, estado="activo"))
 
     # 4. Cliente con factura pendiente vencida hoy (sin días de gracia configurados) -> Suspender
-    c4 = Client(full_name="Cliente Nuevo Mora", cedula="1760001550001", phone="0994444444", address="Direccion", gateway_id=gateway.id, connection_type="static", active=True)
+    c4 = Client(full_name="Cliente Nuevo Mora", cedula="1760001550001", phone="0994444444", address="Direccion", router_id=router.id, connection_type="static", active=True)
     db.add(c4)
     db.flush()
-    db.add(StaticIP(client_id=c4.id, ip="192.168.10.104", gateway_id=gateway.id))
+    db.add(StaticIP(client_id=c4.id, ip="192.168.10.104", router_id=router.id))
     db.add(ClientPlan(cliente_id=c4.id, plan_id=plan.id, estado="activo"))
     db.add(Invoice(client_id=c4.id, period="06/2026", amount=22.40, due_date=datetime.now() - timedelta(hours=1), status="pending"))
 

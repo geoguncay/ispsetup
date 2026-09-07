@@ -10,8 +10,8 @@ from datetime import datetime, timedelta, timezone
 
 from sqlalchemy.orm import Session
 
-from app.models.mikrotik_sync_queue import MikroTikSyncQueue
-from app.models.gateway import Gateway
+from app.models.router_sync_queue import RouterSyncQueue
+from app.models.router import Router
 
 logger = logging.getLogger(__name__)
 
@@ -22,14 +22,14 @@ MAX_ATTEMPTS = len(_BACKOFF_MINUTES)
 
 def enqueue_sync(
     db: Session,
-    gateway_id,
+    router_id,
     client_id,
     operation: str,
     payload: dict,
-) -> MikroTikSyncQueue:
+) -> RouterSyncQueue:
     """Agrega una operación pendiente a la cola. No hace commit — el caller debe hacerlo."""
-    item = MikroTikSyncQueue(
-        gateway_id=gateway_id,
+    item = RouterSyncQueue(
+        router_id=router_id,
         client_id=client_id,
         operation=operation,
         payload=payload,
@@ -39,25 +39,25 @@ def enqueue_sync(
     return item
 
 
-def process_pending_queue(gateway: Gateway, db: Session) -> dict:
+def process_pending_queue(router: Router, db: Session) -> dict:
     """
-    Procesa todos los items pending/failed para un gateway.
+    Procesa todos los items pending/failed para un router.
     Retorna un resumen con processed, failed, total.
     """
     now = datetime.now(timezone.utc)
 
     items = (
-        db.query(MikroTikSyncQueue)
+        db.query(RouterSyncQueue)
         .filter(
-            MikroTikSyncQueue.gateway_id == gateway.id,
-            MikroTikSyncQueue.status.in_(["pending", "failed"]),
-            MikroTikSyncQueue.attempts < MAX_ATTEMPTS,
+            RouterSyncQueue.router_id == router.id,
+            RouterSyncQueue.status.in_(["pending", "failed"]),
+            RouterSyncQueue.attempts < MAX_ATTEMPTS,
         )
         .filter(
-            (MikroTikSyncQueue.next_retry_at == None)
-            | (MikroTikSyncQueue.next_retry_at <= now)
+            (RouterSyncQueue.next_retry_at == None)
+            | (RouterSyncQueue.next_retry_at <= now)
         )
-        .order_by(MikroTikSyncQueue.created_at)
+        .order_by(RouterSyncQueue.created_at)
         .all()
     )
 
@@ -66,7 +66,7 @@ def process_pending_queue(gateway: Gateway, db: Session) -> dict:
 
     for item in items:
         try:
-            _dispatch(gateway, item, db)
+            _dispatch(router, item, db)
             item.status = "done"
             item.last_error = None
             db.commit()
@@ -88,31 +88,31 @@ def process_pending_queue(gateway: Gateway, db: Session) -> dict:
     return {"processed": processed, "failed": failed, "total": len(items)}
 
 
-def get_pending_count(gateway_id, db: Session) -> int:
-    """Cantidad de operaciones pendientes/fallidas para un gateway."""
+def get_pending_count(router_id, db: Session) -> int:
+    """Cantidad de operaciones pendientes/fallidas para un router."""
     return (
-        db.query(MikroTikSyncQueue)
+        db.query(RouterSyncQueue)
         .filter(
-            MikroTikSyncQueue.gateway_id == gateway_id,
-            MikroTikSyncQueue.status.in_(["pending", "failed"]),
-            MikroTikSyncQueue.attempts < MAX_ATTEMPTS,
+            RouterSyncQueue.router_id == router_id,
+            RouterSyncQueue.status.in_(["pending", "failed"]),
+            RouterSyncQueue.attempts < MAX_ATTEMPTS,
         )
         .count()
     )
 
 
-def _dispatch(gateway: Gateway, item: MikroTikSyncQueue, db: Session) -> None:
+def _dispatch(router: Router, item: RouterSyncQueue, db: Session) -> None:
     """Ejecuta la operación de sync según el tipo almacenado en el item."""
-    from app.services.mikrotik.address_list import sync_ip_in_address_list
-    from app.services.mikrotik.queue import sync_client_queue
-    from app.services.mikrotik.pppoe import sync_pppoe_secret_in_gateway, sync_pppoe_profile_in_gateway
+    from app.services.router.address_list import sync_ip_in_address_list
+    from app.services.router.queue import sync_client_queue
+    from app.services.router.pppoe import sync_pppoe_secret_in_router, sync_pppoe_profile_in_router
 
     p = item.payload
     op = item.operation
 
     if op == "add_to_address_list":
         sync_ip_in_address_list(
-            gateway,
+            router,
             p["ip"],
             p["client_name"],
             list_name=p.get("list_name", "isp_clientes"),
@@ -120,7 +120,7 @@ def _dispatch(gateway: Gateway, item: MikroTikSyncQueue, db: Session) -> None:
 
     elif op == "add_queue":
         sync_client_queue(
-            gateway=gateway,
+            router=router,
             client_name=p["client_name"],
             ip=p["ip"],
             speed_up=p["speed_up"],
@@ -138,7 +138,7 @@ def _dispatch(gateway: Gateway, item: MikroTikSyncQueue, db: Session) -> None:
         from app.models.plan import Plan
         plan = db.get(Plan, p["plan_id"])
         if plan:
-            sync_pppoe_profile_in_gateway(gateway, plan)
+            sync_pppoe_profile_in_router(router, plan)
 
     elif op == "add_pppoe_secret":
         from app.models.pppoe_secret import PPPoESecret
@@ -151,11 +151,11 @@ def _dispatch(gateway: Gateway, item: MikroTikSyncQueue, db: Session) -> None:
             profile = db.get(PPPoEProfile, secret.profile_id) if secret.profile_id else None
             if profile:
                 try:
-                    sync_pppoe_profile_in_gateway(gateway, db.query(Plan).filter_by(name=profile.name).first())
+                    sync_pppoe_profile_in_router(router, db.query(Plan).filter_by(name=profile.name).first())
                 except Exception:
                     pass  # Si falla el perfil, intentamos el secreto igualmente
-            sync_pppoe_secret_in_gateway(
-                gateway=gateway,
+            sync_pppoe_secret_in_router(
+                router=router,
                 username=secret.ppp_username,
                 password=decrypt_secret(secret.ppp_password),
                 profile_name=p["profile_name"],

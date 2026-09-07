@@ -16,7 +16,7 @@ import {
   getZeroTierMembers,
   type ZeroTierSettingsRead,
 } from '@/services/zerotier'
-import { GatewayStatusBadge } from '@/components/GatewayStatusBadge'
+import { RouterStatusBadge } from '@/components/RouterStatusBadge'
 import { saveButtonClass } from '@/lib/utils'
 import { useFormDirty } from '@/hooks/useFormDirty'
 
@@ -208,7 +208,7 @@ function MembersTable({ configured, networkId }: { configured: boolean; networkI
             <tbody>
               {members.map((m) => (
                 <tr key={m.node_id}>
-                  <td><GatewayStatusBadge status={m.online ? 'online' : 'offline'} size="sm" /></td>
+                  <td><RouterStatusBadge status={m.online ? 'online' : 'offline'} size="sm" /></td>
                   <td className="text-foreground">{m.name || <span className="text-muted-foreground italic">Sin nombre</span>}</td>
                   <td className="font-mono text-xs text-muted-foreground">{m.node_id}</td>
                   <td className="font-mono text-xs">{m.ip_assignments.join(', ') || '—'}</td>
@@ -256,7 +256,7 @@ export function ZeroTierSettingsSection({ setStatusMessage }: { setStatusMessage
               ZeroTier
             </h3>
             <p className="hidden sm:block text-muted-foreground text-xs mt-1">
-              Acceso remoto a los Gateways MikroTik vía ZeroTier Central.
+              Acceso remoto a los routers vía ZeroTier Central.
             </p>
           </div>
           {!isLoading && configured && <StatusSummary configured={configured} />}

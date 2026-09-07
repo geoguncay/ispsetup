@@ -117,10 +117,10 @@ def _find_client_traffic_gaps(
     return gaps
 
 
-@router.websocket("/ws/{gateway_id}")
+@router.websocket("/ws/{router_id}")
 async def websocket_traffic_endpoint(
     websocket: WebSocket,
-    gateway_id: uuid.UUID,
+    router_id: uuid.UUID,
     token: str | None = Query(None),
     db: Session = Depends(get_db),
 ):
@@ -156,12 +156,12 @@ async def websocket_traffic_endpoint(
             await websocket.close(code=status.WS_1008_POLICY_VIOLATION)
             return
     except Exception as auth_err:
-        logger.warning(f"Fallo de autenticación en WebSocket para router {gateway_id}: {auth_err}")
+        logger.warning(f"Fallo de autenticación en WebSocket para router {router_id}: {auth_err}")
         await websocket.close(code=status.WS_1008_POLICY_VIOLATION)
         return
 
     # Suscribir al canal Pub/Sub del router en Redis
-    channel_name = f"gateway_traffic:{gateway_id}"
+    channel_name = f"router_traffic:{router_id}"
     pubsub = redis_client.pubsub()
     await pubsub.subscribe(channel_name)
 
@@ -174,9 +174,9 @@ async def websocket_traffic_endpoint(
                     data = data.decode("utf-8")
                 await websocket.send_text(data)
     except WebSocketDisconnect:
-        logger.debug(f"Conexión WebSocket cerrada por el cliente para router: {gateway_id}")
+        logger.debug(f"Conexión WebSocket cerrada por el cliente para router: {router_id}")
     except Exception as e:
-        logger.error(f"Error en WebSocket de tráfico para router {gateway_id}: {e}")
+        logger.error(f"Error en WebSocket de tráfico para router {router_id}: {e}")
     finally:
         try:
             await pubsub.unsubscribe(channel_name)
@@ -356,9 +356,9 @@ def get_client_traffic_history(
     )
 
 
-@router.get("/gateway/{gateway_id}", response_model=list[TrafficDataPoint])
-def get_gateway_traffic_history(
-    gateway_id: uuid.UUID,
+@router.get("/router/{router_id}", response_model=list[TrafficDataPoint])
+def get_router_traffic_history(
+    router_id: uuid.UUID,
     db: DBSession,
     _: AdminOrTechnician,
     range: str = Query("1h", pattern="^(1h|24h|7d|30d)$"),
@@ -385,7 +385,7 @@ def get_gateway_traffic_history(
             func.sum(TrafficSample.tx_rate).label("sum_tx"),
         )
         .filter(
-            TrafficSample.gateway_id == gateway_id,
+            TrafficSample.router_id == router_id,
             TrafficSample.client_id.isnot(None),
             TrafficSample.timestamp >= start_time
         )

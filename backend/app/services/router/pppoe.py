@@ -4,10 +4,10 @@ Servicio MikroTik para gestionar perfiles y secretos PPPoE, así como sesiones a
 import logging
 from sqlalchemy.orm import Session
 from librouteros.query import Key
-from app.models.gateway import Gateway
+from app.models.router import Router
 from app.models.pppoe_profile import PPPoEProfile
 from app.models.plan import Plan
-from app.services.mikrotik.gateway_pool import gateway_pool
+from app.services.router.router_pool import router_pool
 
 logger = logging.getLogger(__name__)
 
@@ -62,7 +62,7 @@ def bytes_to_human(n: int | str | None) -> str:
     return f"{val:.1f} PB"
 
 
-def sync_pppoe_profile_in_gateway(gateway: Gateway, plan: Plan) -> str:
+def sync_pppoe_profile_in_router(router: Router, plan: Plan) -> str:
     """
     Sincroniza el perfil PPPoE del plan en el MikroTik.
     Lo crea si no existe o actualiza su rate-limit.
@@ -77,7 +77,7 @@ def sync_pppoe_profile_in_gateway(gateway: Gateway, plan: Plan) -> str:
         rate_limit = f"{plan.speed_up_mbps}M/{plan.speed_down_mbps}M"
         
     try:
-        with gateway_pool.connect_to(gateway) as api:
+        with router_pool.connect_to(router) as api:
             name_key = Key('name')
             query = api.path('/ppp/profile').select().where(name_key == profile_name)
             existing = list(query)
@@ -90,18 +90,18 @@ def sync_pppoe_profile_in_gateway(gateway: Gateway, plan: Plan) -> str:
             if existing:
                 entry_id = existing[0].get(".id")
                 list(api("/ppp/profile/set", **{".id": entry_id, **params}))
-                logger.info(f"Perfil PPPoE '{profile_name}' actualizado en gateway {gateway.name}")
+                logger.info(f"Perfil PPPoE '{profile_name}' actualizado en router {router.name}")
             else:
                 list(api("/ppp/profile/add", **params))
-                logger.info(f"Perfil PPPoE '{profile_name}' creado en gateway {gateway.name}")
+                logger.info(f"Perfil PPPoE '{profile_name}' creado en router {router.name}")
                 
             return profile_name
     except Exception as e:
-        logger.error(f"Error al sincronizar perfil PPPoE '{profile_name}' en {gateway.name}: {e}")
+        logger.error(f"Error al sincronizar perfil PPPoE '{profile_name}' en {router.name}: {e}")
         raise e
 
 
-def sync_pppoe_profiles_from_gateway(db: Session, gateway: Gateway) -> int:
+def sync_pppoe_profiles_from_router(db: Session, router: Router) -> int:
     """
     Sincroniza todos los planes locales como perfiles PPPoE en el MikroTik
     y actualiza la tabla local de PPPoEProfile.
@@ -113,12 +113,12 @@ def sync_pppoe_profiles_from_gateway(db: Session, gateway: Gateway) -> int:
         
         for plan in plans:
             # Sincronizar en MikroTik
-            profile_name = sync_pppoe_profile_in_gateway(gateway, plan)
+            profile_name = sync_pppoe_profile_in_router(router, plan)
             active_names.append(profile_name)
             
             # Buscar o crear perfil en BD
             profile = db.query(PPPoEProfile).filter(
-                PPPoEProfile.gateway_id == gateway.id,
+                PPPoEProfile.router_id == router.id,
                 PPPoEProfile.name == profile_name
             ).first()
             
@@ -130,7 +130,7 @@ def sync_pppoe_profiles_from_gateway(db: Session, gateway: Gateway) -> int:
                     name=profile_name,
                     speed_down_mbps=plan.speed_down_mbps,
                     speed_up_mbps=plan.speed_up_mbps,
-                    gateway_id=gateway.id
+                    router_id=router.id
                 )
                 db.add(profile)
             
@@ -139,20 +139,20 @@ def sync_pppoe_profiles_from_gateway(db: Session, gateway: Gateway) -> int:
         # Limpiar perfiles locales que ya no corresponden a ningún plan activo
         if active_names:
             db.query(PPPoEProfile).filter(
-                PPPoEProfile.gateway_id == gateway.id,
+                PPPoEProfile.router_id == router.id,
                 ~PPPoEProfile.name.in_(active_names)
             ).delete(synchronize_session=False)
             
         db.commit()
-        logger.info(f"Sincronizados {synced_count} perfiles PPPoE (basados en planes) para el gateway {gateway.name}")
+        logger.info(f"Sincronizados {synced_count} perfiles PPPoE (basados en planes) para el router {router.name}")
         return synced_count
     except Exception as e:
-        logger.error(f"Error al sincronizar perfiles PPPoE hacia {gateway.name}: {e}")
+        logger.error(f"Error al sincronizar perfiles PPPoE hacia {router.name}: {e}")
         raise e
 
 
-def sync_pppoe_secret_in_gateway(
-    gateway: Gateway,
+def sync_pppoe_secret_in_router(
+    router: Router,
     username: str,
     password: str,
     profile_name: str,
@@ -164,7 +164,7 @@ def sync_pppoe_secret_in_gateway(
     Lo crea si no existe, o actualiza sus propiedades (contraseña, perfil, comentario, estado activo).
     """
     try:
-        with gateway_pool.connect_to(gateway) as api:
+        with router_pool.connect_to(router) as api:
             name_key = Key('name')
             query = api.path('/ppp/secret').select().where(name_key == username)
             existing = list(query)
@@ -181,22 +181,22 @@ def sync_pppoe_secret_in_gateway(
             if existing:
                 entry_id = existing[0].get(".id")
                 list(api("/ppp/secret/set", **{".id": entry_id, **params}))
-                logger.info(f"Secreto PPPoE '{username}' actualizado en gateway {gateway.name}")
+                logger.info(f"Secreto PPPoE '{username}' actualizado en router {router.name}")
             else:
                 list(api("/ppp/secret/add", **params))
-                logger.info(f"Secreto PPPoE '{username}' creado en gateway {gateway.name}")
+                logger.info(f"Secreto PPPoE '{username}' creado en router {router.name}")
                 
     except Exception as e:
-        logger.error(f"Error al sincronizar secreto PPPoE {username} en {gateway.name}: {e}")
+        logger.error(f"Error al sincronizar secreto PPPoE {username} en {router.name}: {e}")
         raise e
 
 
-def remove_pppoe_secret_from_gateway(gateway: Gateway, username: str) -> None:
+def remove_pppoe_secret_from_router(router: Router, username: str) -> None:
     """
-    Elimina un secreto PPPoE del MikroTik si existe.
+    Elimina un secreto PPPoE del router si existe.
     """
     try:
-        with gateway_pool.connect_to(gateway) as api:
+        with router_pool.connect_to(router) as api:
             name_key = Key('name')
             query = api.path('/ppp/secret').select().where(name_key == username)
             existing = list(query)
@@ -204,19 +204,19 @@ def remove_pppoe_secret_from_gateway(gateway: Gateway, username: str) -> None:
             for entry in existing:
                 entry_id = entry.get(".id")
                 list(api("/ppp/secret/remove", **{".id": entry_id}))
-                logger.info(f"Secreto PPPoE '{username}' eliminado del gateway {gateway.name}")
+                logger.info(f"Secreto PPPoE '{username}' eliminado del router {router.name}")
                 
     except Exception as e:
-        logger.error(f"Error al eliminar secreto PPPoE {username} en {gateway.name}: {e}")
+        logger.error(f"Error al eliminar secreto PPPoE {username} en {router.name}: {e}")
         raise e
 
 
-def fetch_active_pppoe_sessions(gateway: Gateway) -> list[dict]:
+def fetch_active_pppoe_sessions(router: Router) -> list[dict]:
     """
     Obtiene la lista de sesiones PPPoE activas en tiempo real desde el MikroTik.
     """
     try:
-        with gateway_pool.connect_to(gateway) as api:
+        with router_pool.connect_to(router) as api:
             active_list = list(api.path('/ppp/active'))
             
             formatted_sessions = []
@@ -237,29 +237,29 @@ def fetch_active_pppoe_sessions(gateway: Gateway) -> list[dict]:
                 })
             return formatted_sessions
     except Exception as e:
-        logger.error(f"Error al obtener sesiones PPPoE activas en {gateway.name}: {e}")
+        logger.error(f"Error al obtener sesiones PPPoE activas en {router.name}: {e}")
         raise e
 
 
-def disconnect_pppoe_session(gateway: Gateway, username: str) -> bool:
+def disconnect_pppoe_session(router: Router, username: str) -> bool:
     """
     Desconecta una sesión activa de un usuario en el MikroTik (lo expulsa de /ppp/active).
     """
     try:
-        with gateway_pool.connect_to(gateway) as api:
+        with router_pool.connect_to(router) as api:
             name_key = Key('name')
             query = api.path('/ppp/active').select().where(name_key == username)
             existing = list(query)
             
             if not existing:
-                logger.info(f"No se encontró sesión activa para {username} en {gateway.name}")
+                logger.info(f"No se encontró sesión activa para {username} en {router.name}")
                 return False
                 
             for entry in existing:
                 entry_id = entry.get(".id")
                 list(api("/ppp/active/remove", **{".id": entry_id}))
-                logger.info(f"Sesión activa del usuario '{username}' desconectada en {gateway.name}")
+                logger.info(f"Sesión activa del usuario '{username}' desconectada en {router.name}")
             return True
     except Exception as e:
-        logger.error(f"Error al desconectar sesión activa de {username} en {gateway.name}: {e}")
+        logger.error(f"Error al desconectar sesión activa de {username} en {router.name}: {e}")
         raise e

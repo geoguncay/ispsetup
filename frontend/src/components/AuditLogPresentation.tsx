@@ -10,7 +10,7 @@ const FIELD_LABELS: Record<string, string> = {
   reason: 'Motivo', source: 'Origen', plan_name: 'Plan', plan: 'Plan',
   imported_count: 'Importados', failed_count: 'Fallidos', total: 'Total',
   fields_changed: 'Campos modificados', disabled: 'Deshabilitada', ip: 'IP',
-  api_port: 'Puerto API', gateway: 'Gateway', client: 'Cliente', amount: 'Monto',
+  api_port: 'Puerto API', router: 'Router', client: 'Cliente', amount: 'Monto',
   method: 'Método', period: 'Periodo', due_date: 'Vencimiento', filename: 'Archivo',
   size_bytes: 'Tamaño', success: 'Resultado', synchronized_count: 'Sincronizados',
   processed: 'Procesados', failed: 'Fallidos', pending_before: 'Pendientes iniciales',

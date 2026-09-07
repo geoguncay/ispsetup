@@ -32,8 +32,8 @@ class Client(Base):
     address: Mapped[str] = mapped_column(String(255), nullable=False)
     latitude: Mapped[float | None] = mapped_column(Float, nullable=True)
     longitude: Mapped[float | None] = mapped_column(Float, nullable=True)
-    gateway_id: Mapped[uuid.UUID] = mapped_column(
-        Uuid(native_uuid=False), ForeignKey("gateways.id"), nullable=False
+    router_id: Mapped[uuid.UUID] = mapped_column(
+        Uuid(native_uuid=False), ForeignKey("routers.id"), nullable=False
     )
     connection_type: Mapped[str] = mapped_column(String(20), nullable=False, default="static")  # "static" o "pppoe"
     active: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
@@ -59,7 +59,7 @@ class Client(Base):
     )
 
     # Relaciones
-    gateway = relationship("Gateway")
+    router = relationship("Router")
     client_plans = relationship("ClientPlan", back_populates="client", cascade="all, delete-orphan")
     static_ip = relationship("StaticIP", back_populates="client", uselist=False, cascade="all, delete-orphan")
     pppoe_secret = relationship("PPPoESecret", back_populates="client", uselist=False, cascade="all, delete-orphan")
@@ -71,11 +71,11 @@ class Client(Base):
 
     @property
     def site_id(self) -> uuid.UUID | None:
-        return self.gateway.site_id if self.gateway else None
+        return self.router.site_id if self.router else None
 
     @property
     def site_name(self) -> str | None:
-        return self.gateway.site.name if (self.gateway and self.gateway.site) else None
+        return self.router.site.name if (self.router and self.router.site) else None
 
     def __repr__(self) -> str:
         return f"<Client id={self.id} name={self.full_name} cedula={self.cedula}>"

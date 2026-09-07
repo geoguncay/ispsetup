@@ -87,7 +87,7 @@
       <text x="105" y="25" text-anchor="middle" font-size="14px" font-weight="600" fill="rgb(8, 80, 65)">celery-worker</text>
       <text x="105" y="48" text-anchor="middle" font-size="12px" fill="rgb(15, 110, 86)">Celery Worker</text>
       <text x="105" y="70" text-anchor="middle" font-size="11px" fill="rgb(15, 110, 86)">Cola: Tareas asíncronas</text>
-      <text x="105" y="88" text-anchor="middle" font-size="11px" fill="rgb(15, 110, 86)">Acciones MikroTik / API</text>
+      <text x="105" y="88" text-anchor="middle" font-size="11px" fill="rgb(15, 110, 86)">Acciones Routers / API</text>
     </g>
 
     <!-- 4. CELERY BEAT CONTAINER -->
@@ -187,7 +187,7 @@
   <!-- ZeroTier Tunnel (Red Externa) -->
   <path d="M 60,432 L 5,432" stroke="#993C1D" stroke-width="1.5" marker-end="url(#arrow-red)"/>
   <text x="15" y="420" font-family="sans-serif" font-size="9px" fill="#993C1D" font-weight="bold">Túnel VPN ZeroTier</text>
-  <text x="15" y="448" font-family="sans-serif" font-size="8px" fill="#993C1D">Hacia routers MikroTik</text>
+  <text x="15" y="448" font-family="sans-serif" font-size="8px" fill="#993C1D">Hacia Routers</text>
 
   <!-- ==================== SECCIÓN DE VOLÚMENES DOCKER ==================== -->
   <rect x="40" y="585" width="720" height="135" rx="10" fill="#FAF9F5" stroke="#9E9D95" stroke-width="1.2" stroke-dasharray="3 3" />

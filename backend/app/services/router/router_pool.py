@@ -1,5 +1,5 @@
 """
-GatewayPool: pool de conexiones librouteros por gateway_id.
+RouterPool: pool de conexiones librouteros por router_id.
 Lee timeout, attempts, debug y ssl desde SystemSettings (DB), con caché de 60 s.
 """
 import asyncio
@@ -14,7 +14,7 @@ from librouteros import connect
 from librouteros.api import Api
 
 from app.core.security import decrypt_secret
-from app.models.gateway import Gateway
+from app.models.router import Router
 
 logger = logging.getLogger(__name__)
 
@@ -45,20 +45,20 @@ def _load_config_from_db() -> dict:
     return {"timeout": 10, "attempts": 1, "debug": False, "ssl": False}
 
 
-class GatewayConnectionError(Exception):
+class RouterConnectionError(Exception):
     """Error al conectar a un router MikroTik."""
     pass
 
 
-class GatewayPool:
+class RouterPool:
     """
-    Singleton que administra conexiones activas a routers MikroTik.
+    Singleton que administra conexiones activas a MikroTik.
     Usa un asyncio.Semaphore por router para limitar concurrencia.
     """
 
-    _instance: "GatewayPool | None" = None
+    _instance: "RouterPool | None" = None
 
-    def __new__(cls) -> "GatewayPool":
+    def __new__(cls) -> "RouterPool":
         if cls._instance is None:
             cls._instance = super().__new__(cls)
             cls._instance._semaphores: dict[str, asyncio.Semaphore] = {}
@@ -82,10 +82,10 @@ class GatewayPool:
         self._config_cache = None
         self._config_cache_time = 0.0
 
-    def _get_semaphore(self, gateway_id: str) -> asyncio.Semaphore:
-        if gateway_id not in self._semaphores:
-            self._semaphores[gateway_id] = asyncio.Semaphore(MAX_CONNECTIONS_PER_GATEWAY)
-        return self._semaphores[gateway_id]
+    def _get_semaphore(self, router_id: str) -> asyncio.Semaphore:
+        if router_id not in self._semaphores:
+            self._semaphores[router_id] = asyncio.Semaphore(MAX_CONNECTIONS_PER_GATEWAY)
+        return self._semaphores[router_id]
 
     def _build_ssl_wrapper(self):
         ctx = ssl.create_default_context()
@@ -94,22 +94,22 @@ class GatewayPool:
         return ctx.wrap_socket
 
     @contextmanager
-    def connect_to(self, gateway: Gateway) -> Generator[Api, None, None]:
+    def connect_to(self, router: Router) -> Generator[Api, None, None]:
         """
         Context manager síncrono que devuelve una conexión activa al router.
         Aplica timeout, attempts y ssl desde SystemSettings.
         """
         cfg = self._get_config()
-        password = decrypt_secret(gateway.password_enc)
+        password = decrypt_secret(router.password_enc)
         api: Api | None = None
 
         ssl_wrapper = self._build_ssl_wrapper() if cfg["ssl"] else None
 
         connect_kwargs: dict = {
-            "host": gateway.ip,
-            "username": gateway.api_username,
+            "host": router.ip,
+            "username": router.api_username,
             "password": password,
-            "port": gateway.api_port,
+            "port": router.api_port,
             "timeout": cfg["timeout"],
             "encoding": "utf-8",
         }
@@ -121,26 +121,26 @@ class GatewayPool:
             try:
                 api = connect(**connect_kwargs)
                 logger.info(
-                    f"Conexión establecida a {gateway.name} ({gateway.ip}) "
+                    f"Conexión establecida a {router.name} ({router.ip}) "
                     f"[intento {attempt + 1}/{cfg['attempts']}, timeout={cfg['timeout']}s, ssl={cfg['ssl']}]"
                 )
                 break
             except (librouteros.exceptions.TrapError,):
                 # Error de autenticación — no tiene sentido reintentar
-                raise GatewayConnectionError(
-                    f"Error de autenticación en {gateway.name}: credenciales incorrectas"
+                raise RouterConnectionError(
+                    f"Error de autenticación en {router.name}: credenciales incorrectas"
                 )
             except (OSError, Exception) as exc:
                 last_exc = exc
                 logger.warning(
-                    f"Intento {attempt + 1}/{cfg['attempts']} fallido para {gateway.name}: {exc}"
+                    f"Intento {attempt + 1}/{cfg['attempts']} fallido para {router.name}: {exc}"
                 )
                 if attempt < cfg["attempts"] - 1:
                     time.sleep(1)
 
         if api is None:
-            raise GatewayConnectionError(
-                f"No se puede enlazar {gateway.ip}:{gateway.api_port} "
+            raise RouterConnectionError(
+                f"No se puede enlazar {router.ip}:{router.api_port} "
                 f"tras {cfg['attempts']} intento(s): {last_exc}"
             )
 
@@ -154,4 +154,4 @@ class GatewayPool:
 
 
 # Singleton global
-gateway_pool = GatewayPool()
+router_pool = RouterPool()

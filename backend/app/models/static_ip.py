@@ -21,8 +21,8 @@ class StaticIP(Base):
     )
     ip: Mapped[str] = mapped_column(String(45), nullable=False)
     mac: Mapped[str | None] = mapped_column(String(17), nullable=True)
-    gateway_id: Mapped[uuid.UUID] = mapped_column(
-        Uuid(native_uuid=False), ForeignKey("gateways.id", ondelete="CASCADE"), nullable=False
+    router_id: Mapped[uuid.UUID] = mapped_column(
+        Uuid(native_uuid=False), ForeignKey("routers.id", ondelete="CASCADE"), nullable=False
     )
     notes: Mapped[str | None] = mapped_column(Text, nullable=True)
     created_at: Mapped[datetime] = mapped_column(
@@ -37,12 +37,12 @@ class StaticIP(Base):
 
     # Restricción única para evitar que la misma IP sea asignada en el mismo router
     __table_args__ = (
-        UniqueConstraint("gateway_id", "ip", name="uq_gateway_ip"),
+        UniqueConstraint("router_id", "ip", name="uq_router_ip"),
     )
 
     # Relaciones
     client = relationship("Client", back_populates="static_ip")
-    gateway = relationship("Gateway")
+    router = relationship("Router")
 
     def __repr__(self) -> str:
-        return f"<StaticIP id={self.id} ip={self.ip} gateway_id={self.gateway_id}>"
+        return f"<StaticIP id={self.id} ip={self.ip} router_id={self.router_id}>"

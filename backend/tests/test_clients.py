@@ -12,7 +12,7 @@ from app.core.security import hash_password
 from app.main import app
 from app.models.user import User
 from app.models.plan import Plan
-from app.models.gateway import Gateway
+from app.models.router import Router
 from app.models.client import Client
 from app.models.client_plan import ClientPlan
 
@@ -65,8 +65,8 @@ def setup_db(monkeypatch):
         role="technician",
         active=True,
     ))
-    # Agregar un gateway
-    db.add(Gateway(
+    # Agregar un router
+    db.add(Router(
         name="Router Quito Central",
         ip="10.0.0.1",
         api_port=8728,
@@ -116,9 +116,9 @@ def test_create_client_invalid_cedula(client: TestClient):
     )
     token = login.json()["access_token"]
 
-    # Obtener gateway
+    # Obtener router
     db = TestingSessionLocal()
-    gateway = db.query(Gateway).first()
+    router = db.query(Router).first()
     db.close()
 
     # Cédula inválida (largo de 10 pero algoritmo incorrecto)
@@ -130,7 +130,7 @@ def test_create_client_invalid_cedula(client: TestClient):
             "cedula": "1724024883",  # Inválido (10 dígitos pero verificador incorrecto)
             "phone": "0999999999",
             "address": "Sector La Mariscal, Quito",
-            "gateway_id": str(gateway.id),
+            "router_id": str(router.id),
             "connection_type": "static",
             "ip": "192.168.10.10",
         },
@@ -147,7 +147,7 @@ def test_create_client_valid_cedula_no_plan(client: TestClient):
     token = login.json()["access_token"]
 
     db = TestingSessionLocal()
-    gateway = db.query(Gateway).first()
+    router = db.query(Router).first()
     db.close()
 
     # Cédula ecuatoriana válida: 1724024888
@@ -159,7 +159,7 @@ def test_create_client_valid_cedula_no_plan(client: TestClient):
             "cedula": "1724024888",
             "phone": "0999999999",
             "address": "Sector La Mariscal, Quito",
-            "gateway_id": str(gateway.id),
+            "router_id": str(router.id),
             "connection_type": "static",
             "ip": "192.168.10.10",
             "latitude": -0.180653,
@@ -181,7 +181,7 @@ def test_create_client_with_initial_plan(client: TestClient):
     token = login.json()["access_token"]
 
     db = TestingSessionLocal()
-    gateway = db.query(Gateway).first()
+    router = db.query(Router).first()
     plan = db.query(Plan).first()
     db.close()
 
@@ -193,7 +193,7 @@ def test_create_client_with_initial_plan(client: TestClient):
             "cedula": "0926079971",  # Cédula válida
             "phone": "0988888888",
             "address": "Av. Carlos Julio Arosemena, Guayaquil",
-            "gateway_id": str(gateway.id),
+            "router_id": str(router.id),
             "plan_id": str(plan.id),
             "connection_type": "static",
             "ip": "192.168.10.10",
@@ -214,12 +214,12 @@ def test_list_clients_and_filtering(client: TestClient):
     token = login.json()["access_token"]
 
     db = TestingSessionLocal()
-    gateway = db.query(Gateway).first()
+    router = db.query(Router).first()
     plan = db.query(Plan).first()
 
     # Agregar dos clientes con datos válidos
-    c1 = Client(full_name="Andres Lopez", cedula="1724024888", phone="0999999999", address="Quito Central", gateway_id=gateway.id)
-    c2 = Client(full_name="Sofia Velez", cedula="0926079971", phone="0988888888", address="Guayaquil Norte", gateway_id=gateway.id)
+    c1 = Client(full_name="Andres Lopez", cedula="1724024888", phone="0999999999", address="Quito Central", router_id=router.id)
+    c2 = Client(full_name="Sofia Velez", cedula="0926079971", phone="0988888888", address="Guayaquil Norte", router_id=router.id)
     db.add(c1)
     db.add(c2)
     db.flush()
@@ -264,11 +264,11 @@ def test_list_clients_sorting(client: TestClient):
     token = login.json()["access_token"]
 
     db = TestingSessionLocal()
-    r1 = db.query(Gateway).first()
+    r1 = db.query(Router).first()
     plan_fibra = db.query(Plan).first()
 
-    # Create a second gateway
-    r2 = Gateway(
+    # Create a second router
+    r2 = Router(
         name="Router Guayaquil",
         ip="10.0.0.2",
         api_port=8728,
@@ -297,7 +297,7 @@ def test_list_clients_sorting(client: TestClient):
         cedula="1724024888",
         phone="0999999999",
         address="Quito",
-        gateway_id=r1.id,
+        router_id=r1.id,
         connection_type="pppoe",
         active=False,
         email="bernardo@test.com",
@@ -310,7 +310,7 @@ def test_list_clients_sorting(client: TestClient):
         cedula="0926079971",
         phone="0988888888",
         address="Guayaquil",
-        gateway_id=r2.id,
+        router_id=r2.id,
         connection_type="static",
         active=True,
         scheduled_suspension=datetime.now() + timedelta(days=5),
@@ -324,7 +324,7 @@ def test_list_clients_sorting(client: TestClient):
         cedula="1790011674001",
         phone="0977777777",
         address="Cuenca",
-        gateway_id=r1.id,
+        router_id=r1.id,
         connection_type="static",
         active=True,
         email="andres@test.com",
@@ -338,8 +338,8 @@ def test_list_clients_sorting(client: TestClient):
     db.add(ClientPlan(cliente_id=c3.id, plan_id=plan_fibra.id, estado="activo"))
 
     # Add static IPs
-    db.add(StaticIP(client_id=c2.id, ip="10.0.0.20", gateway_id=r2.id))
-    db.add(StaticIP(client_id=c3.id, ip="10.0.0.10", gateway_id=r1.id))
+    db.add(StaticIP(client_id=c2.id, ip="10.0.0.20", router_id=r2.id))
+    db.add(StaticIP(client_id=c3.id, ip="10.0.0.10", router_id=r1.id))
 
     db.commit()
     db.close()
@@ -398,9 +398,9 @@ def test_list_clients_sorting(client: TestClient):
     names = [item["full_name"] for item in resp.json()["items"]]
     assert names == ["Carlos", "Andres", "Bernardo"]
 
-    # 7. Sort by gateway ascending (Carlos/Router Guayaquil, Bernardo/Router Quito Central, Andres/Router Quito Central)
+    # 7. Sort by router ascending (Carlos/Router Guayaquil, Bernardo/Router Quito Central, Andres/Router Quito Central)
     resp = client.get(
-        "/api/clients?sort_by=gateway&sort_dir=asc",
+        "/api/clients?sort_by=router&sort_dir=asc",
         headers={"Authorization": f"Bearer {token}"}
     )
     assert resp.status_code == 200
@@ -425,7 +425,7 @@ def test_assign_plan_history(client: TestClient):
     token = login.json()["access_token"]
 
     db = TestingSessionLocal()
-    gateway = db.query(Gateway).first()
+    router = db.query(Router).first()
     plan_a = db.query(Plan).first()
 
     plan_b = Plan(
@@ -438,7 +438,7 @@ def test_assign_plan_history(client: TestClient):
     )
     db.add(plan_b)
 
-    c = Client(full_name="Carlos Ruiz", cedula="1724024888", phone="0999999999", address="Quito Central", gateway_id=gateway.id)
+    c = Client(full_name="Carlos Ruiz", cedula="1724024888", phone="0999999999", address="Quito Central", router_id=router.id)
     db.add(c)
     db.flush()
 
@@ -480,7 +480,7 @@ def test_update_client_cedula_and_email(client: TestClient):
     token = login.json()["access_token"]
 
     db = TestingSessionLocal()
-    gateway = db.query(Gateway).first()
+    router = db.query(Router).first()
     db.close()
 
     # Create client with email
@@ -492,7 +492,7 @@ def test_update_client_cedula_and_email(client: TestClient):
             "cedula": "1724024888",
             "phone": "0999999999",
             "address": "Quito",
-            "gateway_id": str(gateway.id),
+            "router_id": str(router.id),
             "connection_type": "static",
             "ip": "192.168.10.10",
             "email": "test@client.com"
@@ -525,7 +525,7 @@ def test_create_client_valid_ruc(client: TestClient):
     token = login.json()["access_token"]
 
     db = TestingSessionLocal()
-    gateway = db.query(Gateway).first()
+    router = db.query(Router).first()
     db.close()
 
     # 1. RUC Persona Natural (1724024888001)
@@ -537,7 +537,7 @@ def test_create_client_valid_ruc(client: TestClient):
             "cedula": "1724024888001",
             "phone": "0999999999",
             "address": "Quito",
-            "gateway_id": str(gateway.id),
+            "router_id": str(router.id),
             "connection_type": "static",
             "ip": "192.168.10.10",
         },
@@ -554,7 +554,7 @@ def test_create_client_valid_ruc(client: TestClient):
             "cedula": "1790011674001",
             "phone": "0999999999",
             "address": "Quito",
-            "gateway_id": str(gateway.id),
+            "router_id": str(router.id),
             "connection_type": "static",
             "ip": "192.168.10.11",
         },
@@ -571,7 +571,7 @@ def test_create_client_valid_ruc(client: TestClient):
             "cedula": "1760001550001",
             "phone": "0999999999",
             "address": "Quito",
-            "gateway_id": str(gateway.id),
+            "router_id": str(router.id),
             "connection_type": "static",
             "ip": "192.168.10.12",
         },
@@ -588,7 +588,7 @@ def test_create_client_invalid_ruc(client: TestClient):
     token = login.json()["access_token"]
 
     db = TestingSessionLocal()
-    gateway = db.query(Gateway).first()
+    router = db.query(Router).first()
     db.close()
 
     # RUC Inválido (13 dígitos pero verificador incorrecto)
@@ -600,7 +600,7 @@ def test_create_client_invalid_ruc(client: TestClient):
             "cedula": "1790011675001",  # Inválido (dígito verificador incorrecto)
             "phone": "0999999999",
             "address": "Quito",
-            "gateway_id": str(gateway.id),
+            "router_id": str(router.id),
             "connection_type": "static",
             "ip": "192.168.10.10",
         },
@@ -617,7 +617,7 @@ def test_create_and_update_client_custom_created_at(client: TestClient):
     token = login.json()["access_token"]
 
     db = TestingSessionLocal()
-    gateway = db.query(Gateway).first()
+    router = db.query(Router).first()
     db.close()
 
     # 1. Crear cliente con created_at específica
@@ -630,7 +630,7 @@ def test_create_and_update_client_custom_created_at(client: TestClient):
             "cedula": "1724024888",
             "phone": "0999999999",
             "address": "Quito",
-            "gateway_id": str(gateway.id),
+            "router_id": str(router.id),
             "connection_type": "static",
             "ip": "192.168.10.10",
             "created_at": custom_date,
@@ -670,7 +670,7 @@ def test_client_site_filtering(client: TestClient):
     db.add(site2)
     db.commit()
 
-    gateway1 = Gateway(
+    router1 = Router(
         name="Router Site A",
         ip="10.0.0.10",
         api_port=8728,
@@ -679,7 +679,7 @@ def test_client_site_filtering(client: TestClient):
         active=True,
         site_id=site1.id,
     )
-    gateway2 = Gateway(
+    router2 = Router(
         name="Router Site B",
         ip="10.0.0.20",
         api_port=8728,
@@ -688,8 +688,8 @@ def test_client_site_filtering(client: TestClient):
         active=True,
         site_id=site2.id,
     )
-    db.add(gateway1)
-    db.add(gateway2)
+    db.add(router1)
+    db.add(router2)
     db.commit()
 
     # Cliente en Site A
@@ -701,7 +701,7 @@ def test_client_site_filtering(client: TestClient):
             "cedula": "1724024888",
             "phone": "0999999999",
             "address": "Quito A",
-            "gateway_id": str(gateway1.id),
+            "router_id": str(router1.id),
             "connection_type": "static",
             "ip": "192.168.10.10",
         },
@@ -717,7 +717,7 @@ def test_client_site_filtering(client: TestClient):
             "cedula": "0926079971",
             "phone": "0988888888",
             "address": "Guayaquil B",
-            "gateway_id": str(gateway2.id),
+            "router_id": str(router2.id),
             "connection_type": "static",
             "ip": "192.168.10.20",
         },

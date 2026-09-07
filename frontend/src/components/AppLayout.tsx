@@ -37,7 +37,7 @@ const navItems: NavItem[] = [
     icon: Network,
     roles: ['admin', 'technician'],
     items: [
-      { to: '/gateways', icon: Router, label: 'Gateways' },
+      { to: '/routers', icon: Router, label: 'Routers' },
       { to: '/traffic', icon: Activity, label: 'Tráfico' },
     ]
   },

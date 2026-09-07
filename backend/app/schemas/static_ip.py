@@ -13,14 +13,14 @@ class StaticIPBase(BaseModel):
 
 
 class StaticIPCreate(StaticIPBase):
-    gateway_id: uuid.UUID
+    router_id: uuid.UUID
 
 
 class StaticIPUpdate(BaseModel):
     ip: str | None = Field(default=None, min_length=7, max_length=45)
     mac: str | None = Field(default=None, min_length=17, max_length=17)
     notes: str | None = None
-    gateway_id: uuid.UUID | None = None
+    router_id: uuid.UUID | None = None
 
 
 class StaticIPResponse(StaticIPBase):
@@ -28,6 +28,6 @@ class StaticIPResponse(StaticIPBase):
 
     id: uuid.UUID
     client_id: uuid.UUID
-    gateway_id: uuid.UUID
+    router_id: uuid.UUID
     created_at: datetime
     updated_at: datetime

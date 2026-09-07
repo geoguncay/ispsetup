@@ -1,15 +1,15 @@
-"""Aplica los modos operativos de un Gateway en RouterOS de forma idempotente."""
+"""Aplica los modos operativos de un Router en RouterOS de forma idempotente."""
 import logging
 import time
 
 from librouteros.query import Key
 
 from app.core.config import settings
-from app.models.gateway import Gateway
-from app.services.mikrotik.address_list import get_clean_list_name, get_suspend_list_name
-from app.services.mikrotik.gateway_resources import get_gateway_resource_config
-from app.services.mikrotik.gateway_pool import gateway_pool
-from app.services.mikrotik.queue import get_clean_parent_name
+from app.models.router import Router
+from app.services.router.address_list import get_clean_list_name, get_suspend_list_name
+from app.services.router.router_resources import get_router_resource_config
+from app.services.router.router_pool import router_pool
+from app.services.router.queue import get_clean_parent_name
 
 logger = logging.getLogger(__name__)
 
@@ -17,7 +17,7 @@ _ISPSETUP_IP_TTL = 60  # segundos de vida del caché de ispsetup_server_ip
 _ispsetup_ip_cache: dict = {"value": None, "loaded_at": 0.0}
 
 
-class GatewayConfigurationError(RuntimeError):
+class RouterConfigurationError(RuntimeError):
     """La configuración solicitada no pudo aplicarse de forma segura."""
 
 
@@ -54,17 +54,17 @@ def _get_ispsetup_ip() -> str | None:
 def _ispsetup_ip() -> str:
     ip = _get_ispsetup_ip()
     if not ip:
-        raise GatewayConfigurationError(
+        raise RouterConfigurationError(
             "Configure la IP del ISPSETUP en Ajustes ▸ Integraciones antes de habilitar Accounting o Traffic Flow."
         )
     return ip
 
 
-def configure_security(api, gateway: Gateway) -> None:
-    """Configura el accounting local de PPP según el modo de seguridad del Gateway."""
+def configure_security(api, router: Router) -> None:
+    """Configura el accounting local de PPP según el modo de seguridad del Router."""
     list(api('/ppp/aaa/set', **{
         'use-radius': 'no',
-        'accounting': 'yes' if gateway.security_mode == 'ppp_api' else 'no',
+        'accounting': 'yes' if router.security_mode == 'ppp_api' else 'no',
     }))
 
 
@@ -115,7 +115,7 @@ def configure_traffic_accounting(api, traffic_accounting: str) -> None:
     if traffic_accounting == 'accounting_v6':
         ip = _ispsetup_ip()
         if routeros_major is not None and routeros_major >= 7:
-            raise GatewayConfigurationError(
+            raise RouterConfigurationError(
                 'Accounting solamente está disponible en RouterOS 6.x. Seleccione Traffic Flow para RouterOS 7.x.'
             )
         list(api('/ip/traffic-flow/set', enabled='no'))
@@ -127,8 +127,8 @@ def configure_traffic_accounting(api, traffic_accounting: str) -> None:
             }))
         except Exception as exc:
             if _missing_accounting_menu(exc):
-                raise GatewayConfigurationError(
-                    'Este Gateway no soporta IP Accounting. Seleccione Traffic Flow.'
+                raise RouterConfigurationError(
+                    'Este Router no soporta IP Accounting. Seleccione Traffic Flow.'
                 ) from exc
             raise
         return
@@ -146,7 +146,7 @@ def configure_traffic_accounting(api, traffic_accounting: str) -> None:
         return
 
     # /ip/accounting fue retirado de RouterOS 7. Solo intentamos desactivarlo
-    # en V6 o cuando el Gateway no informa una versión reconocible.
+    # en V6 o cuando el Router no informa una versión reconocible.
     _ispsetup_ip()
     if routeros_major is None or routeros_major < 7:
         try:
@@ -223,9 +223,9 @@ def ensure_pcq_parent_rules(api, address_list: str, names: dict | None = None) -
     )
 
 
-def configure_speed_control(api, gateway: Gateway) -> None:
-    names = get_gateway_resource_config(gateway)['speed_control']
-    if gateway.speed_control_type == 'pcq_addresslist':
+def configure_speed_control(api, router: Router) -> None:
+    names = get_router_resource_config(router)['speed_control']
+    if router.speed_control_type == 'pcq_addresslist':
         ensure_pcq_parent_rules(api, names['client_address_list'], names)
         return
 
@@ -241,7 +241,7 @@ def configure_speed_control(api, gateway: Gateway) -> None:
             list(api('/queue/tree/set', **{'.id': entry['.id'], 'disabled': 'yes'}))
 
 
-def apply_gateway_configuration(gateway: Gateway, changed_fields: set[str]) -> None:
+def apply_router_configuration(router: Router, changed_fields: set[str]) -> None:
     """Aplica únicamente los modos que cambiaron en la petición de actualización."""
     configurable = {'security_mode', 'traffic_accounting', 'speed_control_type', 'resource_config'}
     changes = configurable.intersection(changed_fields)
@@ -249,30 +249,30 @@ def apply_gateway_configuration(gateway: Gateway, changed_fields: set[str]) -> N
         return
 
     try:
-        with gateway_pool.connect_to(gateway) as api:
+        with router_pool.connect_to(router) as api:
             if 'security_mode' in changes:
-                configure_security(api, gateway)
+                configure_security(api, router)
             if 'traffic_accounting' in changes:
-                configure_traffic_accounting(api, gateway.traffic_accounting)
+                configure_traffic_accounting(api, router.traffic_accounting)
             if {'speed_control_type', 'resource_config'}.intersection(changes):
-                configure_speed_control(api, gateway)
-    except GatewayConfigurationError:
+                configure_speed_control(api, router)
+    except RouterConfigurationError:
         raise
     except Exception as exc:
-        logger.exception('No se pudo configurar el Gateway %s', gateway.name)
-        raise GatewayConfigurationError(str(exc)) from exc
+        logger.exception('No se pudo configurar el Router %s', router.name)
+        raise RouterConfigurationError(str(exc)) from exc
 
 
-def migrate_gateway_resource_names(gateway: Gateway, old_config: dict) -> None:
+def migrate_router_resource_names(router: Router, old_config: dict) -> None:
     """Renombra recursos administrados y conserva sus entradas al cambiar la configuración."""
-    new_config = get_gateway_resource_config(gateway)
+    new_config = get_router_resource_config(router)
     old_security = old_config['security']
     new_security = new_config['security']
     old_speed = old_config['speed_control']
     new_speed = new_config['speed_control']
 
     try:
-        with gateway_pool.connect_to(gateway) as api:
+        with router_pool.connect_to(router) as api:
             list_key = Key('list')
             for old_name, new_name in (
                 (old_security['suspend_list'], new_security['suspend_list']),
@@ -310,8 +310,8 @@ def migrate_gateway_resource_names(gateway: Gateway, old_config: dict) -> None:
                         'new-packet-mark': new_speed[mark_key],
                     }))
     except Exception as exc:
-        logger.exception('No se pudieron migrar nombres de recursos en %s', gateway.name)
-        raise GatewayConfigurationError(str(exc)) from exc
+        logger.exception('No se pudieron migrar nombres de recursos en %s', router.name)
+        raise RouterConfigurationError(str(exc)) from exc
 
 
 def _remove_entries(api, path: str, remove_command: str, predicate) -> int:
@@ -324,8 +324,8 @@ def _remove_entries(api, path: str, remove_command: str, predicate) -> int:
     return removed
 
 
-def cleanup_gateway_configuration(
-    gateway: Gateway,
+def cleanup_router_configuration(
+    router: Router,
     client_ips: list[str],
     ppp_usernames: list[str],
     ppp_profile_names: list[str],
@@ -341,7 +341,7 @@ def cleanup_gateway_configuration(
         'radius_clients': 0,
     }
     targets = {f'{ip}/32' for ip in client_ips}
-    configured_resources = get_gateway_resource_config(gateway)
+    configured_resources = get_router_resource_config(router)
     managed_lists = {
         configured_resources['speed_control']['client_address_list'],
         configured_resources['security']['suspend_list'],
@@ -353,7 +353,7 @@ def cleanup_gateway_configuration(
 
     ispsetup_ip = _get_ispsetup_ip()
     try:
-        with gateway_pool.connect_to(gateway) as api:
+        with router_pool.connect_to(router) as api:
             # Autenticación creada por el ISPSETUP.
             list(api('/ppp/aaa/set', **{'use-radius': 'no', 'accounting': 'no'}))
             # Limpieza legacy: versiones anteriores podían dejar RADIUS activo en
@@ -470,7 +470,7 @@ def cleanup_gateway_configuration(
                 lambda entry: entry.get('name') in profile_names,
             )
     except Exception as exc:
-        logger.exception('No se pudo limpiar la configuración del Gateway %s', gateway.name)
-        raise GatewayConfigurationError(str(exc)) from exc
+        logger.exception('No se pudo limpiar la configuración del Router %s', router.name)
+        raise RouterConfigurationError(str(exc)) from exc
 
     return summary

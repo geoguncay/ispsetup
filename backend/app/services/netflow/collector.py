@@ -1,16 +1,16 @@
 """
-Colector NetFlow v9 para el modo de Gateway "Traffic Flow".
+Colector NetFlow v9 para el modo de Router "Traffic Flow".
 
 Proceso standalone (no tarea Celery): mantiene un socket UDP abierto,
 decodifica los paquetes con `app.services.netflow.parser` y alimenta
-`traffic_samples` / el canal Redis `gateway_traffic:{gateway_id}` con el
+`traffic_samples` / el canal Redis `router_traffic:{router_id}` con el
 mismo formato que ya produce `app.workers.traffic.poll_traffic`, para que
 los endpoints de historial y el WebSocket en vivo (`app/api/traffic_api.py`)
 sigan funcionando sin cambios.
 
-Solo procesa paquetes de Gateways activos con `traffic_accounting ==
+Solo procesa paquetes de routers activos con `traffic_accounting ==
 'traffic_flow'`, identificados por la IP origen del paquete UDP contra
-`Gateway.ip`.
+`Router.ip`.
 """
 import asyncio
 import json
@@ -22,7 +22,7 @@ from datetime import datetime, timezone
 from app.core import database
 from app.core.config import settings
 from app.models.client import Client
-from app.models.gateway import Gateway
+from app.models.router import Router
 from app.models.static_ip import StaticIP
 from app.models.traffic_sample import TrafficSample
 from app.services.netflow.parser import TemplateFields, TemplateKey, parse_packet
@@ -30,52 +30,52 @@ from app.workers.traffic import ensure_partition_exists
 
 logger = logging.getLogger(__name__)
 
-GatewayMap = dict[str, uuid.UUID]  # gateway.ip -> gateway_id
-ClientMap = dict[tuple[uuid.UUID, str], uuid.UUID]  # (gateway_id, client_ip) -> client_id
+RouterMap = dict[str, uuid.UUID]  # router.ip -> router_id
+ClientMap = dict[tuple[uuid.UUID, str], uuid.UUID]  # (router_id, client_ip) -> client_id
 ClientNames = dict[uuid.UUID, str]  # client_id -> nombre para mostrar
 
 
-def load_mappings() -> tuple[GatewayMap, ClientMap, ClientNames]:
-    """Carga desde Postgres los Gateways en modo Traffic Flow y sus clientes
+def load_mappings() -> tuple[RouterMap, ClientMap, ClientNames]:
+    """Carga desde Postgres los routers en modo Traffic Flow y sus clientes
     con IP estática activa. Se re-ejecuta periódicamente; nunca lanza."""
     db = database.SessionLocal()
     try:
-        gateways = (
-            db.query(Gateway.id, Gateway.ip)
-            .filter(Gateway.active == True, Gateway.traffic_accounting == "traffic_flow")
+        routers = (
+            db.query(Router.id, Router.ip)
+            .filter(Router.active == True, Router.traffic_accounting == "traffic_flow")
             .all()
         )
-        gateway_map: GatewayMap = {ip: gateway_id for gateway_id, ip in gateways}
+        router_map: RouterMap = {ip: router_id for router_id, ip in routers}
 
         client_map: ClientMap = {}
         client_names: ClientNames = {}
-        gateway_ids = list(gateway_map.values())
-        if gateway_ids:
+        router_ids = list(router_map.values())
+        if router_ids:
             rows = (
-                db.query(StaticIP.gateway_id, StaticIP.ip, StaticIP.client_id, Client.full_name)
+                db.query(StaticIP.router_id, StaticIP.ip, StaticIP.client_id, Client.full_name)
                 .join(Client, StaticIP.client_id == Client.id)
-                .filter(StaticIP.gateway_id.in_(gateway_ids), Client.active == True)
+                .filter(StaticIP.router_id.in_(router_ids), Client.active == True)
                 .all()
             )
-            for gateway_id, ip, client_id, full_name in rows:
-                client_map[(gateway_id, ip)] = client_id
+            for router_id, ip, client_id, full_name in rows:
+                client_map[(router_id, ip)] = client_id
                 client_names[client_id] = full_name
 
-        return gateway_map, client_map, client_names
+        return router_map, client_map, client_names
     except Exception:
-        logger.error("No se pudieron cargar los mapeos de Gateways/Clientes para NetFlow", exc_info=True)
+        logger.error("No se pudieron cargar los mapeos de routers/clientes para NetFlow", exc_info=True)
         return {}, {}, {}
     finally:
         db.close()
 
 
 class NetflowCollectorProtocol(asyncio.DatagramProtocol):
-    """Recibe los datagramas NetFlow v9 y acumula bytes por (gateway, cliente)
+    """Recibe los datagramas NetFlow v9 y acumula bytes por (router, cliente)
     hasta el próximo flush periódico."""
 
     def __init__(self) -> None:
         self.templates: dict[TemplateKey, TemplateFields] = {}
-        self.gateway_map: GatewayMap = {}
+        self.router_map: RouterMap = {}
         self.client_map: ClientMap = {}
         self.accumulator: dict[tuple[uuid.UUID, uuid.UUID], dict[str, int]] = {}
 
@@ -84,22 +84,22 @@ class NetflowCollectorProtocol(asyncio.DatagramProtocol):
 
     def datagram_received(self, data: bytes, addr: tuple[str, int]) -> None:
         exporter_ip = addr[0]
-        gateway_id = self.gateway_map.get(exporter_ip)
-        if gateway_id is None:
-            return  # No es (o ya no es) un Gateway activo en modo Traffic Flow.
+        router_id = self.router_map.get(exporter_ip)
+        if router_id is None:
+            return  # No es (o ya no es) un Router activo en modo Traffic Flow.
 
         for record in parse_packet(data, exporter_ip, self.templates):
             if record.src_addr:
-                client_id = self.client_map.get((gateway_id, record.src_addr))
+                client_id = self.client_map.get((router_id, record.src_addr))
                 if client_id:
-                    self._accumulate(gateway_id, client_id, tx=record.in_bytes)
+                    self._accumulate(router_id, client_id, tx=record.in_bytes)
             if record.dst_addr:
-                client_id = self.client_map.get((gateway_id, record.dst_addr))
+                client_id = self.client_map.get((router_id, record.dst_addr))
                 if client_id:
-                    self._accumulate(gateway_id, client_id, rx=record.in_bytes)
+                    self._accumulate(router_id, client_id, rx=record.in_bytes)
 
-    def _accumulate(self, gateway_id: uuid.UUID, client_id: uuid.UUID, rx: int = 0, tx: int = 0) -> None:
-        bucket = self.accumulator.setdefault((gateway_id, client_id), {"rx": 0, "tx": 0})
+    def _accumulate(self, router_id: uuid.UUID, client_id: uuid.UUID, rx: int = 0, tx: int = 0) -> None:
+        bucket = self.accumulator.setdefault((router_id, client_id), {"rx": 0, "tx": 0})
         bucket["rx"] += rx
         bucket["tx"] += tx
 
@@ -109,8 +109,8 @@ class NetflowCollectorProtocol(asyncio.DatagramProtocol):
 
 async def _mapping_refresh_loop(protocol: NetflowCollectorProtocol, client_names: ClientNames) -> None:
     while True:
-        gateway_map, client_map, names = await asyncio.to_thread(load_mappings)
-        protocol.gateway_map = gateway_map
+        router_map, client_map, names = await asyncio.to_thread(load_mappings)
+        protocol.router_map = router_map
         protocol.client_map = client_map
         client_names.clear()
         client_names.update(names)
@@ -128,15 +128,15 @@ async def _flush(protocol: NetflowCollectorProtocol, redis_conn, client_names: C
         ensure_partition_exists(db, now)
 
         db_records: list[TrafficSample] = []
-        by_gateway: dict[uuid.UUID, list[dict]] = {}
+        by_router: dict[uuid.UUID, list[dict]] = {}
 
-        for (gateway_id, client_id), deltas in snapshot.items():
+        for (router_id, client_id), deltas in snapshot.items():
             rx_delta = max(0, deltas["rx"])
             tx_delta = max(0, deltas["tx"])
             if rx_delta <= 0 and tx_delta <= 0:
                 continue
 
-            cache_key = f"netflow:client_bytes:{gateway_id}:{client_id}"
+            cache_key = f"netflow:client_bytes:{router_id}:{client_id}"
             prev_rx, prev_tx = 0, 0
             prev_raw = await redis_conn.get(cache_key)
             if prev_raw:
@@ -156,7 +156,7 @@ async def _flush(protocol: NetflowCollectorProtocol, redis_conn, client_names: C
 
             db_records.append(TrafficSample(
                 id=uuid.uuid4(),
-                gateway_id=gateway_id,
+                router_id=router_id,
                 client_id=client_id,
                 rx_bytes=rx_bytes,
                 tx_bytes=tx_bytes,
@@ -167,7 +167,7 @@ async def _flush(protocol: NetflowCollectorProtocol, redis_conn, client_names: C
                 timestamp=now,
             ))
 
-            by_gateway.setdefault(gateway_id, []).append({
+            by_router.setdefault(router_id, []).append({
                 "client_id": str(client_id),
                 "name": client_names.get(client_id, ""),
                 "rx_bytes": rx_bytes,
@@ -183,17 +183,17 @@ async def _flush(protocol: NetflowCollectorProtocol, redis_conn, client_names: C
             db.commit()
             logger.info("NetFlow: %s muestras de tráfico guardadas.", len(db_records))
 
-        for gateway_id, clients in by_gateway.items():
+        for router_id, clients in by_router.items():
             payload = {
-                "gateway_id": str(gateway_id),
+                "router_id": str(router_id),
                 "timestamp": now.isoformat(),
                 "clients": clients,
                 "interfaces": [],
             }
             try:
-                await redis_conn.publish(f"gateway_traffic:{gateway_id}", json.dumps(payload))
+                await redis_conn.publish(f"router_traffic:{router_id}", json.dumps(payload))
             except Exception:
-                logger.error("Error publicando tráfico NetFlow en Redis para gateway %s", gateway_id, exc_info=True)
+                logger.error("Error publicando tráfico NetFlow en Redis para router %s", router_id, exc_info=True)
     except Exception:
         db.rollback()
         logger.error("Error al volcar muestras NetFlow", exc_info=True)
@@ -217,7 +217,7 @@ async def run() -> None:
 
     # Cargar los mapeos una vez antes de empezar a recibir, para no descartar
     # los primeros paquetes mientras arranca el refresh loop.
-    protocol.gateway_map, protocol.client_map, initial_names = await asyncio.to_thread(load_mappings)
+    protocol.router_map, protocol.client_map, initial_names = await asyncio.to_thread(load_mappings)
     client_names.update(initial_names)
 
     loop = asyncio.get_running_loop()

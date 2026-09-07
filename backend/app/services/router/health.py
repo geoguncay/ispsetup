@@ -1,5 +1,5 @@
 """
-Servicio de health check para routers MikroTik.
+Servicio de health check para MikroTik.
 Consulta estado en tiempo real y cachea resultado en Redis.
 """
 import asyncio
@@ -8,16 +8,16 @@ from datetime import datetime, timezone
 from typing import Any
 
 from app.core.redis import GATEWAY_HEALTH_PREFIX, ROUTER_STATUS_TTL, redis_client
-from app.models.gateway import Gateway
-from app.schemas.gateway import GatewayStatus
-from app.services.mikrotik.gateway_pool import GatewayConnectionError, gateway_pool
+from app.models.router import Router
+from app.schemas.router import RouterStatus
+from app.services.router.router_pool import RouterConnectionError, router_pool
 
 logger = logging.getLogger(__name__)
 
 
 def _check_zerotier_tunnel_sync(node_id: str) -> bool | None:
     """
-    Consulta a ZeroTier Central si el nodo vinculado a un Gateway está online.
+    Consulta a ZeroTier Central si el nodo vinculado a un Router está online.
 
     Devuelve:
       True  → el nodo reporta a ZeroTier Central (túnel operativo)
@@ -46,23 +46,23 @@ def _check_zerotier_tunnel_sync(node_id: str) -> bool | None:
     return member.online
 
 
-async def check_gateway_health(gateway: Gateway) -> GatewayStatus:
+async def check_router_health(router: Router) -> RouterStatus:
     """
     Conecta al router, obtiene versión ROS e interfaces, cachea en Redis.
-    No lanza excepciones — siempre devuelve un GatewayStatus.
+    No lanza excepciones — siempre devuelve un RouterStatus.
 
     Si el router no responde y tiene un nodo ZeroTier vinculado, se cruza el
     estado con ZeroTier Central para distinguir "túnel caído" de "RouterOS caído".
     """
     now = datetime.now(timezone.utc)
-    cache_key = f"{GATEWAY_HEALTH_PREFIX}{gateway.id}"
+    cache_key = f"{GATEWAY_HEALTH_PREFIX}{router.id}"
 
     try:
         ros_version: str | None = None
         uptime: str | None = None
         interfaces: list[dict[str, Any]] = []
 
-        with gateway_pool.connect_to(gateway) as api:
+        with router_pool.connect_to(router) as api:
             sys_resource = list(api("/system/resource/print"))
             if sys_resource:
                 resource = sys_resource[0]
@@ -85,8 +85,8 @@ async def check_gateway_health(gateway: Gateway) -> GatewayStatus:
         new_status_val = "online"
         error_msg = None
 
-    except GatewayConnectionError as e:
-        logger.warning(f"Router {gateway.name} offline: {e}")
+    except RouterConnectionError as e:
+        logger.warning(f"Router {router.name} offline: {e}")
         new_status_val = "offline"
         error_msg = str(e)
         ros_version = None
@@ -95,7 +95,7 @@ async def check_gateway_health(gateway: Gateway) -> GatewayStatus:
 
     except Exception as e:
         # Cualquier otro error de librouteros (conexión caída mid-command, etc.)
-        logger.warning(f"Router {gateway.name} error inesperado: {e}")
+        logger.warning(f"Router {router.name} error inesperado: {e}")
         new_status_val = "offline"
         error_msg = str(e)
         ros_version = None
@@ -105,9 +105,9 @@ async def check_gateway_health(gateway: Gateway) -> GatewayStatus:
     # ── Cruce con ZeroTier: túnel caído vs. RouterOS caído ──────────────────
     zerotier_checked = False
     zerotier_online: bool | None = None
-    if new_status_val != "online" and gateway.zerotier_node_id:
+    if new_status_val != "online" and router.zerotier_node_id:
         zerotier_online = await asyncio.to_thread(
-            _check_zerotier_tunnel_sync, gateway.zerotier_node_id
+            _check_zerotier_tunnel_sync, router.zerotier_node_id
         )
         zerotier_checked = zerotier_online is not None
         if zerotier_online is False:
@@ -129,7 +129,7 @@ async def check_gateway_health(gateway: Gateway) -> GatewayStatus:
     old_data = await redis_client.get(cache_key)
     if old_data:
         try:
-            old_cached = GatewayStatus.model_validate_json(old_data)
+            old_cached = RouterStatus.model_validate_json(old_data)
             was_online = old_cached.status == "online"
             is_online = new_status_val == "online"
             if was_online != is_online:
@@ -138,27 +138,27 @@ async def check_gateway_health(gateway: Gateway) -> GatewayStatus:
                 reason = new_status_val if not is_online else None
                 await asyncio.to_thread(
                     log_connectivity_change,
-                    str(gateway.id),
-                    gateway.name,
+                    str(router.id),
+                    router.name,
                     action,
                     reason,
                 )
                 logger.info(
-                    f"Connectivity change logged: {gateway.name} "
+                    f"Connectivity change logged: {router.name} "
                     f"{old_cached.status} → {new_status_val}"
                 )
 
                 # ── Al recuperar conexión, procesar la cola de sync pendiente ──
                 if is_online:
-                    await asyncio.to_thread(_process_sync_queue_for_gateway, gateway)
+                    await asyncio.to_thread(_process_sync_queue_for_router, router)
 
         except Exception as exc:
-            logger.error(f"Error al registrar cambio de conectividad para {gateway.name}: {exc}")
+            logger.error(f"Error al registrar cambio de conectividad para {router.name}: {exc}")
 
-    status = GatewayStatus(
-        gateway_id=gateway.id,
+    status = RouterStatus(
+        router_id=router.id,
         status=new_status_val,
-        ip=gateway.ip,
+        ip=router.ip,
         uptime=uptime if new_status_val == "online" else None,
         ros_version=ros_version if new_status_val == "online" else None,
         interfaces=interfaces if new_status_val == "online" else [],
@@ -178,28 +178,28 @@ async def check_gateway_health(gateway: Gateway) -> GatewayStatus:
     return status
 
 
-async def get_cached_gateway_status(gateway_id: str) -> GatewayStatus | None:
+async def get_cached_router_status(router_id: str) -> RouterStatus | None:
     """Lee el estado cacheado de Redis. Devuelve None si no hay caché."""
-    data = await redis_client.get(f"{GATEWAY_HEALTH_PREFIX}{gateway_id}")
+    data = await redis_client.get(f"{GATEWAY_HEALTH_PREFIX}{router_id}")
     if data is None:
         return None
-    return GatewayStatus.model_validate_json(data)
+    return RouterStatus.model_validate_json(data)
 
 
-def _process_sync_queue_for_gateway(gateway: Gateway) -> None:
+def _process_sync_queue_for_router(router: Router) -> None:
     """
-    Lanzado en un thread cuando el gateway pasa de offline → online.
+    Lanzado en un thread cuando el router pasa de offline → online.
     Abre su propia sesión de BD para no interferir con el contexto async.
     """
     try:
         from app.core.database import SessionLocal
-        from app.services.mikrotik.sync_queue import process_pending_queue
+        from app.services.router.sync_queue import process_pending_queue
         with SessionLocal() as db:
-            result = process_pending_queue(gateway, db)
+            result = process_pending_queue(router, db)
             if result["total"] > 0:
                 logger.info(
-                    f"[SyncQueue auto] {gateway.name}: "
+                    f"[SyncQueue auto] {router.name}: "
                     f"{result['processed']} procesados, {result['failed']} fallidos de {result['total']}"
                 )
     except Exception as exc:
-        logger.error(f"[SyncQueue auto] Error procesando cola para {gateway.name}: {exc}")
+        logger.error(f"[SyncQueue auto] Error procesando cola para {router.name}: {exc}")

@@ -219,15 +219,15 @@ export function ClientProfilePage() {
     prevClientStateRef.current = current
   }, [client])
 
-  // Consultar Estado de Sesión PPPoE (solo si es PPPoE y el gateway_id está disponible)
+  // Consultar Estado de Sesión PPPoE (solo si es PPPoE y el router_id está disponible)
   const { data: pppoeSessions = [], refetch: refetchSessions } = useQuery<any[]>({
-    queryKey: ['gateway-pppoe-sessions', client?.gateway_id],
+    queryKey: ['router-pppoe-sessions', client?.router_id],
     queryFn: async () => {
-      if (!client?.gateway_id) return []
-      const { data } = await api.get(`/gateways/${client.gateway_id}/pppoe-sessions`)
+      if (!client?.router_id) return []
+      const { data } = await api.get(`/routers/${client.router_id}/pppoe-sessions`)
       return data
     },
-    enabled: !!client && client.connection_type === 'pppoe' && !!client.gateway_id,
+    enabled: !!client && client.connection_type === 'pppoe' && !!client.router_id,
     refetchInterval: anyModalOpen ? false : 10000,
   })
 
@@ -239,8 +239,8 @@ export function ClientProfilePage() {
   // Mutación para desconectar sesión activa
   const disconnectSessionMutation = useMutation({
     mutationFn: async () => {
-      if (!client?.gateway_id || !client?.pppoe_secret?.ppp_username) return
-      await api.delete(`/gateways/${client.gateway_id}/pppoe-sessions/${client.pppoe_secret.ppp_username}`)
+      if (!client?.router_id || !client?.pppoe_secret?.ppp_username) return
+      await api.delete(`/routers/${client.router_id}/pppoe-sessions/${client.pppoe_secret.ppp_username}`)
     },
     onSuccess: () => {
       refetchSessions()
@@ -329,7 +329,7 @@ export function ClientProfilePage() {
   })
 
   useEffect(() => {
-    if (trafficRange !== 'live' || !client?.gateway_id) return
+    if (trafficRange !== 'live' || !client?.router_id) return
 
     const wsUrl = (() => {
       const token = localStorage.getItem('access_token') || ''
@@ -343,7 +343,7 @@ export function ClientProfilePage() {
           wsHost = url.host
         } catch {}
       }
-      return `${wsProtocol}//${wsHost}/api/traffic/ws/${client.gateway_id}?token=${token}`
+      return `${wsProtocol}//${wsHost}/api/traffic/ws/${client.router_id}?token=${token}`
     })()
 
     const ws = new WebSocket(wsUrl)
@@ -372,7 +372,7 @@ export function ClientProfilePage() {
     return () => {
       ws.close()
     }
-  }, [id, client?.gateway_id, trafficRange])
+  }, [id, client?.router_id, trafficRange])
 
   // Mutación para Registrar Ticket
   const createTicketMutation = useMutation({
@@ -791,8 +791,8 @@ export function ClientProfilePage() {
                       <span className="font-semibold text-foreground uppercase">{client.connection_type === 'static' ? 'IP Estática' : 'PPPoE'}</span>
                     </div>
                     <div className="flex justify-between py-1 border-b border-border/20">
-                      <span className="text-muted-foreground">Gateway:</span>
-                      <span className="font-semibold text-foreground truncate max-w-[150px]">{client.gateway_name ?? '—'}</span>
+                      <span className="text-muted-foreground">Router:</span>
+                      <span className="font-semibold text-foreground truncate max-w-[150px]">{client.router_name ?? '—'}</span>
                     </div>
                     <div className="flex justify-between py-1 border-b border-border/20">
                       <span className="text-muted-foreground">Sitio / Ubicación:</span>

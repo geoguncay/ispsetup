@@ -1,5 +1,5 @@
 /**
- * SettingsPage — Página exclusiva para configuraciones globales (MikroTik, Datos de la Empresa, Facturación, Suspensión, Métodos de Pago, Usuarios y Alertas).
+ * SettingsPage — Página exclusiva para configuraciones globales (Routers, Datos de la Empresa, Facturación, Suspensión, Métodos de Pago, Usuarios y Alertas).
  */
 import { useState } from 'react'
 import { SlidersHorizontal, Building, Router, Receipt, Shield, Bell, Plug, Cog, ClipboardList, Menu, X } from 'lucide-react'
@@ -8,7 +8,7 @@ import { Navigate } from 'react-router-dom'
 import { useToast } from '@/hooks/useToast'
 import { ToastContainer } from '@/components/Toast'
 import { CompanySettingsTab } from '@/pages/settings/CompanySettingsTab'
-import { GatewaySettingsTab } from '@/pages/settings/GatewaySettingsTab'
+import { RouterSettingsTab } from '@/pages/settings/RouterSettingsTab'
 import { BillingAndCollectionsTab } from '@/pages/settings/BillingAndCollectionsTab'
 import { SecurityAndAccessTab } from '@/pages/settings/SecurityAndAccessTab'
 import { Notifications } from '@/pages/settings/Notifications'
@@ -16,13 +16,13 @@ import { IntegrationsTab } from '@/pages/settings/IntegrationsTab'
 import { SystemSettingsTab } from '@/pages/settings/SystemSettingsTab'
 import { LogsSettingsTab } from '@/pages/settings/LogsSettingsTab'
 
-type TabType = 'company' | 'billing_collections' | 'gateway' | 'security_access' | 'notifications_alerts' | 'integrations' | 'system' | 'logs'
+type TabType = 'company' | 'billing_collections' | 'router' | 'security_access' | 'notifications_alerts' | 'integrations' | 'system' | 'logs'
 type NavItem = { id: TabType; icon: React.ComponentType<{ className?: string }>; label: string }
 type StatusMessage = { type: 'success' | 'error'; text: string } | null
 
 const NAV_ITEMS: NavItem[] = [
   { id: 'company', icon: Building, label: 'Datos de la Empresa' },
-  { id: 'gateway', icon: Router, label: 'Gateway' },
+  { id: 'router', icon: Router, label: 'Router' },
   { id: 'billing_collections', icon: Receipt, label: 'Facturación' },
   { id: 'security_access', icon: Shield, label: 'Seguridad' },
   { id: 'notifications_alerts', icon: Bell, label: 'Notificaciones' },
@@ -132,8 +132,8 @@ export function SettingsPage() {
             <CompanySettingsTab setStatusMessage={setStatusMessage} />
           )}
 
-          {activeTab === 'gateway' && (
-            <GatewaySettingsTab isAdmin={isAdmin} setStatusMessage={setStatusMessage} />
+          {activeTab === 'router' && (
+            <RouterSettingsTab isAdmin={isAdmin} setStatusMessage={setStatusMessage} />
           )}
 
           {activeTab === 'billing_collections' && (

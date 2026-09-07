@@ -22,7 +22,7 @@ interface UserItem {
   active: boolean
   inactivity_timeout: number
   operator_type?: string
-  gateway_permissions?: string
+  router_permissions?: string
   access_schedule?: string
   permissions?: string
   created_at: string
@@ -48,7 +48,7 @@ const AVAILABLE_PERMISSIONS = [
   { value: 'payments:register', label: 'Registrar Pagos/Cobros' },
   { value: 'invoices:manage', label: 'Administrar Facturas' },
   { value: 'inventory:manage', label: 'Administrar Stock/Inventario' },
-  { value: 'gateways:manage', label: 'Administrar Routers' },
+  { value: 'routers:manage', label: 'Administrar Routers' },
 ]
 
 export function UsersSettingsTab({ setStatusMessage }: { setStatusMessage: StatusSetter }) {
@@ -56,7 +56,7 @@ export function UsersSettingsTab({ setStatusMessage }: { setStatusMessage: Statu
 
   const [isUserModalOpen, setIsUserModalOpen] = useState(false)
   const [editingUser, setEditingUser] = useState<UserItem | null>(null)
-  const [selectedGateways, setSelectedGateways] = useState<string[]>([])
+  const [selectedMikroTiks, setSelectedMikroTiks] = useState<string[]>([])
   const [selectedPermissions, setSelectedPermissions] = useState<string[]>([])
 
   const { data: usersList = [], refetch: refetchUsers, isLoading: loadingUsers } = useQuery<UserItem[]>({
@@ -67,10 +67,10 @@ export function UsersSettingsTab({ setStatusMessage }: { setStatusMessage: Statu
     },
   })
 
-  const { data: gateways = [] } = useQuery<{ id: string; name: string }[]>({
-    queryKey: ['gateways-list-settings'],
+  const { data: routers = [] } = useQuery<{ id: string; name: string }[]>({
+    queryKey: ['routers-list-settings'],
     queryFn: async () => {
-      const { data } = await api.get('/gateways')
+      const { data } = await api.get('/routers')
       return data
     },
   })
@@ -109,7 +109,7 @@ export function UsersSettingsTab({ setStatusMessage }: { setStatusMessage: Statu
       setSelectedPermissions(['clients:view', 'clients:create'])
     } else if (watchOperatorType === 'technical_support') {
       setValueUser('role', 'technician')
-      setSelectedPermissions(['clients:view', 'clients:create', 'gateways:manage'])
+      setSelectedPermissions(['clients:view', 'clients:create', 'routers:manage'])
     }
   }, [watchOperatorType, setValueUser])
 
@@ -122,7 +122,7 @@ export function UsersSettingsTab({ setStatusMessage }: { setStatusMessage: Statu
         active: data.active,
         inactivity_timeout: data.inactivity_timeout,
         operator_type: data.operator_type,
-        gateway_permissions: selectedGateways.join(','),
+        router_permissions: selectedMikroTiks.join(','),
         access_schedule: `${data.start_time}-${data.end_time}`,
         permissions: selectedPermissions.join(','),
       }
@@ -168,8 +168,8 @@ export function UsersSettingsTab({ setStatusMessage }: { setStatusMessage: Statu
       start_time: '08:00',
       end_time: '18:00',
     })
-    setSelectedGateways([])
-    setSelectedPermissions(['clients:view', 'clients:create', 'gateways:manage'])
+    setSelectedMikroTiks([])
+    setSelectedPermissions(['clients:view', 'clients:create', 'routers:manage'])
     setIsUserModalOpen(true)
   }
 
@@ -193,7 +193,7 @@ export function UsersSettingsTab({ setStatusMessage }: { setStatusMessage: Statu
       start_time: start,
       end_time: end,
     })
-    setSelectedGateways(u.gateway_permissions ? u.gateway_permissions.split(',') : [])
+    setSelectedMikroTiks(u.router_permissions ? u.router_permissions.split(',') : [])
     setSelectedPermissions(u.permissions ? u.permissions.split(',') : [])
     setIsUserModalOpen(true)
   }
@@ -400,17 +400,17 @@ export function UsersSettingsTab({ setStatusMessage }: { setStatusMessage: Statu
                 </h4>
                 <p className="text-xs text-muted-foreground mt-0.5">Asigna los routers específicos a los que este operador tendrá acceso.</p>
                 <div className="grid grid-cols-2 gap-2 p-3 rounded-xl bg-background/30 border border-border/50 max-h-[120px] overflow-y-auto">
-                  {gateways.map((g) => (
+                  {routers.map((g) => (
                     <label key={g.id} className="flex items-center gap-2 cursor-pointer text-xs font-medium text-foreground py-0.5">
                       <div className="relative inline-flex items-center flex-shrink-0">
                         <input
                           type="checkbox"
-                          checked={selectedGateways.includes(g.id)}
+                          checked={selectedMikroTiks.includes(g.id)}
                           onChange={(e) => {
                             if (e.target.checked) {
-                              setSelectedGateways([...selectedGateways, g.id])
+                              setSelectedMikroTiks([...selectedMikroTiks, g.id])
                             } else {
-                              setSelectedGateways(selectedGateways.filter(id => id !== g.id))
+                              setSelectedMikroTiks(selectedMikroTiks.filter(id => id !== g.id))
                             }
                           }}
                           className="sr-only peer"
@@ -420,7 +420,7 @@ export function UsersSettingsTab({ setStatusMessage }: { setStatusMessage: Statu
                       <span>{g.name}</span>
                     </label>
                   ))}
-                  {gateways.length === 0 && (
+                  {routers.length === 0 && (
                     <p className="text-xs text-muted-foreground col-span-2 text-center py-2">No hay routers registrados.</p>
                   )}
                 </div>

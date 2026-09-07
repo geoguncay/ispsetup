@@ -1,5 +1,5 @@
 from app.models.user import User
-from app.models.gateway import Gateway
+from app.models.router import Router
 from app.models.company import Company
 from app.models.plan import Plan
 from app.models.client import Client
@@ -19,4 +19,4 @@ from app.models.inventory import InventoryItem
 from app.models.system_settings import SystemSettings
 from app.models.audit_log import AuditLog
 from app.models.client_inventory import ClientInventoryItem
-from app.models.mikrotik_sync_queue import MikroTikSyncQueue
+from app.models.router_sync_queue import RouterSyncQueue

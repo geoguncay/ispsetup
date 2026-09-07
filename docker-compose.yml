@@ -13,7 +13,7 @@ services:
     volumes:
       - ./backend:/app
     ports:
-      - "8000:8000"
+      - '8000:8000'
     depends_on:
       postgres:
         condition: service_healthy
@@ -68,8 +68,8 @@ services:
       - isp_net
 
   # ─────────────────────────────────────────────
-  # Colector NetFlow v9 — recibe lo que los Gateways en modo "Traffic Flow"
-  # envían (ver app/services/mikrotik/gateway_configuration.py) y alimenta
+  # Colector NetFlow v9 — recibe lo que los routers en modo "Traffic Flow"
+  # envían (ver app/services/router/router_configuration.py) y alimenta
   # traffic_samples / el pub-sub de tráfico en vivo. Ver
   # app/services/netflow/collector.py.
   # ─────────────────────────────────────────────
@@ -85,7 +85,7 @@ services:
     volumes:
       - ./backend:/app
     ports:
-      - "${TRAFFIC_FLOW_PORT:-2055}:${TRAFFIC_FLOW_PORT:-2055}/udp"
+      - '${TRAFFIC_FLOW_PORT:-2055}:${TRAFFIC_FLOW_PORT:-2055}/udp'
     depends_on:
       postgres:
         condition: service_healthy
@@ -109,9 +109,9 @@ services:
     volumes:
       - postgres_data:/var/lib/postgresql/data
     ports:
-      - "5432:5432"
+      - '5432:5432'
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
+      test: ['CMD-SHELL', 'pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}']
       interval: 10s
       timeout: 5s
       retries: 5
@@ -129,9 +129,9 @@ services:
     volumes:
       - redis_data:/data
     ports:
-      - "6379:6379"
+      - '6379:6379'
     healthcheck:
-      test: ["CMD", "redis-cli", "ping"]
+      test: ['CMD', 'redis-cli', 'ping']
       interval: 10s
       timeout: 5s
       retries: 5
@@ -146,7 +146,7 @@ services:
     container_name: adminer
     restart: unless-stopped
     ports:
-      - "8080:8080"
+      - '8080:8080'
     depends_on:
       - postgres
     networks:
@@ -166,7 +166,7 @@ services:
       - ./frontend:/app
       - /app/node_modules
     ports:
-      - "5173:5173"
+      - '5173:5173'
     environment:
       - API_PROXY_TARGET=http://api:8000
     networks:

@@ -29,13 +29,13 @@ interface Client {
   address: string
   latitude: number | null
   longitude: number | null
-  gateway_id: string
+  router_id: string
   connection_type: 'static' | 'pppoe'
   active: boolean
   scheduled_suspension?: string | null
   scheduled_reactivation?: string | null
   plan_activo: { id: string; name: string; speed_down_mbps: number; speed_up_mbps: number; price: number } | null
-  gateway_name: string | null
+  router_name: string | null
   static_ip?: { ip: string } | null
   email?: string | null
   created_at: string
@@ -43,7 +43,7 @@ interface Client {
   site_name?: string | null
 }
 
-interface GatewayOption {
+interface RouterOption {
   id: string
   name: string
   latitude?: number | null
@@ -71,7 +71,7 @@ const customMarkerIcon = L.icon({
 
 const DEFAULT_CENTER: [number, number] = [-0.180653, -78.467834]
 
-const gatewayMarkerIcon = L.divIcon({
+const routerMarkerIcon = L.divIcon({
   className: '',
   html: `<div style="width:40px;height:40px;display:flex;align-items:center;justify-content:center;">
     <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="40" height="40">
@@ -87,9 +87,9 @@ const gatewayMarkerIcon = L.divIcon({
   popupAnchor: [0, -22],
 })
 
-function MapController({ clients, selectedGateway, filterKey }: {
+function MapController({ clients, selectedRouter, filterKey }: {
   clients: Client[]
-  selectedGateway: GatewayOption | undefined
+  selectedRouter: RouterOption | undefined
   filterKey: string
 }) {
   const map = useMap()
@@ -99,13 +99,13 @@ function MapController({ clients, selectedGateway, filterKey }: {
     if (lastKey.current === filterKey) return
     lastKey.current = filterKey
 
-    if (selectedGateway?.latitude != null && selectedGateway?.longitude != null) {
-      map.flyTo([selectedGateway.latitude, selectedGateway.longitude], 14, { duration: 0.8 })
+    if (selectedRouter?.latitude != null && selectedRouter?.longitude != null) {
+      map.flyTo([selectedRouter.latitude, selectedRouter.longitude], 14, { duration: 0.8 })
     } else {
       const first = clients.find(c => c.latitude && c.longitude)
       if (first) map.flyTo([first.latitude!, first.longitude!], 14, { duration: 0.8 })
     }
-  }, [filterKey, selectedGateway, clients, map])
+  }, [filterKey, selectedRouter, clients, map])
 
   return null
 }
@@ -132,7 +132,7 @@ export function ClientsPage() {
 
   // State de filtros y paginación
   const [search, setSearch] = useState('')
-  const [gatewayId, setGatewayId] = useState('')
+  const [routerId, setRouterId] = useState('')
   const [planId, setPlanId] = useState('')
   const [siteId, setSiteId] = useState('')
   const [active, setActive] = useState('')
@@ -151,10 +151,10 @@ export function ClientsPage() {
   const [importOpen, setImportOpen] = useState(false)
 
   // Consultar Routers, Planes y Sitios para los dropdowns
-  const { data: gateways = [] } = useQuery<GatewayOption[]>({
-    queryKey: ['gateways-list-dropdown'],
+  const { data: routers = [] } = useQuery<RouterOption[]>({
+    queryKey: ['routers-list-dropdown'],
     queryFn: async () => {
-      const { data } = await api.get('/gateways')
+      const { data } = await api.get('/routers')
       return data
     }
   })
@@ -177,7 +177,7 @@ export function ClientsPage() {
 
   // Consultar Clientes
   const { data: clientsData = { items: [], total: 0 }, isLoading, isFetching, refetch } = useQuery({
-    queryKey: ['clients', page, search, gatewayId, planId, siteId, active, connectionType, sortField, sortDir],
+    queryKey: ['clients', page, search, routerId, planId, siteId, active, connectionType, sortField, sortDir],
     queryFn: async () => {
       const params: any = {
         skip: (page - 1) * limit,
@@ -186,7 +186,7 @@ export function ClientsPage() {
         sort_dir: sortDir,
       }
       if (search.trim()) params.search = search
-      if (gatewayId) params.gateway_id = gatewayId
+      if (routerId) params.router_id = routerId
       if (planId) params.plan_id = planId
       if (siteId) params.site_id = siteId
       if (active) params.active = active === 'true'
@@ -296,14 +296,14 @@ export function ClientsPage() {
             />
           </div>
           <div className="hidden sm:grid  md:grid-cols-4 gap-3">
-          {/* Gateway */}
+          {/* Router */}
           <select
-            value={gatewayId}
-            onChange={(e) => { setGatewayId(e.target.value); setPage(1) }}
+            value={routerId}
+            onChange={(e) => { setRouterId(e.target.value); setPage(1) }}
             className="input-field cursor-pointer"
           >
-            <option value="">Todos los gateways</option>
-            {gateways.map((r) => (
+            <option value="">Todos los routers</option>
+            {routers.map((r) => (
               <option key={r.id} value={r.id}>{r.name}</option>
             ))}
           </select>
@@ -383,19 +383,19 @@ export function ClientsPage() {
                 />
                 <MapController
                   clients={clientsData.items}
-                  selectedGateway={gateways.find(r => r.id === gatewayId)}
-                  filterKey={`${gatewayId}-${siteId}`}
+                  selectedRouter={routers.find(r => r.id === routerId)}
+                  filterKey={`${routerId}-${siteId}`}
                 />
-                {/* Marcador del gateway seleccionado */}
+                {/* Marcador del router seleccionado */}
                 {(() => {
-                  const gw = gateways.find(r => r.id === gatewayId)
+                  const gw = routers.find(r => r.id === routerId)
                   if (!gw?.latitude || !gw?.longitude) return null
                   return (
-                    <Marker position={[gw.latitude, gw.longitude]} icon={gatewayMarkerIcon}>
+                    <Marker position={[gw.latitude, gw.longitude]} icon={routerMarkerIcon}>
                       <Popup>
                         <div className="p-1 font-sans min-w-[160px]">
                           <p className="font-bold text-sm text-foreground m-0">{gw.name}</p>
-                          <p className="text-[11px] text-muted-foreground mt-1 m-0">Gateway · Centro de referencia</p>
+                          <p className="text-[11px] text-muted-foreground mt-1 m-0">Router · Centro de referencia</p>
                           <p className="text-[10px] font-mono text-muted-foreground mt-0.5 m-0">
                             {gw.latitude.toFixed(5)}, {gw.longitude.toFixed(5)}
                           </p>
@@ -547,10 +547,10 @@ export function ClientsPage() {
                       <th className="hidden lg:table-cell">
                         Sitio
                       </th>
-                      <th onClick={() => handleSort('gateway')} className="hidden sm:table-cell cursor-pointer select-none hover:bg-secondary/20 transition-colors">
+                      <th onClick={() => handleSort('router')} className="hidden sm:table-cell cursor-pointer select-none hover:bg-secondary/20 transition-colors">
                         <div className="flex items-center gap-1">
-                          <span>Gateway</span>
-                          {sortField === 'gateway' ? (
+                          <span>Router</span>
+                          {sortField === 'router' ? (
                             sortDir === 'asc' ? <ChevronUp className="w-3.5 h-3.5 text-brand-400" /> : <ChevronDown className="w-3.5 h-3.5 text-brand-400" />
                           ) : (
                             <ArrowUpDown className="w-3 h-3 opacity-30" />
@@ -626,7 +626,7 @@ export function ClientsPage() {
                         </td>
                         <td className="hidden sm:table-cell">
                           <span className="text-xs text-muted-foreground font-medium">
-                            {client.gateway_name ?? '—'}
+                            {client.router_name ?? '—'}
                           </span>
                         </td>
                         <td className="hidden sm:table-cell">

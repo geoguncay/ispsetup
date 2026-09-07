@@ -10,7 +10,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 
 
-from app.api import auth, gateways_api, users, company, clients, plans, traffic_api, custom_services, sites_api, invoices, payments, suppliers_api, inventory_api, system_settings_api, audit_logs_api, zerotier_api
+from app.api import auth, routers_api, users, company, clients, plans, traffic_api, custom_services, sites_api, invoices, payments, suppliers_api, inventory_api, system_settings_api, audit_logs_api, zerotier_api
 from app.core.config import settings
 from app.core.database import Base, engine, run_migrations
 from app.core.seed import run_seed
@@ -40,7 +40,7 @@ async def lifespan(app: FastAPI):
 app = FastAPI(
     title=settings.APP_NAME,
     version="1.0.0",
-    description="Gestión centralizada para ISP — MikroTik, PPPoE, ZeroTier, Facturación SRI",
+    description="Gestión centralizada para ISP — routers MikroTik, PPPoE, ZeroTier, Facturación SRI",
     docs_url="/api/docs",
     redoc_url="/api/redoc",
     openapi_url="/api/openapi.json",
@@ -60,10 +60,10 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# ── Routers ───────────────────────────────────────────────────────────────────
+# ── MikroTik ───────────────────────────────────────────────────────────────────
 app.include_router(auth.router, prefix="/api")
 app.include_router(users.router, prefix="/api")
-app.include_router(gateways_api.router, prefix="/api")
+app.include_router(routers_api.router, prefix="/api")
 app.include_router(company.router, prefix="/api")
 app.include_router(clients.router, prefix="/api")
 app.include_router(plans.router, prefix="/api")

@@ -1,13 +1,12 @@
 # 📡 ISP SETUP – Sistema de Gestión de Red ISP de Nueva Generación
 
-
-> **Sistema de gestión centralizada para ISPs / WISPs** con integración MikroTik RouterOS API, facturación electrónica ecuatoriana (SRI) y monitoreo en tiempo real.
+> **Sistema de gestión centralizada para ISPs / WISPs** con integración Routers RouterOS API, facturación electrónica ecuatoriana (SRI) y monitoreo en tiempo real.
 
 ---
 
 ## 🗺️ Arquitectura del Sistema
 
-El sistema está diseñado para interactuar de forma segura y eficiente con múltiples MikroTik RouterOS remotos o locales. Aunque el diseño por defecto y recomendado en producción sugiere el uso de túneles VPN ZeroTier (para evadir CGNAT y simplificar el ruteo), el backend se comunica mediante peticiones API sobre sockets TCP convencionales. Esto significa que **se soporta cualquier tipo de conectividad de red** (como IPs locales LAN, direcciones WAN públicas, Tailscale, WireGuard u otros túneles VPN) con solo registrar la dirección IP o host correspondiente.
+El sistema está diseñado para interactuar de forma segura y eficiente con múltiples Routers RouterOS remotos o locales. Aunque el diseño por defecto y recomendado en producción sugiere el uso de túneles VPN ZeroTier (para evadir CGNAT y simplificar el ruteo), el backend se comunica mediante peticiones API sobre sockets TCP convencionales. Esto significa que **se soporta cualquier tipo de conectividad de red** (como IPs locales LAN, direcciones WAN públicas, Tailscale, WireGuard u otros túneles VPN) con solo registrar la dirección IP o host correspondiente.
 
 A continuación se detallan los diagramas de arquitectura utilizando el flujo de referencia con ZeroTier:
 
@@ -37,14 +36,14 @@ A continuación se detallan los diagramas de arquitectura utilizando el flujo de
 
 La plataforma completa (API, frontend, Adminer) puede quedar accesible desde cualquier lugar sin exponer puertos a Internet, uniendo el servidor a una red [ZeroTier](https://www.zerotier.com/) privada.
 
-### Administración de nodos desde la app (routers MikroTik y otros equipos)
+### Administración de nodos desde la app (Routers y otros equipos)
 
 En **Ajustes → Integraciones → ZeroTier** puedes:
 
 1. Crear una red en [my.zerotier.com](https://my.zerotier.com) y generar un API Token de ZeroTier Central.
 2. Pegar el **Network ID** y el **API Token** en la app (se cifran con la misma clave `FERNET_KEY` que las contraseñas de los routers).
-3. Ver el estado de la red y **autorizar/revocar** los nodos que se unan (routers MikroTik, laptops de técnicos, el propio servidor, etc.) sin salir del panel.
-4. Al agregar o editar un Gateway MikroTik, vincularlo a un nodo ZeroTier autorizado autocompleta su IP con la dirección asignada por ZeroTier.
+3. Ver el estado de la red y **autorizar/revocar** los nodos que se unan (Routers, laptops de técnicos, el propio servidor, etc.) sin salir del panel.
+4. Al agregar o editar un Router, vincularlo a un nodo ZeroTier autorizado autocompleta su IP con la dirección asignada por ZeroTier.
 
 ### Acceso remoto al servidor completo (opcional)
 
@@ -72,7 +71,7 @@ El proyecto está estructurado como un monorepo para facilitar la gestión conju
 - **Base de Datos:** PostgreSQL 16 (con particionado mensual para muestras de tráfico)
 - **Caché y Mensajería:** Redis 7 (broker de Celery y almacén de sesiones activas)
 - **Tareas Asíncronas:** Celery & Celery Beat (health check periódico, recolección de tráfico, suspensiones automáticas)
-- **Conectividad MikroTik:** `librouteros` (Pool de conexiones persistentes con reconexión automática)
+- **Conectividad Routers:** `librouteros` (Pool de conexiones persistentes con reconexión automática)
 - **ORM & Migraciones:** SQLAlchemy 2.0+ con cargador de migraciones nativo personalizado y scripts SQL
 - **Seguridad:** Cifrado Fernet para credenciales de routers y hashes de contraseñas de usuarios con bcrypt directo.
 
@@ -93,10 +92,10 @@ El proyecto está estructurado como un monorepo para facilitar la gestión conju
 ispsetup/
 ├── backend/                  # Código fuente del backend (FastAPI)
 │   ├── app/
-│   │   ├── api/              # Routers FastAPI por módulo (auth, gateways_api, zerotier_api, clients...)
-│   │   ├── models/           # Modelos de base de datos SQLAlchemy (user, gateway, system_settings...)
-│   │   ├── schemas/          # Esquemas de validación Pydantic (user, gateway, zerotier...)
-│   │   ├── services/         # Lógica de negocio (MikroTik, SRI, zerotier, etc.)
+│   │   ├── api/              # Routers FastAPI por módulo (auth, mikrotiks_api, zerotier_api, clients...)
+│   │   ├── models/           # Modelos de base de datos SQLAlchemy (user, router, system_settings...)
+│   │   ├── schemas/          # Esquemas de validación Pydantic (user, router, zerotier...)
+│   │   ├── services/         # Lógica de negocio (Routers, SRI, zerotier, etc.)
 │   │   │   └── zerotier/     # Cliente de API de ZeroTier Central
 │   │   ├── core/             # Configuración del sistema, auth, base de datos y seguridad
 │   │   └── workers/          # Tareas asíncronas de Celery
@@ -105,8 +104,8 @@ ispsetup/
 │   └── requirements.txt      # Dependencias del backend
 ├── frontend/                 # Panel web de administración (React)
 │   ├── src/
-│   │   ├── components/       # Componentes visuales comunes (AppLayout, GatewayFormDialog...)
-│   │   ├── pages/            # Vistas por módulo (DashboardPage, GatewaysPage, settings/ZeroTierSettingsSection.tsx...)
+│   │   ├── components/       # Componentes visuales comunes (AppLayout, RouterFormDialog...)
+│   │   ├── pages/            # Vistas por módulo (DashboardPage, Router, settings/ZeroTierSettingsSection.tsx...)
 │   │   ├── stores/           # Almacenes de estado global (Zustand)
 │   │   └── services/         # Clientes de consumo de API (incluye zerotier.ts)
 ├── architecture/             # Recursos visuales y diagramas SVG
@@ -121,6 +120,7 @@ ispsetup/
 El proyecto incluye un entorno Docker optimizado que arranca todas las dependencias requeridas (Base de datos, Caché, API y Worker).
 
 #### Arquitectura de Contenedores y Flujo de Trabajo
+
 Para entender cómo interactúan los componentes dentro y fuera de Docker en este proyecto, consulta los siguientes diagramas:
 
 - **Composición del Stack (docker-compose):**
@@ -215,6 +215,6 @@ Para correr las pruebas localmente usando una base de datos en memoria SQLite y 
 
 ## 🔒 Seguridad y Configuración Clave
 
-- **Cifrado Fernet:** Las contraseñas de las APIs de MikroTik y los API Tokens de la integración de ZeroTier se almacenan cifrados en la base de datos PostgreSQL utilizando una clave AES Fernet única declarada en la variable `FERNET_KEY`. Nunca compartas ni pierdas esta variable en entornos de producción.
+- **Cifrado Fernet:** Las contraseñas de las APIs de Routers y los API Tokens de la integración de ZeroTier se almacenan cifrados en la base de datos PostgreSQL utilizando una clave AES Fernet única declarada en la variable `FERNET_KEY`. Nunca compartas ni pierdas esta variable en entornos de producción.
 - **Seed de Administrador:** En el primer arranque, la aplicación autogenerará un usuario administrador inicial utilizando las credenciales provistas en el archivo `.env` (`ADMIN_SEED_EMAIL`, `ADMIN_SEED_PASSWORD`).
 - **Endpoints de Auto-Configuración:** El sistema expone el endpoint `POST /api/auth/setup` para inicializar el administrador principal en instalaciones nuevas donde no exista ningún usuario en base de datos.

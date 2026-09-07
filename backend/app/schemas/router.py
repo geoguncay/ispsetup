@@ -1,5 +1,5 @@
 """
-Schemas Pydantic v2 para gateways MikroTik.
+Schemas Pydantic v2 para routers.
 """
 import uuid
 from datetime import datetime
@@ -50,13 +50,13 @@ class SpeedControlResourceConfig(BaseModel):
         return value
 
 
-class GatewayResourceConfig(BaseModel):
+class RouterResourceConfig(BaseModel):
     security: SecurityResourceConfig = Field(default_factory=SecurityResourceConfig)
     traffic: TrafficResourceConfig = Field(default_factory=TrafficResourceConfig)
     speed_control: SpeedControlResourceConfig = Field(default_factory=SpeedControlResourceConfig)
 
 
-class GatewayCreate(BaseModel):
+class RouterCreate(BaseModel):
     name: str = Field(min_length=2, max_length=120)
     ip: str = Field(
         min_length=7,
@@ -79,11 +79,11 @@ class GatewayCreate(BaseModel):
     traffic_accounting: TrafficAccounting = 'traffic_flow'
     speed_control_type: SpeedControlType = 'simple_queues'
 
-    # Nuevos campos de configuración de MikroTik y ancho de banda
+    # Nuevos campos de configuración del router y ancho de banda
     parent_queue: str | None = Field(default=None, max_length=100)
     address_list: str | None = Field(default=None, max_length=100)
     suspend_list: str | None = Field(default=None, max_length=100)
-    config_mode: Literal['system', 'gateway'] = 'system'
+    config_mode: Literal['system', 'router'] = 'system'
     bandwidth_up: int | None = Field(default=0, ge=0)
     bandwidth_down: int | None = Field(default=0, ge=0)
 
@@ -95,7 +95,7 @@ class GatewayCreate(BaseModel):
     zerotier_node_id: str | None = Field(default=None, max_length=20)
 
 
-class GatewayUpdate(BaseModel):
+class RouterUpdate(BaseModel):
     name: str | None = Field(default=None, min_length=2, max_length=120)
     ip: str | None = Field(default=None, min_length=7, max_length=45)
     api_port: int | None = Field(default=None, ge=1, le=65535)
@@ -114,11 +114,11 @@ class GatewayUpdate(BaseModel):
     traffic_accounting: TrafficAccounting | None = None
     speed_control_type: SpeedControlType | None = None
 
-    # Nuevos campos de configuración de MikroTik y ancho de banda
+    # Nuevos campos de configuración del router y ancho de banda
     parent_queue: str | None = None
     address_list: str | None = None
     suspend_list: str | None = None
-    config_mode: Literal['system', 'gateway'] | None = None
+    config_mode: Literal['system', 'router'] | None = None
     bandwidth_up: int | None = None
     bandwidth_down: int | None = None
 
@@ -130,14 +130,14 @@ class GatewayUpdate(BaseModel):
     zerotier_node_id: str | None = Field(default=None, max_length=20)
 
 
-class GatewaySettingsUpdate(BaseModel):
+class RouterSettingsUpdate(BaseModel):
     security_mode: SecurityMode
     traffic_accounting: TrafficAccounting
     speed_control_type: SpeedControlType
-    resource_config: GatewayResourceConfig | None = None
+    resource_config: RouterResourceConfig | None = None
 
 
-class GatewayRead(BaseModel):
+class RouterRead(BaseModel):
     model_config = {"from_attributes": True}
 
     id: uuid.UUID
@@ -158,9 +158,9 @@ class GatewayRead(BaseModel):
     traffic_accounting: TrafficAccounting
     speed_control_type: SpeedControlType
     settings_configured: bool
-    resource_config: GatewayResourceConfig | None = None
+    resource_config: RouterResourceConfig | None = None
 
-    # Nuevos campos de configuración de MikroTik y ancho de banda
+    # Nuevos campos de configuración del router y ancho de banda
     parent_queue: str | None
     address_list: str | None
     suspend_list: str | None
@@ -186,8 +186,8 @@ class GatewayRead(BaseModel):
     zerotier_online: bool | None = None
 
 
-class GatewayStatus(BaseModel):
-    gateway_id: uuid.UUID
+class RouterStatus(BaseModel):
+    router_id: uuid.UUID
     # "online"      → RouterOS API responde
     # "offline"     → RouterOS API no responde (y el túnel ZeroTier está OK, o no hay túnel que consultar)
     # "tunnel_down" → RouterOS API no responde Y el nodo ZeroTier no reporta a ZeroTier Central
@@ -199,13 +199,13 @@ class GatewayStatus(BaseModel):
     interfaces: list[dict[str, Any]] = []
     error: str | None = None
     checked_at: datetime
-    # Resultado del cruce con ZeroTier Central (solo si el Gateway tiene nodo vinculado
+    # Resultado del cruce con ZeroTier Central (solo si el Router tiene nodo vinculado
     # y la integración ZeroTier está habilitada y configurada).
     zerotier_checked: bool = False
     zerotier_online: bool | None = None
 
 
-class GatewayTestResult(BaseModel):
+class RouterTestResult(BaseModel):
     success: bool
     message: str
     ros_version: str | None = None
@@ -213,9 +213,9 @@ class GatewayTestResult(BaseModel):
     error: str | None = None
 
 
-class GatewayTestPayload(BaseModel):
+class RouterTestPayload(BaseModel):
     ip: str
     api_port: int = 8728
     api_username: str
     password_api: str | None = None
-    gateway_id: uuid.UUID | None = None
+    router_id: uuid.UUID | None = None

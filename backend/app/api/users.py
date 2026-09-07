@@ -61,7 +61,7 @@ def create_user(payload: UserCreate, db: DBSession, current_user: AdminOnly) -> 
         role=payload.role,
         active=payload.active,
         operator_type=payload.operator_type,
-        gateway_permissions=payload.gateway_permissions,
+        router_permissions=payload.router_permissions,
         access_schedule=payload.access_schedule,
         permissions=payload.permissions,
     )

@@ -11,13 +11,13 @@ from sqlalchemy import text
 from sqlalchemy.orm import Session
 
 from app.core import database
-from app.models.gateway import Gateway
+from app.models.router import Router
 from app.models.static_ip import StaticIP
 from app.models.client import Client
 from app.models.traffic_sample import TrafficSample
 from app.core.redis import redis_client
 from app.workers.celery_app import celery_app
-from app.services.mikrotik.gateway_pool import gateway_pool
+from app.services.router.router_pool import router_pool
 
 logger = logging.getLogger(__name__)
 
@@ -58,7 +58,7 @@ def ensure_partition_exists(db: Session, dt: datetime) -> str:
     return partition_name
 
 
-def sync_poll_gateway(gateway: Gateway, static_ips_map: dict, now: datetime) -> tuple[list[dict], list[dict]]:
+def sync_poll_router(router: Router, static_ips_map: dict, now: datetime) -> tuple[list[dict], list[dict]]:
     """
     Consulta síncrona a un router MikroTik para obtener Simple Queues e Interfaces.
     Diseñado para ejecutarse concurridamente en un hilo separado.
@@ -67,13 +67,13 @@ def sync_poll_gateway(gateway: Gateway, static_ips_map: dict, now: datetime) -> 
     interface_samples = []
 
     try:
-        with gateway_pool.connect_to(gateway) as api:
+        with router_pool.connect_to(router) as api:
             # 1. Obtener Simple Queues (Tráfico de Clientes)
             # En modo 'traffic_flow' el colector NetFlow (app.services.netflow)
             # ya reporta el tráfico por cliente a partir de lo que el propio
             # router exporta; sondear Simple Queues aquí duplicaría/mezclaría
-            # esas muestras, así que se omite para esos Gateways.
-            if gateway.traffic_accounting != 'traffic_flow':
+            # esas muestras, así que se omite para esos MikroTik.
+            if router.traffic_accounting != 'traffic_flow':
                 try:
                     queues = list(api.path('/queue/simple'))
                     for q in queues:
@@ -88,7 +88,7 @@ def sync_poll_gateway(gateway: Gateway, static_ips_map: dict, now: datetime) -> 
 
                         # Extraer dirección IP (ej: de "192.168.10.15/32" -> "192.168.10.15")
                         ip = target.split('/')[0]
-                        client_id = static_ips_map.get((gateway.id, ip))
+                        client_id = static_ips_map.get((router.id, ip))
 
                         if not client_id:
                             continue
@@ -105,7 +105,7 @@ def sync_poll_gateway(gateway: Gateway, static_ips_map: dict, now: datetime) -> 
                             tx_bytes, rx_bytes = 0, 0
 
                         client_samples.append({
-                            "gateway_id": gateway.id,
+                            "router_id": router.id,
                             "client_id": client_id,
                             "name": name,
                             "rx_bytes": rx_bytes,
@@ -115,7 +115,7 @@ def sync_poll_gateway(gateway: Gateway, static_ips_map: dict, now: datetime) -> 
                             "timestamp": now,
                         })
                 except Exception as eq:
-                    logger.error(f"Error al consultar colas en {gateway.name}: {eq}")
+                    logger.error(f"Error al consultar colas en {router.name}: {eq}")
 
             # 2. Obtener Interfaces (Consumo Global)
             try:
@@ -131,23 +131,23 @@ def sync_poll_gateway(gateway: Gateway, static_ips_map: dict, now: datetime) -> 
                         continue
 
                     interface_samples.append({
-                        "gateway_id": gateway.id,
+                        "router_id": router.id,
                         "interface_name": name,
                         "rx_bytes": rx_bytes,
                         "tx_bytes": tx_bytes,
                         "timestamp": now,
                     })
             except Exception as ei:
-                logger.error(f"Error al consultar interfaces en {gateway.name}: {ei}")
+                logger.error(f"Error al consultar interfaces en {router.name}: {ei}")
 
     except Exception as e:
-        logger.error(f"Fallo de conexión al colectar tráfico en router {gateway.name}: {e}")
+        logger.error(f"Fallo de conexión al colectar tráfico en router {router.name}: {e}")
         return [], []
 
     return client_samples, interface_samples
 
 
-async def calculate_interface_rates(gateway_id: uuid.UUID, interface_samples: list[dict], now: datetime, redis_conn) -> list[dict]:
+async def calculate_interface_rates(router_id: uuid.UUID, interface_samples: list[dict], now: datetime, redis_conn) -> list[dict]:
     """
     Calcula la tasa actual en bps para las interfaces basándose en el delta de bytes y tiempo.
     """
@@ -156,7 +156,7 @@ async def calculate_interface_rates(gateway_id: uuid.UUID, interface_samples: li
 
     for sample in interface_samples:
         iface_name = sample["interface_name"]
-        cache_key = f"gateway:iface_bytes:{gateway_id}:{iface_name}"
+        cache_key = f"router:iface_bytes:{router_id}:{iface_name}"
 
         # Obtener muestra anterior de Redis
         prev_data_str = await redis_conn.get(cache_key)
@@ -200,7 +200,7 @@ async def calculate_interface_rates(gateway_id: uuid.UUID, interface_samples: li
 
 
 async def calculate_client_deltas(
-    gateway_id: uuid.UUID,
+    router_id: uuid.UUID,
     client_samples: list[dict],
     now: datetime,
     redis_conn,
@@ -209,7 +209,7 @@ async def calculate_client_deltas(
     now_ts = now.timestamp()
 
     for sample in client_samples:
-        cache_key = f"gateway:client_bytes:{gateway_id}:{sample['client_id']}"
+        cache_key = f"router:client_bytes:{router_id}:{sample['client_id']}"
         previous_raw = await redis_conn.get(cache_key)
         rx_delta = 0
         tx_delta = 0
@@ -268,24 +268,24 @@ def poll_traffic():
         ensure_partition_exists(db, now)
 
         # Cargar routers activos
-        gateways = db.query(Gateway).filter(Gateway.active == True).all()
-        if not gateways:
+        routers = db.query(Router).filter(Router.active == True).all()
+        if not routers:
             logger.debug("No hay routers activos para monitorear.")
             return
 
-        logger.info(f"poll_traffic: iniciando recolección para {len(gateways)} routers activos")
+        logger.info(f"poll_traffic: iniciando recolección para {len(routers)} routers activos")
 
         # Cargar mapa de IPs estáticas de clientes activos para relacionar muestras
         # Filtramos clientes activos que tengan IP estática
         static_ips = (
-            db.query(StaticIP.gateway_id, StaticIP.ip, StaticIP.client_id)
+            db.query(StaticIP.router_id, StaticIP.ip, StaticIP.client_id)
             .join(Client, StaticIP.client_id == Client.id)
             .filter(Client.active == True)
             .all()
         )
         static_ips_map = {
-            (gateway_id, ip): client_id
-            for gateway_id, ip, client_id in static_ips
+            (router_id, ip): client_id
+            for router_id, ip, client_id in static_ips
         }
 
         # Ejecutar recolección en paralelo usando subprocesos/hilos
@@ -302,10 +302,10 @@ def poll_traffic():
             try:
                 loop = asyncio.get_running_loop()
                 tasks = []
-                for r in gateways:
+                for r in routers:
                     # Correr en un hilo separado de forma no bloqueante
                     task = asyncio.wait_for(
-                        loop.run_in_executor(None, sync_poll_gateway, r, static_ips_map, now),
+                        loop.run_in_executor(None, sync_poll_router, r, static_ips_map, now),
                         timeout=POLL_TRAFFIC_GATEWAY_TIMEOUT_SECONDS,
                     )
                     tasks.append(task)
@@ -316,7 +316,7 @@ def poll_traffic():
                 published_clients = 0
                 published_interfaces = 0
                 
-                for r, result in zip(gateways, results):
+                for r, result in zip(routers, results):
                     if isinstance(result, Exception):
                         if isinstance(result, asyncio.TimeoutError):
                             logger.warning(
@@ -343,7 +343,7 @@ def poll_traffic():
                     for cs in client_samples:
                         db_records.append(TrafficSample(
                             id=uuid.uuid4(),
-                            gateway_id=cs["gateway_id"],
+                            router_id=cs["router_id"],
                             client_id=cs["client_id"],
                             rx_bytes=cs["rx_bytes"],
                             tx_bytes=cs["tx_bytes"],
@@ -357,7 +357,7 @@ def poll_traffic():
                     for ifs in enriched_ifaces:
                         db_records.append(TrafficSample(
                             id=uuid.uuid4(),
-                            gateway_id=ifs["gateway_id"],
+                            router_id=ifs["router_id"],
                             interface_name=ifs["interface_name"],
                             rx_bytes=ifs["rx_bytes"],
                             tx_bytes=ifs["tx_bytes"],
@@ -368,7 +368,7 @@ def poll_traffic():
 
                     # Publicar actualización en vivo a Redis Pub/Sub por router
                     pub_payload = {
-                        "gateway_id": str(r.id),
+                        "router_id": str(r.id),
                         "timestamp": now.isoformat(),
                         "clients": [
                             {
@@ -397,7 +397,7 @@ def poll_traffic():
 
                     try:
                         await local_redis.publish(
-                            f"gateway_traffic:{r.id}",
+                            f"router_traffic:{r.id}",
                             json.dumps(pub_payload)
                         )
                     except Exception as publish_err:

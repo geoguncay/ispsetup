@@ -12,7 +12,7 @@ from sqlalchemy.pool import StaticPool
 from app.core import database as db_module
 from app.core.database import Base
 from app.models.client import Client
-from app.models.gateway import Gateway
+from app.models.router import Router
 from app.models.static_ip import StaticIP
 from app.models.traffic_sample import TrafficSample
 from app.services.netflow.collector import NetflowCollectorProtocol, _flush, load_mappings
@@ -56,10 +56,10 @@ def _netflow_packet(records: list[tuple[str, str, int]]) -> bytes:
     return header + template_flowset + data_flowset
 
 
-def _make_gateway_and_client(db, *, gateway_ip: str, traffic_accounting: str, client_active: bool = True) -> tuple[Gateway, Client]:
-    gw = Gateway(
-        name=f"GW {gateway_ip}",
-        ip=gateway_ip,
+def _make_router_and_client(db, *, router_ip: str, traffic_accounting: str, client_active: bool = True) -> tuple[Router, Client]:
+    gw = Router(
+        name=f"GW {router_ip}",
+        ip=router_ip,
         api_port=8728,
         api_username="admin",
         password_enc="enc_pass",
@@ -73,7 +73,7 @@ def _make_gateway_and_client(db, *, gateway_ip: str, traffic_accounting: str, cl
         cedula=str(uuid.uuid4().int)[:10],
         phone="0999999999",
         address="Quito",
-        gateway_id=gw.id,
+        router_id=gw.id,
         connection_type="static",
         active=client_active,
     )
@@ -82,12 +82,12 @@ def _make_gateway_and_client(db, *, gateway_ip: str, traffic_accounting: str, cl
     return gw, client
 
 
-def test_protocol_accumulates_flow_bytes_for_known_gateway_and_clients():
-    gateway_id = uuid.uuid4()
+def test_protocol_accumulates_flow_bytes_for_known_router_and_clients():
+    router_id = uuid.uuid4()
     client_id = uuid.uuid4()
     protocol = NetflowCollectorProtocol()
-    protocol.gateway_map = {"10.0.0.9": gateway_id}
-    protocol.client_map = {(gateway_id, "192.168.30.5"): client_id}
+    protocol.router_map = {"10.0.0.9": router_id}
+    protocol.client_map = {(router_id, "192.168.30.5"): client_id}
 
     packet = _netflow_packet([
         ("192.168.30.5", "8.8.8.8", 7000),   # cliente sube (tx)
@@ -95,12 +95,12 @@ def test_protocol_accumulates_flow_bytes_for_known_gateway_and_clients():
     ])
     protocol.datagram_received(packet, ("10.0.0.9", 2055))
 
-    assert protocol.accumulator[(gateway_id, client_id)] == {"rx": 15000, "tx": 7000}
+    assert protocol.accumulator[(router_id, client_id)] == {"rx": 15000, "tx": 7000}
 
 
 def test_protocol_ignores_packets_from_unknown_exporter():
     protocol = NetflowCollectorProtocol()
-    protocol.gateway_map = {}
+    protocol.router_map = {}
     packet = _netflow_packet([("1.2.3.4", "5.6.7.8", 100)])
 
     protocol.datagram_received(packet, ("9.9.9.9", 2055))
@@ -108,28 +108,28 @@ def test_protocol_ignores_packets_from_unknown_exporter():
     assert protocol.accumulator == {}
 
 
-def test_load_mappings_only_includes_traffic_flow_gateways_and_active_clients():
+def test_load_mappings_only_includes_traffic_flow_mikrotiks_and_active_clients():
     db = TestingSessionLocal()
-    gw_flow, active_client = _make_gateway_and_client(
-        db, gateway_ip="10.0.0.10", traffic_accounting="traffic_flow", client_active=True
+    gw_flow, active_client = _make_router_and_client(
+        db, router_ip="10.0.0.10", traffic_accounting="traffic_flow", client_active=True
     )
-    _, inactive_client = _make_gateway_and_client(
-        db, gateway_ip="10.0.0.99", traffic_accounting="traffic_flow", client_active=False
+    _, inactive_client = _make_router_and_client(
+        db, router_ip="10.0.0.99", traffic_accounting="traffic_flow", client_active=False
     )
-    gw_other, _ = _make_gateway_and_client(
-        db, gateway_ip="10.0.0.11", traffic_accounting="queue_accounting", client_active=True
+    gw_other, _ = _make_router_and_client(
+        db, router_ip="10.0.0.11", traffic_accounting="queue_accounting", client_active=True
     )
-    db.add(StaticIP(client_id=active_client.id, ip="192.168.40.1", gateway_id=gw_flow.id))
-    db.add(StaticIP(client_id=inactive_client.id, ip="192.168.40.2", gateway_id=gw_flow.id))
+    db.add(StaticIP(client_id=active_client.id, ip="192.168.40.1", router_id=gw_flow.id))
+    db.add(StaticIP(client_id=inactive_client.id, ip="192.168.40.2", router_id=gw_flow.id))
     gw_flow_id, active_client_id = gw_flow.id, active_client.id
     gw_other_ip = gw_other.ip
     db.commit()
     db.close()
 
-    gateway_map, client_map, client_names = load_mappings()
+    router_map, client_map, client_names = load_mappings()
 
-    assert gateway_map.get("10.0.0.10") == gw_flow_id
-    assert gw_other_ip not in gateway_map
+    assert router_map.get("10.0.0.10") == gw_flow_id
+    assert gw_other_ip not in router_map
     assert client_map.get((gw_flow_id, "192.168.40.1")) == active_client_id
     assert (gw_flow_id, "192.168.40.2") not in client_map
     assert client_names.get(active_client_id) == "Cliente Prueba"
@@ -137,13 +137,13 @@ def test_load_mappings_only_includes_traffic_flow_gateways_and_active_clients():
 
 def test_flush_writes_traffic_sample_and_publishes():
     db = TestingSessionLocal()
-    gw, c = _make_gateway_and_client(db, gateway_ip="10.0.0.20", traffic_accounting="traffic_flow")
-    gateway_id, client_id = gw.id, c.id
+    gw, c = _make_router_and_client(db, router_ip="10.0.0.20", traffic_accounting="traffic_flow")
+    router_id, client_id = gw.id, c.id
     db.commit()
     db.close()
 
     protocol = NetflowCollectorProtocol()
-    protocol.accumulator[(gateway_id, client_id)] = {"rx": 8000, "tx": 4000}
+    protocol.accumulator[(router_id, client_id)] = {"rx": 8000, "tx": 4000}
 
     redis_mock = AsyncMock()
     redis_mock.get = AsyncMock(return_value=None)
@@ -167,12 +167,12 @@ def test_flush_writes_traffic_sample_and_publishes():
     db.close()
 
     redis_mock.setex.assert_awaited_once()
-    assert redis_mock.setex.call_args[0][0] == f"netflow:client_bytes:{gateway_id}:{client_id}"
+    assert redis_mock.setex.call_args[0][0] == f"netflow:client_bytes:{router_id}:{client_id}"
 
     redis_mock.publish.assert_awaited_once()
     channel, raw_payload = redis_mock.publish.call_args[0]
     payload = json.loads(raw_payload)
-    assert channel == f"gateway_traffic:{gateway_id}"
+    assert channel == f"router_traffic:{router_id}"
     assert payload["clients"] == [{
         "client_id": str(client_id),
         "name": "Cliente Prueba",
@@ -188,8 +188,8 @@ def test_flush_writes_traffic_sample_and_publishes():
 
 def test_flush_accumulates_cumulative_bytes_across_windows():
     db = TestingSessionLocal()
-    gw, c = _make_gateway_and_client(db, gateway_ip="10.0.0.21", traffic_accounting="traffic_flow")
-    gateway_id, client_id = gw.id, c.id
+    gw, c = _make_router_and_client(db, router_ip="10.0.0.21", traffic_accounting="traffic_flow")
+    router_id, client_id = gw.id, c.id
     db.commit()
     db.close()
 
@@ -200,12 +200,12 @@ def test_flush_accumulates_cumulative_bytes_across_windows():
     redis_mock.publish = AsyncMock(return_value=True)
 
     redis_mock.get = AsyncMock(return_value=None)
-    protocol.accumulator[(gateway_id, client_id)] = {"rx": 1000, "tx": 500}
+    protocol.accumulator[(router_id, client_id)] = {"rx": 1000, "tx": 500}
     asyncio.run(_flush(protocol, redis_mock, client_names, interval=5))
     stored_json = redis_mock.setex.call_args[0][2]
 
     redis_mock.get = AsyncMock(return_value=stored_json)
-    protocol.accumulator[(gateway_id, client_id)] = {"rx": 300, "tx": 200}
+    protocol.accumulator[(router_id, client_id)] = {"rx": 300, "tx": 200}
     asyncio.run(_flush(protocol, redis_mock, client_names, interval=5))
 
     db = TestingSessionLocal()

@@ -40,7 +40,7 @@ from app.schemas.system_settings import (
     SystemSettingsRead,
 )
 from app.services.audit_service import AuditAction, audit_detail, log_event
-from app.services.mikrotik.gateway_pool import gateway_pool
+from app.services.router.router_pool import router_pool
 
 router = APIRouter(prefix="/settings", tags=["settings"])
 
@@ -55,12 +55,12 @@ def _get_or_create(db) -> SystemSettings:
     return cfg
 
 
-@router.get("/mikrotik-api", response_model=MikrotikApiConfigRead)
+@router.get("/router-api", response_model=MikrotikApiConfigRead)
 def get_mikrotik_api_config(db: DBSession, _: AdminOnly) -> SystemSettings:
     return _get_or_create(db)
 
 
-@router.put("/mikrotik-api", response_model=MikrotikApiConfigRead)
+@router.put("/router-api", response_model=MikrotikApiConfigRead)
 def update_mikrotik_api_config(
     payload: MikrotikApiConfig,
     db: DBSession,
@@ -73,10 +73,10 @@ def update_mikrotik_api_config(
     cfg.mikrotik_ssl = payload.mikrotik_ssl
     db.commit()
     db.refresh(cfg)
-    gateway_pool.invalidate_config_cache()
+    router_pool.invalidate_config_cache()
     log_event(
         db, AuditAction.UPDATE_MIKROTIK_API_SETTINGS,
-        entity_type="SystemSettings", entity_id="mikrotik-api", entity_name="API MikroTik",
+        entity_type="SystemSettings", entity_id="router-api", entity_name="API MikroTik",
         user_id=current_user.id, user_name=current_user.name,
         detail=audit_detail(
             "Configuración de la API MikroTik actualizada",
@@ -306,7 +306,7 @@ def update_ispsetup_settings(
         setattr(cfg, field, value)
     db.commit()
     db.refresh(cfg)
-    from app.services.mikrotik.gateway_configuration import invalidate_ispsetup_cache
+    from app.services.router.router_configuration import invalidate_ispsetup_cache
     invalidate_ispsetup_cache()
     log_event(
         db, AuditAction.UPDATE_ISPSETUP_SETTINGS,

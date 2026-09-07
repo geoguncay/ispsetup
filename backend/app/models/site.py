@@ -30,8 +30,8 @@ class Site(Base):
         nullable=False,
     )
 
-    # Relación de uno a muchos con Gateway
-    gateways = relationship("Gateway", back_populates="site")
+    # Relación de uno a muchos con Router
+    routers = relationship("Router", back_populates="site")
 
     def __repr__(self) -> str:
         return f"<Site id={self.id} name={self.name}>"

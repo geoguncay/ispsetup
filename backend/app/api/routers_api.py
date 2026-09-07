@@ -1,5 +1,5 @@
 """
-Endpoints CRUD de routers MikroTik.
+Endpoints CRUD de routers.
 """
 import uuid
 
@@ -8,47 +8,47 @@ from sqlalchemy.exc import IntegrityError
 
 from app.core.deps import AdminOnly, AdminOrTechnician, CurrentUser, DBSession
 from app.core.security import decrypt_secret, encrypt_secret
-from app.models.gateway import Gateway
+from app.models.router import Router
 from app.models.audit_log import AuditLog
 from app.models.client import Client
-from app.models.mikrotik_sync_queue import MikroTikSyncQueue
+from app.models.router_sync_queue import RouterSyncQueue
 from app.models.site import Site
 from app.models.static_ip import StaticIP
 from app.models.traffic_sample import TrafficSample
 from app.models.pppoe_profile import PPPoEProfile
 from app.models.pppoe_secret import PPPoESecret
 from app.schemas.pppoe import PPPoEProfileRead, PPPoESessionActive
-from app.services.mikrotik.pppoe import (
-    sync_pppoe_profiles_from_gateway,
+from app.services.router.pppoe import (
+    sync_pppoe_profiles_from_router,
     fetch_active_pppoe_sessions,
     disconnect_pppoe_session,
 )
-from app.services.mikrotik.address_list import fetch_clients_from_address_list
-from app.services.mikrotik.queue import fetch_queues, get_parent_queue_limit, update_parent_queue_limit
-from app.schemas.gateway import (
-    GatewayCreate,
-    GatewayRead,
-    GatewayStatus,
-    GatewaySettingsUpdate,
-    GatewayTestPayload,
-    GatewayTestResult,
-    GatewayUpdate,
+from app.services.router.address_list import fetch_clients_from_address_list
+from app.services.router.queue import fetch_queues, get_parent_queue_limit, update_parent_queue_limit
+from app.schemas.router import (
+    RouterCreate,
+    RouterRead,
+    RouterStatus,
+    RouterSettingsUpdate,
+    RouterTestPayload,
+    RouterTestResult,
+    RouterUpdate,
 )
-from app.services.mikrotik.health import check_gateway_health, get_cached_gateway_status
+from app.services.router.health import check_router_health, get_cached_router_status
 from app.services.audit_service import AuditAction, audit_detail, log_event
-from app.services.mikrotik.gateway_pool import GatewayConnectionError, gateway_pool
-from app.services.mikrotik.gateway_configuration import (
-    GatewayConfigurationError,
-    apply_gateway_configuration,
-    cleanup_gateway_configuration,
+from app.services.router.router_pool import RouterConnectionError, router_pool
+from app.services.router.router_configuration import (
+    RouterConfigurationError,
+    apply_router_configuration,
+    cleanup_router_configuration,
 )
 
-router = APIRouter(prefix="/gateways", tags=["gateways"])
+router = APIRouter(prefix="/routers", tags=["routers"])
 
 
-def _enrich_with_status(r: Gateway, cached: GatewayStatus | None) -> dict:
+def _enrich_with_status(r: Router, cached: RouterStatus | None) -> dict:
     """Combina datos del modelo con el estado cacheado de Redis."""
-    data = GatewayRead.model_validate(r).model_dump()
+    data = RouterRead.model_validate(r).model_dump()
     data["site_id"] = r.site_id
     data["site_name"] = r.site_name
     if cached:
@@ -61,18 +61,18 @@ def _enrich_with_status(r: Gateway, cached: GatewayStatus | None) -> dict:
     return data
 
 
-@router.get("", response_model=list[GatewayRead])
-async def list_gateways(db: DBSession, _: CurrentUser) -> list:
-    gateways = db.query(Gateway).filter(Gateway.active == True).order_by(Gateway.name).all()
+@router.get("", response_model=list[RouterRead])
+async def list_routers(db: DBSession, _: CurrentUser) -> list:
+    routers = db.query(Router).filter(Router.active == True).order_by(Router.name).all()
     result = []
-    for r in gateways:
-        cached = await get_cached_gateway_status(str(r.id))
+    for r in routers:
+        cached = await get_cached_router_status(str(r.id))
         result.append(_enrich_with_status(r, cached))
     return result
 
 
-@router.post("", response_model=GatewayRead, status_code=status.HTTP_201_CREATED)
-def create_gateway(payload: GatewayCreate, db: DBSession, current_user: AdminOnly) -> Gateway:
+@router.post("", response_model=RouterRead, status_code=status.HTTP_201_CREATED)
+def create_router(payload: RouterCreate, db: DBSession, current_user: AdminOnly) -> Router:
     # Manejar creación o asignación de Sitio
     site_id = payload.site_id
     if payload.new_site_name and payload.new_site_name.strip():
@@ -86,7 +86,7 @@ def create_gateway(payload: GatewayCreate, db: DBSession, current_user: AdminOnl
             db.flush()
             site_id = new_site.id
 
-    r = Gateway(
+    r = Router(
         name=payload.name,
         ip=payload.ip,
         api_port=payload.api_port,
@@ -121,33 +121,33 @@ def create_gateway(payload: GatewayCreate, db: DBSession, current_user: AdminOnl
 
     log_event(
         db, AuditAction.CREATE_GATEWAY,
-        entity_type="Gateway", entity_id=str(r.id), entity_name=r.name,
+        entity_type="Router", entity_id=str(r.id), entity_name=r.name,
         user_id=current_user.id, user_name=current_user.name,
-        detail=audit_detail("Gateway creado", ip=r.ip, api_port=r.api_port, site=r.site_name),
+        detail=audit_detail("Router creado", ip=r.ip, api_port=r.api_port, site=r.site_name),
     )
 
     return r
 
 
-@router.post("/test-connection", response_model=GatewayTestResult)
-def test_unsaved_gateway_connection(
-    payload: GatewayTestPayload,
+@router.post("/test-connection", response_model=RouterTestResult)
+def test_unsaved_router_connection(
+    payload: RouterTestPayload,
     db: DBSession,
     current_user: AdminOnly,
-) -> GatewayTestResult:
+) -> RouterTestResult:
     """
     Prueba la conexión al router usando datos del formulario (antes de guardar o al editar).
     """
     password = payload.password_api
     if not password:
-        if payload.gateway_id:
-            r = db.get(Gateway, payload.gateway_id)
+        if payload.router_id:
+            r = db.get(Router, payload.router_id)
             if not r:
-                raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Gateway no encontrado")
+                raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Router no encontrado")
             try:
                 password = decrypt_secret(r.password_enc)
             except Exception as e:
-                return GatewayTestResult(
+                return RouterTestResult(
                     success=False,
                     message="Error al descifrar la contraseña guardada en la base de datos",
                     error=str(e),
@@ -158,7 +158,7 @@ def test_unsaved_gateway_connection(
                 detail="Se requiere la contraseña para probar la conexión de un nuevo router",
             )
 
-    temp_gateway = Gateway(
+    temp_router = Router(
         name=f"Test-{payload.ip}",
         ip=payload.ip,
         api_port=payload.api_port,
@@ -167,12 +167,12 @@ def test_unsaved_gateway_connection(
     )
 
     try:
-        with gateway_pool.connect_to(temp_gateway) as api_conn:
+        with router_pool.connect_to(temp_router) as api_conn:
             sys_res = list(api_conn("/system/resource/print"))
             ros_version = sys_res[0].get("version") if sys_res else None
             uptime = sys_res[0].get("uptime") if sys_res else None
 
-        result = GatewayTestResult(
+        result = RouterTestResult(
             success=True,
             message=f"Conexión exitosa a {payload.ip}:{payload.api_port}",
             ros_version=ros_version,
@@ -180,44 +180,44 @@ def test_unsaved_gateway_connection(
         )
         log_event(
             db, AuditAction.TEST_GATEWAY_CONNECTION,
-            entity_type="Gateway", entity_id=payload.gateway_id or payload.ip,
-            entity_name=temp_gateway.name,
+            entity_type="Router", entity_id=payload.router_id or payload.ip,
+            entity_name=temp_router.name,
             user_id=current_user.id, user_name=current_user.name,
             detail=audit_detail("Prueba de conexión exitosa", ip=payload.ip, api_port=payload.api_port, success=True, ros_version=ros_version),
         )
         return result
-    except GatewayConnectionError as e:
-        result = GatewayTestResult(
+    except RouterConnectionError as e:
+        result = RouterTestResult(
             success=False,
             message=f"No se pudo conectar a {payload.ip}:{payload.api_port}",
             error=str(e),
         )
         log_event(
             db, AuditAction.TEST_GATEWAY_CONNECTION,
-            entity_type="Gateway", entity_id=payload.gateway_id or payload.ip,
-            entity_name=temp_gateway.name,
+            entity_type="Router", entity_id=payload.router_id or payload.ip,
+            entity_name=temp_router.name,
             user_id=current_user.id, user_name=current_user.name,
             detail=audit_detail("Prueba de conexión fallida", ip=payload.ip, api_port=payload.api_port, success=False, error=str(e)),
         )
         return result
 
 
-@router.get("/{gateway_id}", response_model=GatewayRead)
-async def get_gateway(gateway_id: uuid.UUID, db: DBSession, _: CurrentUser) -> dict:
-    r = db.get(Gateway, gateway_id)
+@router.get("/{router_id}", response_model=RouterRead)
+async def get_router(router_id: uuid.UUID, db: DBSession, _: CurrentUser) -> dict:
+    r = db.get(Router, router_id)
     if not r or not r.active:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Gateway no encontrado")
-    cached = await get_cached_gateway_status(str(r.id))
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Router no encontrado")
+    cached = await get_cached_router_status(str(r.id))
     return _enrich_with_status(r, cached)
 
 
-@router.put("/{gateway_id}", response_model=GatewayRead)
-def update_gateway(
-    gateway_id: uuid.UUID, payload: GatewayUpdate, db: DBSession, current_user: AdminOnly
-) -> Gateway:
-    r = db.get(Gateway, gateway_id)
+@router.put("/{router_id}", response_model=RouterRead)
+def update_router(
+    router_id: uuid.UUID, payload: RouterUpdate, db: DBSession, current_user: AdminOnly
+) -> Router:
+    r = db.get(Router, router_id)
     if not r:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Gateway no encontrado")
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Router no encontrado")
 
     # Guardar el nombre anterior de la cola padre antes de actualizar
     old_parent_queue = r.parent_queue
@@ -255,8 +255,8 @@ def update_gateway(
         if not r.address_list:
             r.address_list = f"clients{clean_name}"
 
-    gateway_mode = r.config_mode == 'gateway'
-    if not gateway_mode:
+    router_mode = r.config_mode == 'router'
+    if not router_mode:
         if "parent_queue" in update_data and r.parent_queue:
             if not r.parent_queue.startswith("isp_"):
                 r.parent_queue = f"isp_{r.parent_queue}"
@@ -270,8 +270,8 @@ def update_gateway(
                 r.suspend_list = f"isp_{r.suspend_list}"
 
     try:
-        apply_gateway_configuration(r, set(update_data))
-    except GatewayConfigurationError as exc:
+        apply_router_configuration(r, set(update_data))
+    except RouterConfigurationError as exc:
         db.rollback()
         raise HTTPException(
             status_code=status.HTTP_502_BAD_GATEWAY,
@@ -283,9 +283,9 @@ def update_gateway(
 
     # Sincronizar cola padre en MikroTik si el control de velocidad está activo
     if r.speed_control and r.speed_control_type == 'simple_queues':
-        from app.services.mikrotik.queue import sync_gateway_parent_queue
+        from app.services.router.queue import sync_router_parent_queue
         try:
-            sync_gateway_parent_queue(r, old_parent_name=old_parent_queue)
+            sync_router_parent_queue(r, old_parent_name=old_parent_queue)
         except Exception as e:
             import logging
             logging.getLogger(__name__).error(f"No se pudo actualizar la cola padre en MikroTik para el router: {e}")
@@ -293,76 +293,76 @@ def update_gateway(
 
     log_event(
         db, AuditAction.UPDATE_GATEWAY,
-        entity_type="Gateway", entity_id=str(r.id), entity_name=r.name,
+        entity_type="Router", entity_id=str(r.id), entity_name=r.name,
         user_id=current_user.id, user_name=current_user.name,
-        detail=audit_detail("Gateway actualizado", fields_changed=sorted(payload.model_fields_set)),
+        detail=audit_detail("Router actualizado", fields_changed=sorted(payload.model_fields_set)),
     )
 
     return r
 
 
-@router.put("/{gateway_id}/settings", response_model=GatewayRead)
-def update_gateway_settings(
-    gateway_id: uuid.UUID,
-    payload: GatewaySettingsUpdate,
+@router.put("/{router_id}/settings", response_model=RouterRead)
+def update_router_settings(
+    router_id: uuid.UUID,
+    payload: RouterSettingsUpdate,
     db: DBSession,
     current_user: AdminOnly,
-) -> Gateway:
-    """Guarda y aplica los tres modos operativos del Gateway."""
-    gateway = db.get(Gateway, gateway_id)
-    if not gateway or not gateway.active:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Gateway no encontrado")
+) -> Router:
+    """Guarda y aplica los tres modos operativos del Router."""
+    router = db.get(Router, router_id)
+    if not router or not router.active:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Router no encontrado")
 
     settings = payload.model_dump(exclude_none=True)
     resource_config_supplied = "resource_config" in settings
     old_parent_name = None
     old_resource_config = None
     if resource_config_supplied:
-        from app.services.mikrotik.gateway_resources import get_gateway_resource_config
-        old_resource_config = get_gateway_resource_config(gateway)
+        from app.services.router.router_resources import get_router_resource_config
+        old_resource_config = get_router_resource_config(router)
         old_parent_name = old_resource_config['speed_control']['parent_queue']
     changes = {
         field
         for field, value in settings.items()
-        if getattr(gateway, field) != value
+        if getattr(router, field) != value
     }
     # El primer guardado debe aplicar los tres modos aunque coincidan con los
-    # defaults almacenados al crear el gateway.
-    if not gateway.settings_configured:
+    # defaults almacenados al crear el router.
+    if not router.settings_configured:
         changes.update(settings)
 
     for field, value in settings.items():
-        setattr(gateway, field, value)
+        setattr(router, field, value)
 
     # Mantener los campos anteriores sincronizados durante la transición.
     if resource_config_supplied:
         resources = settings["resource_config"]
-        gateway.suspend_list = resources["security"]["suspend_list"]
-        gateway.parent_queue = resources["speed_control"]["parent_queue"]
-        gateway.address_list = resources["speed_control"]["client_address_list"]
+        router.suspend_list = resources["security"]["suspend_list"]
+        router.parent_queue = resources["speed_control"]["parent_queue"]
+        router.address_list = resources["speed_control"]["client_address_list"]
 
     try:
         if resource_config_supplied and old_resource_config:
-            from app.services.mikrotik.gateway_configuration import migrate_gateway_resource_names
-            migrate_gateway_resource_names(gateway, old_resource_config)
-        apply_gateway_configuration(gateway, changes)
-    except GatewayConfigurationError as exc:
+            from app.services.router.router_configuration import migrate_router_resource_names
+            migrate_router_resource_names(router, old_resource_config)
+        apply_router_configuration(router, changes)
+    except RouterConfigurationError as exc:
         db.rollback()
         raise HTTPException(
             status_code=status.HTTP_502_BAD_GATEWAY,
             detail=f"No se pudo aplicar la configuración en MikroTik: {exc}",
         ) from exc
 
-    if resource_config_supplied and gateway.speed_control_type == 'simple_queues':
-        from app.services.mikrotik.queue import apply_simple_queue_structure, sync_gateway_parent_queue
+    if resource_config_supplied and router.speed_control_type == 'simple_queues':
+        from app.services.router.queue import apply_simple_queue_structure, sync_router_parent_queue
         try:
             client_ips = [
                 row.ip
-                for row in db.query(StaticIP).filter(StaticIP.gateway_id == gateway.id).all()
+                for row in db.query(StaticIP).filter(StaticIP.router_id == router.id).all()
             ]
-            apply_simple_queue_structure(gateway, client_ips)
+            apply_simple_queue_structure(router, client_ips)
             if resources['speed_control']['simple_queue_structure'] == 'parented':
-                sync_gateway_parent_queue(gateway, old_parent_name=old_parent_name)
+                sync_router_parent_queue(router, old_parent_name=old_parent_name)
         except Exception as exc:
             db.rollback()
             raise HTTPException(
@@ -370,90 +370,90 @@ def update_gateway_settings(
                 detail=f"No se pudo aplicar la estructura de colas en MikroTik: {exc}",
             ) from exc
 
-    gateway.settings_configured = True
+    router.settings_configured = True
     db.commit()
-    db.refresh(gateway)
+    db.refresh(router)
     log_event(
         db,
         AuditAction.UPDATE_GATEWAY,
-        entity_type="Gateway",
-        entity_id=str(gateway.id),
-        entity_name=gateway.name,
+        entity_type="Router",
+        entity_id=str(router.id),
+        entity_name=router.name,
         user_id=current_user.id,
         user_name=current_user.name,
         detail={"changed_settings": sorted(changes)},
     )
-    return gateway
+    return router
 
 
-@router.delete("/{gateway_id}", status_code=status.HTTP_204_NO_CONTENT)
-def delete_gateway(
-    gateway_id: uuid.UUID,
+@router.delete("/{router_id}", status_code=status.HTTP_204_NO_CONTENT)
+def delete_router(
+    router_id: uuid.UUID,
     db: DBSession,
     current_user: AdminOnly,
     cleanup_routeros: bool = False,
     delete_historical_data: bool = False,
     confirmation: str | None = None,
 ) -> None:
-    gateway = db.get(Gateway, gateway_id)
-    if not gateway:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Gateway no encontrado")
-    if delete_historical_data and confirmation != gateway.name:
+    router = db.get(Router, router_id)
+    if not router:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Router no encontrado")
+    if delete_historical_data and confirmation != router.name:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="La confirmación no coincide con el nombre del Gateway.",
+            detail="La confirmación no coincide con el nombre del Router.",
         )
 
     cleanup_summary = None
     if cleanup_routeros:
         client_ips = [
-            row.ip for row in db.query(StaticIP).filter(StaticIP.gateway_id == gateway_id).all()
+            row.ip for row in db.query(StaticIP).filter(StaticIP.router_id == router_id).all()
         ]
         ppp_usernames = [
             row.ppp_username
-            for row in db.query(PPPoESecret).filter(PPPoESecret.gateway_id == gateway_id).all()
+            for row in db.query(PPPoESecret).filter(PPPoESecret.router_id == router_id).all()
         ]
         ppp_profile_names = [
             row.name
-            for row in db.query(PPPoEProfile).filter(PPPoEProfile.gateway_id == gateway_id).all()
+            for row in db.query(PPPoEProfile).filter(PPPoEProfile.router_id == router_id).all()
         ]
         try:
-            cleanup_summary = cleanup_gateway_configuration(
-                gateway, client_ips, ppp_usernames, ppp_profile_names
+            cleanup_summary = cleanup_router_configuration(
+                router, client_ips, ppp_usernames, ppp_profile_names
             )
-        except GatewayConfigurationError as exc:
+        except RouterConfigurationError as exc:
             db.rollback()
             raise HTTPException(
                 status_code=status.HTTP_502_BAD_GATEWAY,
                 detail=f"No se pudo limpiar la configuración en RouterOS: {exc}",
             ) from exc
 
-    gateway_name = gateway.name
-    client_ids = [row.id for row in db.query(Client).filter(Client.gateway_id == gateway_id).all()]
+    router_name = router.name
+    client_ids = [row.id for row in db.query(Client).filter(Client.router_id == router_id).all()]
 
     if delete_historical_data:
         # TrafficSample usa particiones en PostgreSQL; se elimina explícitamente antes
-        # de borrar clientes y Gateway para que el flujo también funcione en SQLite tests.
-        db.query(TrafficSample).filter(TrafficSample.gateway_id == gateway_id).delete(
+        # de borrar clientes y Router para que el flujo también funcione en SQLite tests.
+        db.query(TrafficSample).filter(TrafficSample.router_id == router_id).delete(
             synchronize_session=False
         )
-        db.query(MikroTikSyncQueue).filter(MikroTikSyncQueue.gateway_id == gateway_id).delete(
+        db.query(RouterSyncQueue).filter(RouterSyncQueue.router_id == router_id).delete(
             synchronize_session=False
         )
-        related_entity_ids = [str(gateway_id), *(str(client_id) for client_id in client_ids)]
+        related_entity_ids = [str(router_id), *(str(client_id) for client_id in client_ids)]
         db.query(AuditLog).filter(AuditLog.entity_id.in_(related_entity_ids)).delete(
             synchronize_session=False
         )
-        for client in db.query(Client).filter(Client.gateway_id == gateway_id).all():
+        for client in db.query(Client).filter(Client.router_id == router_id).all():
             db.delete(client)
         db.flush()
-        db.delete(gateway)
+        db.delete(router)
     else:
-        gateway.active = False
+        router.active = False
     db.commit()
     log_event(
         db, AuditAction.DELETE_GATEWAY,
-        entity_type="Gateway", entity_id=str(gateway_id), entity_name=gateway_name,
+        entity_type="Router", entity_id=str(router_id), entity_name=router_name,
         user_id=current_user.id, user_name=current_user.name,
         detail={
             "routeros_configuration": "removed" if cleanup_routeros else "preserved",
@@ -464,35 +464,35 @@ def delete_gateway(
     )
 
 
-@router.get("/{gateway_id}/status", response_model=GatewayStatus)
-async def get_gateway_status(gateway_id: uuid.UUID, db: DBSession, _: AdminOrTechnician) -> GatewayStatus:
+@router.get("/{router_id}/status", response_model=RouterStatus)
+async def get_router_status(router_id: uuid.UUID, db: DBSession, _: AdminOrTechnician) -> RouterStatus:
     """
     Devuelve el estado en tiempo real del router (ping live a RouterOS).
     También actualiza la caché de Redis.
     """
-    r = db.get(Gateway, gateway_id)
+    r = db.get(Router, router_id)
     if not r or not r.active:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Gateway no encontrado")
-    return await check_gateway_health(r)
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Router no encontrado")
+    return await check_router_health(r)
 
 
-@router.post("/{gateway_id}/test-connection", response_model=GatewayTestResult)
-def test_gateway_connection(gateway_id: uuid.UUID, db: DBSession, current_user: AdminOnly) -> GatewayTestResult:
+@router.post("/{router_id}/test-connection", response_model=RouterTestResult)
+def test_router_connection(router_id: uuid.UUID, db: DBSession, current_user: AdminOnly) -> RouterTestResult:
     """
     Prueba la conexión al router desde el formulario UI.
     Respuesta síncrona para feedback inmediato.
     """
-    r = db.get(Gateway, gateway_id)
+    r = db.get(Router, router_id)
     if not r:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Gateway no encontrado")
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Router no encontrado")
 
     try:
-        with gateway_pool.connect_to(r) as api:
+        with router_pool.connect_to(r) as api:
             sys_res = list(api("/system/resource/print"))
             ros_version = sys_res[0].get("version") if sys_res else None
             uptime = sys_res[0].get("uptime") if sys_res else None
 
-        result = GatewayTestResult(
+        result = RouterTestResult(
             success=True,
             message=f"Conexión exitosa a {r.name} ({r.ip}:{r.api_port})",
             ros_version=ros_version,
@@ -500,61 +500,61 @@ def test_gateway_connection(gateway_id: uuid.UUID, db: DBSession, current_user: 
         )
         log_event(
             db, AuditAction.TEST_GATEWAY_CONNECTION,
-            entity_type="Gateway", entity_id=r.id, entity_name=r.name,
+            entity_type="Router", entity_id=r.id, entity_name=r.name,
             user_id=current_user.id, user_name=current_user.name,
             detail=audit_detail("Prueba de conexión exitosa", ip=r.ip, api_port=r.api_port, success=True, ros_version=ros_version),
         )
         return result
-    except GatewayConnectionError as e:
-        result = GatewayTestResult(
+    except RouterConnectionError as e:
+        result = RouterTestResult(
             success=False,
             message=f"No se pudo conectar a {r.name}",
             error=str(e),
         )
         log_event(
             db, AuditAction.TEST_GATEWAY_CONNECTION,
-            entity_type="Gateway", entity_id=r.id, entity_name=r.name,
+            entity_type="Router", entity_id=r.id, entity_name=r.name,
             user_id=current_user.id, user_name=current_user.name,
             detail=audit_detail("Prueba de conexión fallida", ip=r.ip, api_port=r.api_port, success=False, error=str(e)),
         )
         return result
 
 
-@router.get("/{gateway_id}/logs")
-def get_gateway_logs(
-    gateway_id: uuid.UUID,
+@router.get("/{router_id}/logs")
+def get_router_logs(
+    router_id: uuid.UUID,
     db: DBSession,
     _: AdminOrTechnician,
     limit: int = 100,
 ) -> dict:
     """
     Obtiene las últimas entradas del log del sistema RouterOS.
-    Solo disponible cuando Debug está activo en Ajustes → MikroTik API.
+    Solo disponible cuando Debug está activo en Ajustes → API del router.
     """
-    r = db.get(Gateway, gateway_id)
+    r = db.get(Router, router_id)
     if not r or not r.active:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Gateway no encontrado")
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Router no encontrado")
 
     try:
-        with gateway_pool.connect_to(r) as api_conn:
+        with router_pool.connect_to(r) as api_conn:
             raw = list(api_conn("/log/print"))
         entries = raw[-limit:] if len(raw) > limit else raw
         return {"logs": entries, "total": len(raw)}
-    except GatewayConnectionError as e:
+    except RouterConnectionError as e:
         raise HTTPException(status_code=status.HTTP_502_BAD_GATEWAY, detail=str(e))
 
 
-@router.get("/{gateway_id}/address-lists", response_model=list[str])
-def get_gateway_address_lists(gateway_id: uuid.UUID, db: DBSession, _: AdminOrTechnician) -> list[str]:
+@router.get("/{router_id}/address-lists", response_model=list[str])
+def get_router_address_lists(router_id: uuid.UUID, db: DBSession, _: AdminOrTechnician) -> list[str]:
     """
     Obtiene los nombres de todas las address-lists del router.
     """
-    r = db.get(Gateway, gateway_id)
+    r = db.get(Router, router_id)
     if not r or not r.active:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Gateway no encontrado")
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Router no encontrado")
 
     try:
-        with gateway_pool.connect_to(r) as api_conn:
+        with router_pool.connect_to(r) as api_conn:
             entries = list(api_conn.path('/ip/firewall/address-list'))
             lists = sorted(list(set(entry.get("list") for entry in entries if entry.get("list"))))
             return lists
@@ -565,9 +565,9 @@ def get_gateway_address_lists(gateway_id: uuid.UUID, db: DBSession, _: AdminOrTe
         )
 
 
-@router.post("/{gateway_id}/import-clients", response_model=dict)
-def import_clients_from_gateway(
-    gateway_id: uuid.UUID,
+@router.post("/{router_id}/import-clients", response_model=dict)
+def import_clients_from_router(
+    router_id: uuid.UUID,
     db: DBSession,
     current_user: AdminOnly,
     list_name: str = "clientes"
@@ -577,9 +577,9 @@ def import_clients_from_gateway(
     y los agrega a la lista 'clientes' del router como clientes nuevos.
     Genera cédulas ecuatorianas válidas de forma determinista para cumplir con el esquema.
     """
-    r = db.get(Gateway, gateway_id)
+    r = db.get(Router, router_id)
     if not r or not r.active:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Gateway no encontrado")
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Router no encontrado")
 
     try:
         raw_clients = fetch_clients_from_address_list(r, list_name)
@@ -590,7 +590,7 @@ def import_clients_from_gateway(
         )
 
     imported_count = 0
-    from app.services.mikrotik.address_list import sync_ip_in_address_list
+    from app.services.router.address_list import sync_ip_in_address_list
 
     def generate_dummy_cedula(idx: int) -> str:
         # Generar una cédula válida ecuatoriana con prefijo 30
@@ -614,7 +614,7 @@ def import_clients_from_gateway(
 
         # Validar si la IP ya existe registrada en este router
         exists_ip = db.query(StaticIP).filter(
-            StaticIP.gateway_id == gateway_id,
+            StaticIP.router_id == router_id,
             StaticIP.ip == ip
         ).first()
 
@@ -629,8 +629,8 @@ def import_clients_from_gateway(
             full_name=name,
             cedula=cedula,
             phone="0999999999",
-            address="Importado desde MikroTik",
-            gateway_id=gateway_id,
+            address="Importado desde el router",
+            router_id=router_id,
             connection_type="static",
             active=True,
         )
@@ -641,7 +641,7 @@ def import_clients_from_gateway(
         static_ip = StaticIP(
             client_id=client.id,
             ip=ip,
-            gateway_id=gateway_id,
+            router_id=router_id,
             notes=f"Importado automáticamente desde lista '{list_name}'"
         )
         db.add(static_ip)
@@ -658,22 +658,22 @@ def import_clients_from_gateway(
     db.commit()
     log_event(
         db, AuditAction.IMPORT_CLIENTS,
-        entity_type="Gateway", entity_id=str(gateway_id), entity_name=r.name,
+        entity_type="Router", entity_id=str(router_id), entity_name=r.name,
         user_id=current_user.id, user_name=current_user.name,
         detail={"imported_count": imported_count, "list_name": list_name},
     )
     return {"status": "success", "imported_count": imported_count}
 
 
-@router.get("/{gateway_id}/queues", response_model=list[dict])
-def get_gateway_queues(gateway_id: uuid.UUID, db: DBSession, _: AdminOrTechnician) -> list[dict]:
+@router.get("/{router_id}/queues", response_model=list[dict])
+def get_router_queues(router_id: uuid.UUID, db: DBSession, _: AdminOrTechnician) -> list[dict]:
     """
     Obtiene la lista de colas del router, enriqueciéndolas con el cliente_id,
     nombre de cliente y plan_activo de la base de datos basándose en el target IP.
     """
-    r = db.get(Gateway, gateway_id)
+    r = db.get(Router, router_id)
     if not r or not r.active:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Gateway no encontrado")
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Router no encontrado")
 
     try:
         queues = fetch_queues(r)
@@ -687,7 +687,7 @@ def get_gateway_queues(gateway_id: uuid.UUID, db: DBSession, _: AdminOrTechnicia
     db_clients = (
         db.query(Client)
         .join(StaticIP, Client.id == StaticIP.client_id)
-        .filter(Client.gateway_id == gateway_id)
+        .filter(Client.router_id == router_id)
         .all()
     )
 
@@ -756,19 +756,19 @@ def get_gateway_queues(gateway_id: uuid.UUID, db: DBSession, _: AdminOrTechnicia
     return enriched_queues
 
 
-@router.get("/{gateway_id}/parent-queue", response_model=dict)
-def get_parent_queue(gateway_id: uuid.UUID, db: DBSession, _: AdminOrTechnician) -> dict:
+@router.get("/{router_id}/parent-queue", response_model=dict)
+def get_parent_queue(router_id: uuid.UUID, db: DBSession, _: AdminOrTechnician) -> dict:
     """
     Obtiene el límite de velocidad actual de la cola simple padre ('PADRE' o 'total').
     """
-    r = db.get(Gateway, gateway_id)
+    r = db.get(Router, router_id)
     if not r or not r.active:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Gateway no encontrado")
-    from app.services.mikrotik.gateway_resources import get_gateway_resource_config
-    if get_gateway_resource_config(r)['speed_control']['simple_queue_structure'] != 'parented':
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Router no encontrado")
+    from app.services.router.router_resources import get_router_resource_config
+    if get_router_resource_config(r)['speed_control']['simple_queue_structure'] != 'parented':
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
-            detail="Este gateway utiliza colas simples independientes y no tiene cola padre",
+            detail="Este router utiliza colas simples independientes y no tiene cola padre",
         )
 
     try:
@@ -780,9 +780,9 @@ def get_parent_queue(gateway_id: uuid.UUID, db: DBSession, _: AdminOrTechnician)
         )
 
 
-@router.post("/{gateway_id}/parent-queue", response_model=dict)
+@router.post("/{router_id}/parent-queue", response_model=dict)
 def set_parent_queue_limit(
-    gateway_id: uuid.UUID,
+    router_id: uuid.UUID,
     limit_up_mbps: int,
     limit_down_mbps: int,
     db: DBSession,
@@ -791,21 +791,21 @@ def set_parent_queue_limit(
     """
     Establece los límites de velocidad de subida/bajada de la cola simple padre en MikroTik.
     """
-    r = db.get(Gateway, gateway_id)
+    r = db.get(Router, router_id)
     if not r or not r.active:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Gateway no encontrado")
-    from app.services.mikrotik.gateway_resources import get_gateway_resource_config
-    if get_gateway_resource_config(r)['speed_control']['simple_queue_structure'] != 'parented':
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Router no encontrado")
+    from app.services.router.router_resources import get_router_resource_config
+    if get_router_resource_config(r)['speed_control']['simple_queue_structure'] != 'parented':
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
-            detail="Este gateway utiliza colas simples independientes y no tiene cola padre",
+            detail="Este router utiliza colas simples independientes y no tiene cola padre",
         )
 
     try:
         update_parent_queue_limit(r, limit_up_mbps, limit_down_mbps)
         log_event(
             db, AuditAction.UPDATE_GATEWAY_QUEUE,
-            entity_type="Gateway", entity_id=r.id, entity_name=r.name,
+            entity_type="Router", entity_id=r.id, entity_name=r.name,
             user_id=current_user.id, user_name=current_user.name,
             detail=audit_detail("Límite de cola padre actualizado", limit_up_mbps=limit_up_mbps, limit_down_mbps=limit_down_mbps),
         )
@@ -817,20 +817,20 @@ def set_parent_queue_limit(
         )
 
 
-@router.post("/{gateway_id}/sync-pppoe-profiles", response_model=dict)
-def sync_gateway_pppoe_profiles(gateway_id: uuid.UUID, db: DBSession, current_user: AdminOnly) -> dict:
+@router.post("/{router_id}/sync-pppoe-profiles", response_model=dict)
+def sync_router_pppoe_profiles(router_id: uuid.UUID, db: DBSession, current_user: AdminOnly) -> dict:
     """
     Sincroniza perfiles PPPoE desde el router MikroTik y los guarda en la base de datos.
     """
-    r = db.get(Gateway, gateway_id)
+    r = db.get(Router, router_id)
     if not r or not r.active:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Gateway no encontrado")
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Router no encontrado")
 
     try:
-        count = sync_pppoe_profiles_from_gateway(db, r)
+        count = sync_pppoe_profiles_from_router(db, r)
         log_event(
             db, AuditAction.SYNC_PPPOE_PROFILES,
-            entity_type="Gateway", entity_id=r.id, entity_name=r.name,
+            entity_type="Router", entity_id=r.id, entity_name=r.name,
             user_id=current_user.id, user_name=current_user.name,
             detail=audit_detail("Perfiles PPPoE sincronizados", synchronized_count=count),
         )
@@ -842,26 +842,26 @@ def sync_gateway_pppoe_profiles(gateway_id: uuid.UUID, db: DBSession, current_us
         )
 
 
-@router.get("/{gateway_id}/pppoe-profiles", response_model=list[PPPoEProfileRead])
-def get_gateway_pppoe_profiles(gateway_id: uuid.UUID, db: DBSession, _: AdminOrTechnician) -> list:
+@router.get("/{router_id}/pppoe-profiles", response_model=list[PPPoEProfileRead])
+def get_router_pppoe_profiles(router_id: uuid.UUID, db: DBSession, _: AdminOrTechnician) -> list:
     """
     Devuelve los perfiles PPPoE guardados en la BD para el router especificado.
     """
-    r = db.get(Gateway, gateway_id)
+    r = db.get(Router, router_id)
     if not r or not r.active:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Gateway no encontrado")
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Router no encontrado")
 
-    return db.query(PPPoEProfile).filter(PPPoEProfile.gateway_id == gateway_id).order_by(PPPoEProfile.name).all()
+    return db.query(PPPoEProfile).filter(PPPoEProfile.router_id == router_id).order_by(PPPoEProfile.name).all()
 
 
-@router.get("/{gateway_id}/pppoe-sessions", response_model=list[PPPoESessionActive])
-def get_gateway_pppoe_sessions(gateway_id: uuid.UUID, db: DBSession, _: AdminOrTechnician) -> list:
+@router.get("/{router_id}/pppoe-sessions", response_model=list[PPPoESessionActive])
+def get_router_pppoe_sessions(router_id: uuid.UUID, db: DBSession, _: AdminOrTechnician) -> list:
     """
     Obtiene la lista de sesiones PPPoE activas en tiempo real desde el router.
     """
-    r = db.get(Gateway, gateway_id)
+    r = db.get(Router, router_id)
     if not r or not r.active:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Gateway no encontrado")
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Router no encontrado")
     
     try:
         return fetch_active_pppoe_sessions(r)
@@ -872,21 +872,21 @@ def get_gateway_pppoe_sessions(gateway_id: uuid.UUID, db: DBSession, _: AdminOrT
         )
 
 
-@router.post("/{gateway_id}/sync-pending", response_model=dict)
-def sync_pending_mikrotik(gateway_id: uuid.UUID, db: DBSession, current_user: AdminOrTechnician) -> dict:
+@router.post("/{router_id}/sync-pending", response_model=dict)
+def sync_pending_router(router_id: uuid.UUID, db: DBSession, current_user: AdminOrTechnician) -> dict:
     """
-    Procesa la cola de operaciones MikroTik pendientes para este gateway.
-    Se invoca manualmente o de forma automática al detectar que el gateway volvió a estar en línea.
+    Procesa la cola de operaciones MikroTik pendientes para este router.
+    Se invoca manualmente o de forma automática al detectar que el router volvió a estar en línea.
     """
-    from app.services.mikrotik.sync_queue import process_pending_queue, get_pending_count
-    r = db.get(Gateway, gateway_id)
+    from app.services.router.sync_queue import process_pending_queue, get_pending_count
+    r = db.get(Router, router_id)
     if not r or not r.active:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Gateway no encontrado")
-    pending_before = get_pending_count(gateway_id, db)
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Router no encontrado")
+    pending_before = get_pending_count(router_id, db)
     if pending_before == 0:
         log_event(
             db, AuditAction.SYNC_GATEWAY,
-            entity_type="Gateway", entity_id=r.id, entity_name=r.name,
+            entity_type="Router", entity_id=r.id, entity_name=r.name,
             user_id=current_user.id, user_name=current_user.name,
             detail=audit_detail("Sincronización manual ejecutada", pending_before=0, processed=0, failed=0),
         )
@@ -894,31 +894,31 @@ def sync_pending_mikrotik(gateway_id: uuid.UUID, db: DBSession, current_user: Ad
     result = process_pending_queue(r, db)
     log_event(
         db, AuditAction.SYNC_GATEWAY,
-        entity_type="Gateway", entity_id=r.id, entity_name=r.name,
+        entity_type="Router", entity_id=r.id, entity_name=r.name,
         user_id=current_user.id, user_name=current_user.name,
         detail=audit_detail("Cola de sincronización procesada", pending_before=pending_before, **result),
     )
     return {**result, "message": f"Cola procesada: {result['processed']} exitosos, {result['failed']} fallidos."}
 
 
-@router.get("/{gateway_id}/sync-pending", response_model=dict)
-async def get_sync_pending_count(gateway_id: uuid.UUID, db: DBSession, _: AdminOrTechnician) -> dict:
-    """Devuelve el número de operaciones MikroTik pendientes para este gateway."""
-    from app.services.mikrotik.sync_queue import get_pending_count
-    from app.models.mikrotik_sync_queue import MikroTikSyncQueue
-    r = db.get(Gateway, gateway_id)
+@router.get("/{router_id}/sync-pending", response_model=dict)
+async def get_sync_pending_count(router_id: uuid.UUID, db: DBSession, _: AdminOrTechnician) -> dict:
+    """Devuelve el número de operaciones MikroTik pendientes para este router."""
+    from app.services.router.sync_queue import get_pending_count
+    from app.models.router_sync_queue import RouterSyncQueue
+    r = db.get(Router, router_id)
     if not r:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Gateway no encontrado")
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Router no encontrado")
     items = (
-        db.query(MikroTikSyncQueue)
-        .filter(MikroTikSyncQueue.gateway_id == gateway_id)
-        .filter(MikroTikSyncQueue.status.in_(["pending", "failed", "done"]))
-        .order_by(MikroTikSyncQueue.created_at.desc())
+        db.query(RouterSyncQueue)
+        .filter(RouterSyncQueue.router_id == router_id)
+        .filter(RouterSyncQueue.status.in_(["pending", "failed", "done"]))
+        .order_by(RouterSyncQueue.created_at.desc())
         .limit(50)
         .all()
     )
     return {
-        "pending_count": get_pending_count(gateway_id, db),
+        "pending_count": get_pending_count(router_id, db),
         "items": [
             {
                 "id": str(i.id),
@@ -934,21 +934,21 @@ async def get_sync_pending_count(gateway_id: uuid.UUID, db: DBSession, _: AdminO
     }
 
 
-@router.delete("/{gateway_id}/pppoe-sessions/{username}", response_model=dict)
-def delete_gateway_pppoe_session(gateway_id: uuid.UUID, username: str, db: DBSession, current_user: AdminOrTechnician) -> dict:
+@router.delete("/{router_id}/pppoe-sessions/{username}", response_model=dict)
+def delete_router_pppoe_session(router_id: uuid.UUID, username: str, db: DBSession, current_user: AdminOrTechnician) -> dict:
     """
     Desconecta una sesión PPPoE activa (kick) en el router especificado.
     """
-    r = db.get(Gateway, gateway_id)
+    r = db.get(Router, router_id)
     if not r or not r.active:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Gateway no encontrado")
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Router no encontrado")
     
     try:
         success = disconnect_pppoe_session(r, username)
         if success:
             log_event(
                 db, AuditAction.TERMINATE_PPPOE_SESSION,
-                entity_type="Gateway", entity_id=r.id, entity_name=r.name,
+                entity_type="Router", entity_id=r.id, entity_name=r.name,
                 user_id=current_user.id, user_name=current_user.name,
                 detail=audit_detail("Sesión PPPoE terminada", pppoe_username=username),
             )

@@ -11,7 +11,7 @@ from app.core.deps import get_db
 from app.core.security import hash_password
 from app.main import app
 from app.models.user import User
-from app.models.gateway import Gateway
+from app.models.router import Router
 from app.models.client import Client
 from app.models.plan import Plan
 from app.models.client_plan import ClientPlan
@@ -58,8 +58,8 @@ def setup_db(monkeypatch):
         role="admin",
         active=True,
     ))
-    # Agregar un gateway
-    r = Gateway(
+    # Agregar un router
+    r = Router(
         name="Router Central",
         ip="10.0.0.1",
         api_port=8728,
@@ -103,9 +103,9 @@ def test_create_client_creates_queue(mock_sync_queue, mock_sync_ip, client: Test
     token = login.json()["access_token"]
 
     db = TestingSessionLocal()
-    gateway = db.query(Gateway).first()
+    router = db.query(Router).first()
     plan = db.query(Plan).first()
-    gateway_id = str(gateway.id)
+    router_id = str(router.id)
     plan_id = str(plan.id)
     db.close()
 
@@ -117,7 +117,7 @@ def test_create_client_creates_queue(mock_sync_queue, mock_sync_ip, client: Test
             "cedula": "1724024888",
             "phone": "0999999999",
             "address": "Quito",
-            "gateway_id": gateway_id,
+            "router_id": router_id,
             "connection_type": "static",
             "ip": "192.168.10.15",
             "plan_id": plan_id
@@ -126,7 +126,7 @@ def test_create_client_creates_queue(mock_sync_queue, mock_sync_ip, client: Test
     assert response.status_code == 201
     assert mock_sync_queue.call_count == 1
     mock_sync_queue.assert_called_with(
-        gateway=ANY,
+        router=ANY,
         client_name="Juan Valdes",
         ip="192.168.10.15",
         speed_up=10000,
@@ -151,7 +151,7 @@ def test_assign_plan_updates_queue(mock_sync_queue, mock_sync_ip, client: TestCl
     token = login.json()["access_token"]
 
     db = TestingSessionLocal()
-    gateway = db.query(Gateway).first()
+    router = db.query(Router).first()
     plan = db.query(Plan).first()
 
     # Crear cliente manualmente
@@ -160,13 +160,13 @@ def test_assign_plan_updates_queue(mock_sync_queue, mock_sync_ip, client: TestCl
         cedula="1724024888",
         phone="0999999999",
         address="Quito",
-        gateway_id=gateway.id,
+        router_id=router.id,
         connection_type="static",
         active=True
     )
     db.add(c)
     db.flush()
-    ip = StaticIP(client_id=c.id, ip="192.168.10.20", gateway_id=gateway.id)
+    ip = StaticIP(client_id=c.id, ip="192.168.10.20", router_id=router.id)
     db.add(ip)
     db.commit()
     client_id = str(c.id)
@@ -193,19 +193,19 @@ def test_toggle_client_queue_endpoint(mock_toggle_queue, client: TestClient):
     token = login.json()["access_token"]
 
     db = TestingSessionLocal()
-    gateway = db.query(Gateway).first()
+    router = db.query(Router).first()
     c = Client(
         full_name="Maria C",
         cedula="1724024888",
         phone="0999999999",
         address="Quito",
-        gateway_id=gateway.id,
+        router_id=router.id,
         connection_type="static",
         active=True
     )
     db.add(c)
     db.flush()
-    ip = StaticIP(client_id=c.id, ip="192.168.10.30", gateway_id=gateway.id)
+    ip = StaticIP(client_id=c.id, ip="192.168.10.30", router_id=router.id)
     db.add(ip)
     db.commit()
     client_id = str(c.id)
@@ -222,8 +222,8 @@ def test_toggle_client_queue_endpoint(mock_toggle_queue, client: TestClient):
     mock_toggle_queue.assert_called_with(ANY, "192.168.10.30", True)
 
 
-@patch("app.api.gateways_api.apply_gateway_configuration")
-def test_update_gateway_operating_settings(mock_apply, client: TestClient):
+@patch("app.api.routers_api.apply_router_configuration")
+def test_update_router_operating_settings(mock_apply, client: TestClient):
     login = client.post(
         "/api/auth/login",
         json={"email": "admin@test.com", "password": "adminpass123"},
@@ -231,11 +231,11 @@ def test_update_gateway_operating_settings(mock_apply, client: TestClient):
     token = login.json()["access_token"]
 
     db = TestingSessionLocal()
-    gateway_id = str(db.query(Gateway).first().id)
+    router_id = str(db.query(Router).first().id)
     db.close()
 
     response = client.put(
-        f"/api/gateways/{gateway_id}/settings",
+        f"/api/routers/{router_id}/settings",
         headers={"Authorization": f"Bearer {token}"},
         json={
             "security_mode": "ppp_api",
@@ -255,16 +255,16 @@ def test_update_gateway_operating_settings(mock_apply, client: TestClient):
     }
 
 
-@patch("app.services.mikrotik.gateway_configuration.migrate_gateway_resource_names")
-@patch("app.api.gateways_api.apply_gateway_configuration")
-def test_update_gateway_accepts_custom_resource_names(mock_apply, mock_migrate, client: TestClient):
+@patch("app.services.router.router_configuration.migrate_router_resource_names")
+@patch("app.api.routers_api.apply_router_configuration")
+def test_update_router_accepts_custom_resource_names(mock_apply, mock_migrate, client: TestClient):
     login = client.post(
         "/api/auth/login",
         json={"email": "admin@test.com", "password": "adminpass123"},
     )
     token = login.json()["access_token"]
     db = TestingSessionLocal()
-    gateway_id = str(db.query(Gateway).first().id)
+    router_id = str(db.query(Router).first().id)
     db.close()
 
     resources = {
@@ -289,7 +289,7 @@ def test_update_gateway_accepts_custom_resource_names(mock_apply, mock_migrate, 
         },
     }
     response = client.put(
-        f"/api/gateways/{gateway_id}/settings",
+        f"/api/routers/{router_id}/settings",
         headers={"Authorization": f"Bearer {token}"},
         json={
             "security_mode": "none_api",
@@ -306,17 +306,17 @@ def test_update_gateway_accepts_custom_resource_names(mock_apply, mock_migrate, 
     }
     mock_migrate.assert_called_once()
     db = TestingSessionLocal()
-    gateway = db.query(Gateway).first()
-    assert gateway.parent_queue == "principal_norte"
-    assert gateway.address_list == "abonados_norte"
-    assert gateway.suspend_list == "bloqueados_norte"
+    router = db.query(Router).first()
+    assert router.parent_queue == "principal_norte"
+    assert router.address_list == "abonados_norte"
+    assert router.suspend_list == "bloqueados_norte"
     db.close()
 
 
-@patch("app.services.mikrotik.queue.sync_gateway_parent_queue")
-@patch("app.services.mikrotik.queue.apply_simple_queue_structure")
-@patch("app.services.mikrotik.gateway_configuration.migrate_gateway_resource_names")
-@patch("app.api.gateways_api.apply_gateway_configuration")
+@patch("app.services.router.queue.sync_router_parent_queue")
+@patch("app.services.router.queue.apply_simple_queue_structure")
+@patch("app.services.router.router_configuration.migrate_router_resource_names")
+@patch("app.api.routers_api.apply_router_configuration")
 def test_standalone_settings_do_not_sync_parent_queue(
     mock_apply, mock_migrate, mock_apply_structure, mock_sync_parent, client: TestClient
 ):
@@ -326,11 +326,11 @@ def test_standalone_settings_do_not_sync_parent_queue(
     )
     token = login.json()["access_token"]
     db = TestingSessionLocal()
-    gateway_id = str(db.query(Gateway).first().id)
+    router_id = str(db.query(Router).first().id)
     db.close()
 
     response = client.put(
-        f"/api/gateways/{gateway_id}/settings",
+        f"/api/routers/{router_id}/settings",
         headers={"Authorization": f"Bearer {token}"},
         json={
             "security_mode": "none_api",
@@ -354,8 +354,8 @@ def test_standalone_settings_do_not_sync_parent_queue(
     mock_apply.assert_called_once()
 
 
-@patch("app.api.gateways_api.apply_gateway_configuration")
-def test_update_gateway_operating_settings_accepts_none_accounting(mock_apply, client: TestClient):
+@patch("app.api.routers_api.apply_router_configuration")
+def test_update_router_operating_settings_accepts_none_accounting(mock_apply, client: TestClient):
     login = client.post(
         "/api/auth/login",
         json={"email": "admin@test.com", "password": "adminpass123"},
@@ -363,11 +363,11 @@ def test_update_gateway_operating_settings_accepts_none_accounting(mock_apply, c
     token = login.json()["access_token"]
 
     db = TestingSessionLocal()
-    gateway_id = str(db.query(Gateway).first().id)
+    router_id = str(db.query(Router).first().id)
     db.close()
 
     response = client.put(
-        f"/api/gateways/{gateway_id}/settings",
+        f"/api/routers/{router_id}/settings",
         headers={"Authorization": f"Bearer {token}"},
         json={
             "security_mode": "none_api",
@@ -381,7 +381,7 @@ def test_update_gateway_operating_settings_accepts_none_accounting(mock_apply, c
     mock_apply.assert_called_once()
 
 
-def test_new_gateway_starts_without_operating_settings(client: TestClient):
+def test_new_router_starts_without_operating_settings(client: TestClient):
     login = client.post(
         "/api/auth/login",
         json={"email": "admin@test.com", "password": "adminpass123"},
@@ -389,7 +389,7 @@ def test_new_gateway_starts_without_operating_settings(client: TestClient):
     token = login.json()["access_token"]
 
     response = client.post(
-        "/api/gateways",
+        "/api/routers",
         headers={"Authorization": f"Bearer {token}"},
         json={
             "name": "Router Nuevo",
@@ -404,11 +404,11 @@ def test_new_gateway_starts_without_operating_settings(client: TestClient):
     assert response.json()["settings_configured"] is False
 
 
-@patch("app.api.gateways_api.apply_gateway_configuration")
-def test_gateway_settings_are_rolled_back_when_mikrotik_fails(mock_apply, client: TestClient):
-    from app.services.mikrotik.gateway_configuration import GatewayConfigurationError
+@patch("app.api.routers_api.apply_router_configuration")
+def test_router_settings_are_rolled_back_when_mikrotik_fails(mock_apply, client: TestClient):
+    from app.services.router.router_configuration import RouterConfigurationError
 
-    mock_apply.side_effect = GatewayConfigurationError("sin conexión")
+    mock_apply.side_effect = RouterConfigurationError("sin conexión")
     login = client.post(
         "/api/auth/login",
         json={"email": "admin@test.com", "password": "adminpass123"},
@@ -416,11 +416,11 @@ def test_gateway_settings_are_rolled_back_when_mikrotik_fails(mock_apply, client
     token = login.json()["access_token"]
 
     db = TestingSessionLocal()
-    gateway_id = str(db.query(Gateway).first().id)
+    router_id = str(db.query(Router).first().id)
     db.close()
 
     response = client.put(
-        f"/api/gateways/{gateway_id}/settings",
+        f"/api/routers/{router_id}/settings",
         headers={"Authorization": f"Bearer {token}"},
         json={
             "security_mode": "ppp_api",
@@ -431,16 +431,16 @@ def test_gateway_settings_are_rolled_back_when_mikrotik_fails(mock_apply, client
 
     assert response.status_code == 502
     db = TestingSessionLocal()
-    gateway = db.query(Gateway).first()
-    assert gateway.security_mode == "none_api"
-    assert gateway.traffic_accounting == "traffic_flow"
-    assert gateway.speed_control_type == "simple_queues"
-    assert gateway.settings_configured is False
+    router = db.query(Router).first()
+    assert router.security_mode == "none_api"
+    assert router.traffic_accounting == "traffic_flow"
+    assert router.speed_control_type == "simple_queues"
+    assert router.settings_configured is False
     db.close()
 
 
-@patch("app.api.gateways_api.apply_gateway_configuration")
-def test_first_gateway_settings_save_applies_defaults(mock_apply, client: TestClient):
+@patch("app.api.routers_api.apply_router_configuration")
+def test_first_router_settings_save_applies_defaults(mock_apply, client: TestClient):
     """Guardar los defaults por primera vez también configura el MikroTik."""
     login = client.post(
         "/api/auth/login",
@@ -449,11 +449,11 @@ def test_first_gateway_settings_save_applies_defaults(mock_apply, client: TestCl
     token = login.json()["access_token"]
 
     db = TestingSessionLocal()
-    gateway_id = str(db.query(Gateway).first().id)
+    router_id = str(db.query(Router).first().id)
     db.close()
 
     response = client.put(
-        f"/api/gateways/{gateway_id}/settings",
+        f"/api/routers/{router_id}/settings",
         headers={"Authorization": f"Bearer {token}"},
         json={
             "security_mode": "none_api",
@@ -470,19 +470,19 @@ def test_first_gateway_settings_save_applies_defaults(mock_apply, client: TestCl
     }
 
 
-@patch("app.api.gateways_api.cleanup_gateway_configuration")
-def test_delete_gateway_can_preserve_routeros_configuration(mock_cleanup, client: TestClient):
+@patch("app.api.routers_api.cleanup_router_configuration")
+def test_delete_router_can_preserve_routeros_configuration(mock_cleanup, client: TestClient):
     login = client.post(
         "/api/auth/login",
         json={"email": "admin@test.com", "password": "adminpass123"},
     )
     token = login.json()["access_token"]
     db = TestingSessionLocal()
-    gateway_id = str(db.query(Gateway).first().id)
+    router_id = str(db.query(Router).first().id)
     db.close()
 
     response = client.delete(
-        f"/api/gateways/{gateway_id}",
+        f"/api/routers/{router_id}",
         headers={"Authorization": f"Bearer {token}"},
         params={"cleanup_routeros": False},
     )
@@ -490,12 +490,12 @@ def test_delete_gateway_can_preserve_routeros_configuration(mock_cleanup, client
     assert response.status_code == 204
     mock_cleanup.assert_not_called()
     db = TestingSessionLocal()
-    assert db.query(Gateway).first().active is False
+    assert db.query(Router).first().active is False
     db.close()
 
 
-@patch("app.api.gateways_api.cleanup_gateway_configuration")
-def test_delete_gateway_can_remove_routeros_configuration(mock_cleanup, client: TestClient):
+@patch("app.api.routers_api.cleanup_router_configuration")
+def test_delete_router_can_remove_routeros_configuration(mock_cleanup, client: TestClient):
     mock_cleanup.return_value = {"simple_queues": 2}
     login = client.post(
         "/api/auth/login",
@@ -503,11 +503,11 @@ def test_delete_gateway_can_remove_routeros_configuration(mock_cleanup, client: 
     )
     token = login.json()["access_token"]
     db = TestingSessionLocal()
-    gateway_id = str(db.query(Gateway).first().id)
+    router_id = str(db.query(Router).first().id)
     db.close()
 
     response = client.delete(
-        f"/api/gateways/{gateway_id}",
+        f"/api/routers/{router_id}",
         headers={"Authorization": f"Bearer {token}"},
         params={"cleanup_routeros": True},
     )
@@ -515,61 +515,61 @@ def test_delete_gateway_can_remove_routeros_configuration(mock_cleanup, client: 
     assert response.status_code == 204
     mock_cleanup.assert_called_once()
     db = TestingSessionLocal()
-    assert db.query(Gateway).first().active is False
+    assert db.query(Router).first().active is False
     db.close()
 
 
-@patch("app.api.gateways_api.cleanup_gateway_configuration")
-def test_delete_gateway_stays_active_when_routeros_cleanup_fails(mock_cleanup, client: TestClient):
-    from app.services.mikrotik.gateway_configuration import GatewayConfigurationError
+@patch("app.api.routers_api.cleanup_router_configuration")
+def test_delete_router_stays_active_when_routeros_cleanup_fails(mock_cleanup, client: TestClient):
+    from app.services.router.router_configuration import RouterConfigurationError
 
-    mock_cleanup.side_effect = GatewayConfigurationError("sin conexión")
+    mock_cleanup.side_effect = RouterConfigurationError("sin conexión")
     login = client.post(
         "/api/auth/login",
         json={"email": "admin@test.com", "password": "adminpass123"},
     )
     token = login.json()["access_token"]
     db = TestingSessionLocal()
-    gateway_id = str(db.query(Gateway).first().id)
+    router_id = str(db.query(Router).first().id)
     db.close()
 
     response = client.delete(
-        f"/api/gateways/{gateway_id}",
+        f"/api/routers/{router_id}",
         headers={"Authorization": f"Bearer {token}"},
         params={"cleanup_routeros": True},
     )
 
     assert response.status_code == 502
     db = TestingSessionLocal()
-    assert db.query(Gateway).first().active is True
+    assert db.query(Router).first().active is True
     db.close()
 
 
-@patch("app.api.gateways_api.cleanup_gateway_configuration")
-def test_hard_delete_preserves_routeros_and_removes_gateway_data(mock_cleanup, client: TestClient):
+@patch("app.api.routers_api.cleanup_router_configuration")
+def test_hard_delete_preserves_routeros_and_removes_router_data(mock_cleanup, client: TestClient):
     login = client.post(
         "/api/auth/login",
         json={"email": "admin@test.com", "password": "adminpass123"},
     )
     token = login.json()["access_token"]
     db = TestingSessionLocal()
-    gateway = db.query(Gateway).first()
+    router = db.query(Router).first()
     customer = Client(
         full_name="Cliente a eliminar",
         cedula="1711111116",
         phone="0991111111",
         address="Quito",
-        gateway_id=gateway.id,
+        router_id=router.id,
         connection_type="static",
         active=True,
     )
     db.add(customer)
     db.commit()
-    gateway_id = str(gateway.id)
+    router_id = str(router.id)
     db.close()
 
     response = client.delete(
-        f"/api/gateways/{gateway_id}",
+        f"/api/routers/{router_id}",
         headers={"Authorization": f"Bearer {token}"},
         params={
             "cleanup_routeros": False,
@@ -581,12 +581,12 @@ def test_hard_delete_preserves_routeros_and_removes_gateway_data(mock_cleanup, c
     assert response.status_code == 204
     mock_cleanup.assert_not_called()
     db = TestingSessionLocal()
-    assert db.query(Gateway).count() == 0
+    assert db.query(Router).count() == 0
     assert db.query(Client).count() == 0
     db.close()
 
 
-@patch("app.api.gateways_api.cleanup_gateway_configuration")
+@patch("app.api.routers_api.cleanup_router_configuration")
 def test_hard_delete_can_remove_routeros_and_historical_data(mock_cleanup, client: TestClient):
     mock_cleanup.return_value = {"simple_queues": 1}
     login = client.post(
@@ -595,11 +595,11 @@ def test_hard_delete_can_remove_routeros_and_historical_data(mock_cleanup, clien
     )
     token = login.json()["access_token"]
     db = TestingSessionLocal()
-    gateway_id = str(db.query(Gateway).first().id)
+    router_id = str(db.query(Router).first().id)
     db.close()
 
     response = client.delete(
-        f"/api/gateways/{gateway_id}",
+        f"/api/routers/{router_id}",
         headers={"Authorization": f"Bearer {token}"},
         params={
             "cleanup_routeros": True,
@@ -611,23 +611,23 @@ def test_hard_delete_can_remove_routeros_and_historical_data(mock_cleanup, clien
     assert response.status_code == 204
     mock_cleanup.assert_called_once()
     db = TestingSessionLocal()
-    assert db.query(Gateway).count() == 0
+    assert db.query(Router).count() == 0
     db.close()
 
 
-@patch("app.api.gateways_api.cleanup_gateway_configuration")
-def test_hard_delete_requires_exact_gateway_name(mock_cleanup, client: TestClient):
+@patch("app.api.routers_api.cleanup_router_configuration")
+def test_hard_delete_requires_exact_router_name(mock_cleanup, client: TestClient):
     login = client.post(
         "/api/auth/login",
         json={"email": "admin@test.com", "password": "adminpass123"},
     )
     token = login.json()["access_token"]
     db = TestingSessionLocal()
-    gateway_id = str(db.query(Gateway).first().id)
+    router_id = str(db.query(Router).first().id)
     db.close()
 
     response = client.delete(
-        f"/api/gateways/{gateway_id}",
+        f"/api/routers/{router_id}",
         headers={"Authorization": f"Bearer {token}"},
         params={
             "delete_historical_data": True,
@@ -638,11 +638,11 @@ def test_hard_delete_requires_exact_gateway_name(mock_cleanup, client: TestClien
     assert response.status_code == 400
     mock_cleanup.assert_not_called()
     db = TestingSessionLocal()
-    assert db.query(Gateway).first().active is True
+    assert db.query(Router).first().active is True
     db.close()
 
 
-@patch("app.api.gateways_api.fetch_queues")
+@patch("app.api.routers_api.fetch_queues")
 def test_get_router_queues_enriched(mock_fetch_queues, client: TestClient):
     login = client.post(
         "/api/auth/login",
@@ -651,25 +651,25 @@ def test_get_router_queues_enriched(mock_fetch_queues, client: TestClient):
     token = login.json()["access_token"]
 
     db = TestingSessionLocal()
-    gateway = db.query(Gateway).first()
+    router = db.query(Router).first()
     plan = db.query(Plan).first()
     c = Client(
         full_name="Jose Ortiz",
         cedula="1724024888",
         phone="0999999999",
         address="Quito",
-        gateway_id=gateway.id,
+        router_id=router.id,
         connection_type="static",
         active=True
     )
     db.add(c)
     db.flush()
-    ip = StaticIP(client_id=c.id, ip="192.168.10.40", gateway_id=gateway.id)
+    ip = StaticIP(client_id=c.id, ip="192.168.10.40", router_id=router.id)
     db.add(ip)
     cp = ClientPlan(cliente_id=c.id, plan_id=plan.id, estado="activo")
     db.add(cp)
     db.commit()
-    gateway_id = str(gateway.id)
+    router_id = str(router.id)
     client_id = str(c.id)
     db.close()
 
@@ -698,7 +698,7 @@ def test_get_router_queues_enriched(mock_fetch_queues, client: TestClient):
     ]
 
     response = client.get(
-        f"/api/gateways/{gateway_id}/queues",
+        f"/api/routers/{router_id}/queues",
         headers={"Authorization": f"Bearer {token}"}
     )
     assert response.status_code == 200
@@ -717,7 +717,7 @@ def test_get_router_queues_enriched(mock_fetch_queues, client: TestClient):
     assert data[1]["plan_activo"] is None
 
 
-@patch("app.api.gateways_api.get_parent_queue_limit")
+@patch("app.api.routers_api.get_parent_queue_limit")
 def test_get_parent_queue(mock_get_limit, client: TestClient):
     login = client.post(
         "/api/auth/login",
@@ -726,14 +726,14 @@ def test_get_parent_queue(mock_get_limit, client: TestClient):
     token = login.json()["access_token"]
 
     db = TestingSessionLocal()
-    gateway = db.query(Gateway).first()
-    gateway_id = str(gateway.id)
+    router = db.query(Router).first()
+    router_id = str(router.id)
     db.close()
 
     mock_get_limit.return_value = {"name": "PADRE", "limit_up": 50, "limit_down": 100}
 
     response = client.get(
-        f"/api/gateways/{gateway_id}/parent-queue",
+        f"/api/routers/{router_id}/parent-queue",
         headers={"Authorization": f"Bearer {token}"}
     )
     assert response.status_code == 200
@@ -744,24 +744,24 @@ def test_get_parent_queue(mock_get_limit, client: TestClient):
     mock_get_limit.assert_called_once()
 
 
-@patch("app.api.gateways_api.get_parent_queue_limit")
-def test_standalone_gateway_rejects_parent_queue_endpoint(mock_get_limit, client: TestClient):
+@patch("app.api.routers_api.get_parent_queue_limit")
+def test_standalone_router_rejects_parent_queue_endpoint(mock_get_limit, client: TestClient):
     login = client.post(
         "/api/auth/login",
         json={"email": "admin@test.com", "password": "adminpass123"},
     )
     token = login.json()["access_token"]
     db = TestingSessionLocal()
-    gateway = db.query(Gateway).first()
-    gateway.resource_config = {
+    router = db.query(Router).first()
+    router.resource_config = {
         "speed_control": {"simple_queue_structure": "standalone"}
     }
-    gateway_id = str(gateway.id)
+    router_id = str(router.id)
     db.commit()
     db.close()
 
     response = client.get(
-        f"/api/gateways/{gateway_id}/parent-queue",
+        f"/api/routers/{router_id}/parent-queue",
         headers={"Authorization": f"Bearer {token}"},
     )
 
@@ -770,7 +770,7 @@ def test_standalone_gateway_rejects_parent_queue_endpoint(mock_get_limit, client
     mock_get_limit.assert_not_called()
 
 
-@patch("app.api.gateways_api.update_parent_queue_limit")
+@patch("app.api.routers_api.update_parent_queue_limit")
 def test_set_parent_queue_limit(mock_update_limit, client: TestClient):
     login = client.post(
         "/api/auth/login",
@@ -779,12 +779,12 @@ def test_set_parent_queue_limit(mock_update_limit, client: TestClient):
     token = login.json()["access_token"]
 
     db = TestingSessionLocal()
-    gateway = db.query(Gateway).first()
-    gateway_id = str(gateway.id)
+    router = db.query(Router).first()
+    router_id = str(router.id)
     db.close()
 
     response = client.post(
-        f"/api/gateways/{gateway_id}/parent-queue",
+        f"/api/routers/{router_id}/parent-queue",
         headers={"Authorization": f"Bearer {token}"},
         params={"limit_up_mbps": 50, "limit_down_mbps": 100}
     )

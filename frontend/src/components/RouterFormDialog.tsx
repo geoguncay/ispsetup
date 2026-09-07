@@ -1,5 +1,5 @@
 /**
- * GatewayFormDialog — Modal para crear y editar gateways con test de conexión y mapa interactivo.
+ * RouterFormDialog — Modal para crear y editar routers con test de conexión y mapa interactivo.
  */
 import { useState, useEffect, useCallback, useRef } from 'react'
 import { createPortal } from 'react-dom'
@@ -14,7 +14,7 @@ import 'leaflet/dist/leaflet.css'
 import api from '@/services/api'
 import { getZeroTierSettings, getZeroTierMembers } from '@/services/zerotier'
 
-// Icono personalizado SVG de Leaflet para evitar problemas de rutas de Vite (Color Violeta para Gateways)
+// Icono personalizado SVG de Leaflet para evitar problemas de rutas de Vite (Color Violeta para Routers)
 const markerSvg = `data:image/svg+xml;utf8,${encodeURIComponent(`
   <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="%238b5cf6" width="36" height="36">
     <path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5c-1.38 0-2.5-1.12-2.5-2.5s1.12-2.5 2.5-2.5 2.5 1.12 2.5 2.5-1.12 2.5-2.5 2.5z"/>
@@ -31,7 +31,7 @@ const customMarkerIcon = L.icon({
 // Centrado por defecto en Quito, Ecuador
 const DEFAULT_CENTER: [number, number] = [-0.180653, -78.467834]
 
-const gatewaySchema = z.object({
+const routerSchema = z.object({
   id: z.string().optional(),
   name: z.string().min(2, 'Mínimo 2 caracteres').max(120),
   ip: z.string().min(7, 'IP inválida').max(45),
@@ -61,7 +61,7 @@ const gatewaySchema = z.object({
   }
 )
 
-type GatewayFormData = z.infer<typeof gatewaySchema>
+type RouterFormData = z.infer<typeof routerSchema>
 
 interface Site {
   id: string
@@ -70,10 +70,10 @@ interface Site {
   longitude?: number | null
 }
 
-interface GatewayFormDialogProps {
+interface RouterFormDialogProps {
   open: boolean
   onClose: () => void
-  gateway?: {
+  router?: {
     id: string;
     name: string;
     ip: string;
@@ -92,7 +92,7 @@ interface GatewayFormDialogProps {
     site_name?: string | null;
     zerotier_node_id?: string | null;
   } | null
-  onSuccess: (savedGateway: { id: string }) => void
+  onSuccess: (savedRouter: { id: string }) => void
   onDelete?: (id: string) => void
 }
 
@@ -104,8 +104,8 @@ interface TestResult {
   error?: string
 }
 
-export function GatewayFormDialog({ open, onClose, gateway, onSuccess, onDelete }: GatewayFormDialogProps) {
-  const isEdit = !!gateway
+export function RouterFormDialog({ open, onClose, router, onSuccess, onDelete }: RouterFormDialogProps) {
+  const isEdit = !!router
   const queryClient = useQueryClient()
   const [testResult, setTestResult] = useState<TestResult | null>(null)
   const [isTesting, setIsTesting] = useState(false)
@@ -120,7 +120,7 @@ export function GatewayFormDialog({ open, onClose, gateway, onSuccess, onDelete 
   const [siteInputLng, setSiteInputLng] = useState('')
   const [siteError, setSiteError] = useState<string | null>(null)
 
-  // Map fly-to target (separate from gateway coords)
+  // Map fly-to target (separate from router coords)
   const [mapFlyTarget, setMapFlyTarget] = useState<[number, number] | null>(null)
 
   // Consultar lista de Sitios
@@ -156,8 +156,8 @@ export function GatewayFormDialog({ open, onClose, gateway, onSuccess, onDelete 
     watch,
     trigger,
     formState: { errors },
-  } = useForm<GatewayFormData>({
-    resolver: zodResolver(gatewaySchema) as unknown as Resolver<GatewayFormData>,
+  } = useForm<RouterFormData>({
+    resolver: zodResolver(routerSchema) as unknown as Resolver<RouterFormData>,
     defaultValues: {
       api_port: 8728,
       traffic_monitoring: true,
@@ -201,26 +201,26 @@ export function GatewayFormDialog({ open, onClose, gateway, onSuccess, onDelete 
       setTab('info')
       setTestResult(null)
       setShowPassword(false)
-      if (gateway) {
+      if (router) {
         reset({
-          id: gateway.id,
-          name: gateway.name,
-          ip: gateway.ip,
-          api_port: gateway.api_port,
-          api_username: gateway.api_username,
+          id: router.id,
+          name: router.name,
+          ip: router.ip,
+          api_port: router.api_port,
+          api_username: router.api_username,
           password_api: '',
-          hw_model: gateway.hw_model ?? '',
-          notes: gateway.notes ?? '',
-          latitude: gateway.latitude ?? null,
-          longitude: gateway.longitude ?? null,
-          traffic_monitoring: gateway.traffic_monitoring ?? true,
-          speed_control: gateway.speed_control ?? true,
-          sync_logs: gateway.sync_logs ?? true,
-          alert_notifications: gateway.alert_notifications ?? true,
-          site_id: gateway.site_id ?? null,
-          zerotier_node_id: gateway.zerotier_node_id ?? null,
+          hw_model: router.hw_model ?? '',
+          notes: router.notes ?? '',
+          latitude: router.latitude ?? null,
+          longitude: router.longitude ?? null,
+          traffic_monitoring: router.traffic_monitoring ?? true,
+          speed_control: router.speed_control ?? true,
+          sync_logs: router.sync_logs ?? true,
+          alert_notifications: router.alert_notifications ?? true,
+          site_id: router.site_id ?? null,
+          zerotier_node_id: router.zerotier_node_id ?? null,
         })
-        resetSiteState(gateway.site_id ?? '')
+        resetSiteState(router.site_id ?? '')
       } else {
         const savedPort = localStorage.getItem('isp_default_api_port')
         const savedUsername = localStorage.getItem('isp_default_api_username')
@@ -248,7 +248,7 @@ export function GatewayFormDialog({ open, onClose, gateway, onSuccess, onDelete 
         handleGetLocation()
       }
     }
-  }, [open, gateway, reset, setValue, handleGetLocation])
+  }, [open, router, reset, setValue, handleGetLocation])
 
   // Site mutations
   const createSiteMutation = useMutation({
@@ -308,7 +308,7 @@ export function GatewayFormDialog({ open, onClose, gateway, onSuccess, onDelete 
   }
 
   const saveMutation = useMutation({
-    mutationFn: async (data: GatewayFormData) => {
+    mutationFn: async (data: RouterFormData) => {
       const payload: any = { ...data }
       delete payload.id
       if (isEdit && !payload.password_api) {
@@ -318,11 +318,11 @@ export function GatewayFormDialog({ open, onClose, gateway, onSuccess, onDelete 
       if (!payload.longitude || isNaN(Number(payload.longitude))) payload.longitude = null
       if (!payload.site_id) payload.site_id = null
       if (isEdit) {
-        const { data: savedGateway } = await api.put(`/gateways/${gateway!.id}`, payload)
-        return savedGateway as { id: string }
+        const { data: savedRouter } = await api.put(`/routers/${router!.id}`, payload)
+        return savedRouter as { id: string }
       } else {
-        const { data: savedGateway } = await api.post('/gateways', payload)
-        return savedGateway as { id: string }
+        const { data: savedRouter } = await api.post('/routers', payload)
+        return savedRouter as { id: string }
       }
     },
     onSuccess,
@@ -341,11 +341,11 @@ export function GatewayFormDialog({ open, onClose, gateway, onSuccess, onDelete 
       api_port: formValues.api_port,
       api_username: formValues.api_username,
       password_api: formValues.password_api || undefined,
-      gateway_id: gateway?.id || undefined,
+      router_id: router?.id || undefined,
     }
 
     try {
-      const { data } = await api.post('/gateways/test-connection', testPayload)
+      const { data } = await api.post('/routers/test-connection', testPayload)
       setTestResult(data)
     } catch (err) {
       const errorResponse = err as { response?: { data?: { detail?: string } } }
@@ -367,7 +367,7 @@ export function GatewayFormDialog({ open, onClose, gateway, onSuccess, onDelete 
     return null
   }
 
-  // Componente interno para sincronizar la vista del mapa con coordenadas del gateway
+  // Componente interno para sincronizar la vista del mapa con coordenadas del router
   // y hacer fly-to cuando se selecciona un sitio con coordenadas
   function MapController({ center, flyTarget }: { center: [number, number]; flyTarget: [number, number] | null }) {
     const map = useMap()
@@ -417,11 +417,11 @@ export function GatewayFormDialog({ open, onClose, gateway, onSuccess, onDelete 
         <div className="flex items-center justify-between p-5 border-b border-border shrink-0">
           <div>
             <h2 className="text-lg font-semibold text-foreground">
-              {isEdit ? `Editar: ${gateway!.name}` : 'Agregar Gateway'}
+              {isEdit ? `Editar: ${router!.name}` : 'Agregar Router'}
             </h2>
           </div>
           <button
-            id="close-gateway-dialog"
+            id="close-router-dialog"
             onClick={onClose}
             className="text-muted-foreground hover:text-foreground transition-colors"
           >
@@ -459,7 +459,7 @@ export function GatewayFormDialog({ open, onClose, gateway, onSuccess, onDelete 
 
         {/* Form */}
         <form
-          id="gateway-form"
+          id="router-form"
           onSubmit={handleSubmit((data) => saveMutation.mutate(data), onFormError)}
           className="flex flex-col flex-1 min-h-0"
         >
@@ -470,18 +470,18 @@ export function GatewayFormDialog({ open, onClose, gateway, onSuccess, onDelete 
                 {/* Columna Izquierda: Formulario */}
                 <div className="space-y-4">
                   <div className="flex items-center gap-2 text-brand-400 text-xs font-semibold uppercase tracking-wider">
-                    <Server className="w-4 h-4" /> Especificaciones del Gateway
+                    <Server className="w-4 h-4" /> Especificaciones del Router
                   </div>
 
                   {/* Nombre */}
                   <div>
                     <label className="block text-sm font-medium text-foreground mb-1.5">
-                      Nombre del gateway *
+                      Nombre del router *
                     </label>
                     <input
-                      id="gateway-name"
+                      id="router-name"
                       type="text"
-                      placeholder="Gateway Principal"
+                      placeholder="Router Principal"
                       {...register('name')}
                       className="input-field"
                     />
@@ -493,7 +493,7 @@ export function GatewayFormDialog({ open, onClose, gateway, onSuccess, onDelete 
                       Modelo hardware
                     </label>
                     <input
-                      id="gateway-model"
+                      id="router-model"
                       type="text"
                       placeholder="RB5009, RB4011iGS+, CCR2116, etc."
                       {...register('hw_model')}
@@ -509,9 +509,9 @@ export function GatewayFormDialog({ open, onClose, gateway, onSuccess, onDelete 
                     {/* Select row */}
                     <div className="flex gap-2">
                       <select
-                        id="gateway-site"
-                        aria-label="Sitio o ubicación del gateway"
-                        title="Sitio o ubicación del gateway"
+                        id="router-site"
+                        aria-label="Sitio o ubicación del router"
+                        title="Sitio o ubicación del router"
                         value={siteSelectorValue}
                         onChange={(e) => handleSiteSelectChange(e.target.value)}
                         className="input-field cursor-pointer font-medium flex-1"
@@ -595,7 +595,7 @@ export function GatewayFormDialog({ open, onClose, gateway, onSuccess, onDelete 
 
                   </div>
 
-                  {/* Coordenadas GPS del gateway (Inputs manuales) */}
+                  {/* Coordenadas GPS del router (Inputs manuales) */}
                   <div className="grid grid-cols-2 gap-3 pt-2">
                     <div>
                       <label className="block text-sm font-medium text-foreground mb-1.5">Latitud</label>
@@ -625,7 +625,7 @@ export function GatewayFormDialog({ open, onClose, gateway, onSuccess, onDelete 
                       Notas
                     </label>
                     <textarea
-                      id="gateway-notes"
+                      id="router-notes"
                       rows={3}
                       placeholder="Ubicación, observaciones..."
                       {...register('notes')}
@@ -640,7 +640,7 @@ export function GatewayFormDialog({ open, onClose, gateway, onSuccess, onDelete 
                   <div className="flex items-center justify-between mb-1.5">
                     <span className="text-sm font-medium text-foreground flex items-center gap-1.5">
                       <MapPin className="w-4 h-4 text-brand-400" />
-                      Marcar ubicación del Gateway en el mapa
+                      Marcar ubicación del Router en el mapa
                     </span>
                     <button
                       type="button"
@@ -691,7 +691,7 @@ export function GatewayFormDialog({ open, onClose, gateway, onSuccess, onDelete 
                         Vincular con ZeroTier
                       </label>
                       <select
-                        id="gateway-zerotier-node"
+                        id="router-zerotier-node"
                         aria-label="Nodo ZeroTier a vincular"
                         value={watch('zerotier_node_id') ?? ''}
                         onChange={(e) => {
@@ -721,7 +721,7 @@ export function GatewayFormDialog({ open, onClose, gateway, onSuccess, onDelete 
                         Dirección IP / Host *
                       </label>
                       <input
-                        id="gateway-ip"
+                        id="router-ip"
                         type="text"
                         placeholder="192.168.88.1"
                         {...register('ip')}
@@ -734,7 +734,7 @@ export function GatewayFormDialog({ open, onClose, gateway, onSuccess, onDelete 
                     <div>
                       <label className="block text-sm font-medium text-foreground mb-1.5">Puerto API *</label>
                       <input
-                        id="gateway-port"
+                        id="router-port"
                         type="number"
                         {...register('api_port')}
                         className="input-field font-mono"
@@ -752,7 +752,7 @@ export function GatewayFormDialog({ open, onClose, gateway, onSuccess, onDelete 
                         Usuario API *
                       </label>
                       <input
-                        id="gateway-user"
+                        id="router-user"
                         type="text"
                         placeholder="admin"
                         {...register('api_username')}
@@ -768,7 +768,7 @@ export function GatewayFormDialog({ open, onClose, gateway, onSuccess, onDelete 
                       </label>
                       <div className="relative">
                         <input
-                          id="gateway-password"
+                          id="router-password"
                           type={showPassword ? 'text' : 'password'}
                           placeholder="••••••••"
                           {...register('password_api')}
@@ -776,7 +776,7 @@ export function GatewayFormDialog({ open, onClose, gateway, onSuccess, onDelete 
                         />
                         <button
                           type="button"
-                          id="toggle-gateway-password-visibility"
+                          id="toggle-router-password-visibility"
                           onClick={() => setShowPassword(!showPassword)}
                           className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors"
                         >
@@ -867,10 +867,10 @@ export function GatewayFormDialog({ open, onClose, gateway, onSuccess, onDelete 
                   type="button"
                   onClick={() => {
                     onClose()
-                    onDelete?.(gateway!.id)
+                    onDelete?.(router!.id)
                   }}
                   className="btn-destructive px-4 justify-center flex items-center gap-1.5"
-                  title="Eliminar gateway"
+                  title="Eliminar router"
                 >
                   <Trash2 className="w-4 h-4" />
                   <span>Eliminar</span>
@@ -881,7 +881,7 @@ export function GatewayFormDialog({ open, onClose, gateway, onSuccess, onDelete 
             <div className="flex gap-3">
               <button
                 type="submit"
-                id="save-gateway-btn"
+                id="save-router-btn"
                 disabled={saveMutation.isPending}
                 className="btn-primary w-44 justify-center"
               >
