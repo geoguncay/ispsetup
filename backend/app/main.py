@@ -10,7 +10,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 
 
-from app.api import auth, routers_api, users, company, clients, plans, traffic_api, custom_services, sites_api, invoices, payments, suppliers_api, inventory_api, system_settings_api, audit_logs_api, zerotier_api
+from app.api import auth, routers_api, users, company, clients, plans, traffic_api, custom_services, sites_api, invoices, payments, suppliers_api, inventory_api, system_settings_api, audit_logs_api, zerotier_api, reports_api
 from app.core.config import settings
 from app.core.database import Base, engine, run_migrations
 from app.core.seed import run_seed
@@ -60,7 +60,7 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# ── MikroTik ───────────────────────────────────────────────────────────────────
+# ── Routers ───────────────────────────────────────────────────────────────────
 app.include_router(auth.router, prefix="/api")
 app.include_router(users.router, prefix="/api")
 app.include_router(routers_api.router, prefix="/api")
@@ -77,6 +77,7 @@ app.include_router(inventory_api.router, prefix="/api")
 app.include_router(system_settings_api.router, prefix="/api")
 app.include_router(audit_logs_api.router, prefix="/api")
 app.include_router(zerotier_api.router, prefix="/api")
+app.include_router(reports_api.router, prefix="/api")
 
 
 

@@ -8,7 +8,7 @@ import {
   LayoutDashboard, Router, Users,
   LogOut, Menu, X, ChevronDown, Activity, Settings, Network,
   Zap, Building, Sliders, BarChart2, Receipt, DollarSign, Package, Truck,
-  Bell,
+  Bell, TrendingUp,
 } from 'lucide-react'
 import { useAuthStore } from '@/stores/authStore'
 import api from '@/services/api'
@@ -66,6 +66,7 @@ const navItems: NavItem[] = [
     items: [
       { to: '/invoices', icon: Receipt, label: 'Facturas' },
       { to: '/payments', icon: DollarSign, label: 'Pagos' },
+      { to: '/reports', icon: TrendingUp, label: 'Reportes' },
     ]
   },
   {

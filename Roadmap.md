@@ -289,13 +289,13 @@ exportables y **módulo de gestión de OLTs/ONUs GPON** (estilo SmartOLT).
 
 ### 4.3 Reportes
 
-- [ ] Reporte de ingresos: por período (mes/trimestre/año), por plan, por router / zona geográfica
-- [ ] Reporte de clientes: activos, suspendidos, nuevos y bajas por mes (con gráfico de evolución)
-- [ ] Reporte de consumo: top consumidores, promedio por plan, horas pico
-- [ ] Reporte de mora: clientes con facturas vencidas, días de mora, monto total
-- [ ] Export PDF (WeasyPrint) con logo y datos de la empresa
-- [ ] Export Excel (openpyxl) con formato de tabla y totales
-- [ ] UI: módulo de reportes con selector de período, filtros y botones de descarga
+- [x] Reporte de ingresos: por período (mes/trimestre/año, agregado en Python), por plan, por sitio (`GET /reports/revenue`)
+- [x] Reporte de clientes: activos, suspendidos, nuevos por mes y "bajas" (planes con `estado="cancelado"`, proxy honesto — no existe un evento formal de baja separado de la suspensión), con evolución mensual sin huecos (`GET /reports/clients`)
+- [x] Reporte de consumo: top consumidores, promedio por plan, horas pico — agregado en SQL sobre `traffic_samples` (no se trae la tabla completa a memoria) (`GET /reports/consumption`)
+- [x] Reporte de mora: facturas `status="overdue"`, días de mora, monto y clientes totales (`GET /reports/overdue`)
+- [x] Export PDF con **ReportLab** (no WeasyPrint — se usó la librería que ya trae el repo para los recibos de pago, `services/pdf_generator.py`, para no sumar una dependencia nueva) con logo/nombre de la empresa
+- [x] Export Excel con **openpyxl**, tablas con encabezado y totales (`services/reports/excel_export.py`)
+- [x] UI: `ReportsPage.tsx` (nav Facturación ▸ Reportes) — 4 pestañas (Ingresos/Clientes/Consumo/Mora), filtros de fecha y `group_by`, gráficos Recharts, botones de descarga PDF/Excel (mismo patrón `blob` + `<a download>` que el recibo de pago)
 
 ### 4.4 Módulo OLT / ONU GPON (reemplaza la app móvil — estilo SmartOLT)
 

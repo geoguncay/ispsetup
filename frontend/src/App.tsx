@@ -20,6 +20,7 @@ import { CustomServicesPage } from '@/pages/CustomServicesPage'
 import { SubscribersStatsPage } from '@/pages/SubscribersStatsPage'
 import { InvoicesPage } from '@/pages/InvoicesPage'
 import { PaymentsPage } from '@/pages/PaymentsPage'
+import { ReportsPage } from '@/pages/ReportsPage'
 import { InventoryPage } from '@/pages/InventoryPage'
 import { ProvidersPage } from '@/pages/ProvidersPage'
 import { SettingsPage } from '@/pages/SettingsPage'
@@ -64,6 +65,7 @@ function AppContent() {
           <Route path="/custom-services" element={<CustomServicesPage />} />
           <Route path="/invoices" element={<InvoicesPage />} />
           <Route path="/payments" element={<PaymentsPage />} />
+          <Route path="/reports" element={<ReportsPage />} />
           <Route path="/inventory" element={<InventoryPage />} />
           <Route path="/providers" element={<ProvidersPage />} />
           <Route path="/profile" element={<ProfilePage />} />
