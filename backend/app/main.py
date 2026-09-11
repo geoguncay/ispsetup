@@ -12,7 +12,7 @@ from fastapi.staticfiles import StaticFiles
 
 from app.api import auth, routers_api, users, company, clients, plans, traffic_api, custom_services, sites_api, invoices, payments, suppliers_api, inventory_api, system_settings_api, audit_logs_api, zerotier_api, reports_api
 from app.core.config import settings
-from app.core.database import Base, engine, run_migrations
+from app.core.database import Base, engine, run_migrations, run_pre_create_migrations
 from app.core.seed import run_seed
 
 logging.basicConfig(level=logging.INFO)
@@ -27,6 +27,10 @@ async def lifespan(app: FastAPI):
 
     # Crear tablas solo en dev; en prod usar: alembic upgrade head
     if settings.ENVIRONMENT == "development":
+        # Debe correr ANTES de create_all: si un rename de tabla se detecta después,
+        # create_all ya habrá creado la tabla nueva vacía y el rename se salta para
+        # siempre (ver docstring de run_pre_create_migrations).
+        run_pre_create_migrations(engine)
         Base.metadata.create_all(bind=engine)
         run_migrations(engine)
         run_seed()

@@ -23,27 +23,62 @@ class Base(DeclarativeBase):
     pass
 
 
+def run_pre_create_migrations(bind_engine) -> None:
+    """
+    Renombra tablas heredadas ANTES de `Base.metadata.create_all`.
+
+    `create_all` solo crea tablas que no existen bajo el nombre actual del modelo. Si un
+    rename de tabla (p. ej. `gateways` → `routers`) se detecta después de `create_all`,
+    `create_all` ya habrá creado una tabla `routers` vacía con ese nombre, y el guard de
+    `run_migrations` (`... AND NOT EXISTS routers`) se salta el rename para siempre —
+    dejando los datos reales huérfanos en `gateways` y una tabla `routers` vacía en su
+    lugar. Por eso los renames de tabla (no los ADD/RENAME COLUMN) deben ir aquí, y esta
+    función debe llamarse antes de `create_all` en `main.py`.
+    """
+    if str(bind_engine.url).startswith("sqlite"):
+        return
+    with bind_engine.connect() as conn:
+        conn.execute(text("""
+        DO $$
+        BEGIN
+            IF EXISTS (
+                SELECT 1 FROM information_schema.tables
+                WHERE table_schema = 'public' AND table_name = 'gateways'
+            ) AND NOT EXISTS (
+                SELECT 1 FROM information_schema.tables
+                WHERE table_schema = 'public' AND table_name = 'routers'
+            ) THEN
+                ALTER TABLE gateways RENAME TO routers;
+            END IF;
+        END $$;
+        """))
+        conn.execute(text("""
+        DO $$
+        BEGIN
+            IF EXISTS (
+                SELECT 1 FROM information_schema.tables
+                WHERE table_schema = 'public' AND table_name = 'mikrotik_sync_queue'
+            ) AND NOT EXISTS (
+                SELECT 1 FROM information_schema.tables
+                WHERE table_schema = 'public' AND table_name = 'router_sync_queue'
+            ) THEN
+                ALTER TABLE mikrotik_sync_queue RENAME TO router_sync_queue;
+            END IF;
+        END $$;
+        """))
+        conn.commit()
+
+
 def run_migrations(bind_engine) -> None:
     """
     Ejecuta migraciones simples de base de datos para agregar las nuevas columnas a la tabla routers.
+
+    Los RENAME de tabla viven en `run_pre_create_migrations` (debe correr antes de
+    `create_all`); aquí solo van ADD COLUMN / RENAME COLUMN sobre tablas que ya existen
+    con su nombre final, que son seguros de ejecutar después de `create_all`.
     """
     if not str(bind_engine.url).startswith("sqlite"):
         with bind_engine.connect() as conn:
-            # ── Migración: Gateway → Router (renombrar la tabla principal si aún existe como 'gateways') ──
-            conn.execute(text("""
-            DO $$
-            BEGIN
-                IF EXISTS (
-                    SELECT 1 FROM information_schema.tables
-                    WHERE table_schema = 'public' AND table_name = 'gateways'
-                ) AND NOT EXISTS (
-                    SELECT 1 FROM information_schema.tables
-                    WHERE table_schema = 'public' AND table_name = 'routers'
-                ) THEN
-                    ALTER TABLE gateways RENAME TO routers;
-                END IF;
-            END $$;
-            """))
             # Renombrar columnas en español de routers que tenían un ADD COLUMN histórico
             # con el nombre viejo (deben ejecutarse antes de los ADD COLUMN de abajo).
             conn.execute(text("""
@@ -789,18 +824,18 @@ def run_migrations(bind_engine) -> None:
             conn.execute(text("ALTER TABLE clients ADD COLUMN IF NOT EXISTS scheduled_reactivation TIMESTAMP WITH TIME ZONE;"))
             # Medio físico de acceso (radio | fiber | unspecified). Informativo; no afecta aprovisionamiento.
             conn.execute(text("ALTER TABLE clients ADD COLUMN IF NOT EXISTS medium VARCHAR(20) NOT NULL DEFAULT 'unspecified';"))
-            # Renombrar la cola de sync si aún existe con el nombre viejo.
+            # (El rename mikrotik_sync_queue -> router_sync_queue vive en run_pre_create_migrations,
+            # antes de create_all — ver esa función. Solo queda crear la tabla si de verdad no existe.)
+            # La tabla vieja se creó con la columna "gateway_id" (nunca tuvo su propio guard de
+            # columna como clients/pppoe_*/static_ips/traffic_samples) — renombrarla aquí.
             conn.execute(text("""
             DO $$
             BEGIN
                 IF EXISTS (
-                    SELECT 1 FROM information_schema.tables
-                    WHERE table_schema = 'public' AND table_name = 'mikrotik_sync_queue'
-                ) AND NOT EXISTS (
-                    SELECT 1 FROM information_schema.tables
-                    WHERE table_schema = 'public' AND table_name = 'router_sync_queue'
+                    SELECT 1 FROM information_schema.columns
+                    WHERE table_name = 'router_sync_queue' AND column_name = 'gateway_id'
                 ) THEN
-                    ALTER TABLE mikrotik_sync_queue RENAME TO router_sync_queue;
+                    ALTER TABLE router_sync_queue RENAME COLUMN gateway_id TO router_id;
                 END IF;
             END $$;
             """))
