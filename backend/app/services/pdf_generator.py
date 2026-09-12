@@ -11,10 +11,16 @@ from app.models.payment import ClientPayment
 from app.models.company import Company
 
 
-def generate_receipt_pdf(payment: ClientPayment, company: Company | None = None) -> BytesIO:
+def generate_receipt_pdf(
+    payment: ClientPayment, company: Company | None = None, fiscal_tax_rate: float = 0.0
+) -> BytesIO:
     """
     Genera un comprobante de pago en formato PDF y lo retorna en un buffer de bytes.
     El diseño utiliza tablas limpias, tipografía clara y un esquema de colores azul profesional.
+
+    `fiscal_tax_rate` es la tasa de IVA global (Ajustes > Facturación > Fiscal), usada para
+    desglosar subtotal/impuesto tanto del plan como de los servicios personalizados
+    (ninguno de los dos tiene ya una tasa propia).
     """
     buffer = BytesIO()
     
@@ -170,7 +176,7 @@ def generate_receipt_pdf(payment: ClientPayment, company: Company | None = None)
             plan = invoice.plan
             plan_name = f"Plan de Internet: {plan.name}"
             plan_total = float(plan.price)
-            plan_taxes = float(plan.taxes) if plan.taxes else 0.0
+            plan_taxes = fiscal_tax_rate or 0.0
             plan_subtotal = plan_total / (1 + plan_taxes / 100) if plan_taxes > 0 else plan_total
             plan_tax = plan_total - plan_subtotal
             
@@ -195,7 +201,7 @@ def generate_receipt_pdf(payment: ClientPayment, company: Company | None = None)
         for cs in custom_services_to_bill:
             cs_name = f"Valor Agregado: {cs.name}"
             cs_total = float(cs.price)
-            cs_taxes = float(cs.taxes) if cs.taxes else 0.0
+            cs_taxes = fiscal_tax_rate or 0.0
             cs_subtotal = cs_total / (1 + cs_taxes / 100) if cs_taxes > 0 else cs_total
             cs_tax = cs_total - cs_subtotal
             

@@ -103,7 +103,6 @@ def test_custom_service_crud_admin(client: TestClient):
             "name": "Alquiler de Router",
             "price": 5.00,
             "description": "Arriendo mensual de router adicional dual band",
-            "taxes": 15.0,
             "active": True,
         },
     )
@@ -111,7 +110,7 @@ def test_custom_service_crud_admin(client: TestClient):
     data = response.json()
     assert data["name"] == "Alquiler de Router"
     assert data["price"] == 5.0
-    assert data["taxes"] == 15.0
+    assert data["recurring"] is True
     service_id = data["id"]
 
     # 4. Detail
@@ -131,6 +130,15 @@ def test_custom_service_crud_admin(client: TestClient):
     assert response.status_code == 200
     assert response.json()["price"] == 7.5
     assert response.json()["description"] == "Arriendo mensual de router - precio actualizado"
+
+    # 5b. Actualizar "recurring" a pago único (bug: antes se ignoraba en el PUT)
+    response = client.put(
+        f"/api/custom-services/{service_id}",
+        headers=headers,
+        json={"recurring": False},
+    )
+    assert response.status_code == 200
+    assert response.json()["recurring"] is False
 
     # 6. Delete Custom Service
     response = client.delete(f"/api/custom-services/{service_id}", headers=headers)
@@ -155,7 +163,6 @@ def test_custom_service_permissions_tecnico(client: TestClient):
             "name": "Soporte Extra",
             "price": 15.00,
             "description": "Visita tecnica fuera de horario",
-            "taxes": 0.0,
             "active": True,
         },
     )

@@ -19,7 +19,6 @@ class CustomService(Base):
     name: Mapped[str] = mapped_column(String(120), nullable=False, unique=True)
     price: Mapped[float] = mapped_column(Numeric(10, 2), nullable=False)
     description: Mapped[str | None] = mapped_column(String(255), nullable=True)
-    taxes: Mapped[float] = mapped_column(Numeric(5, 2), nullable=False, default=0.0)
     recurring: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
     active: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
     created_at: Mapped[datetime] = mapped_column(

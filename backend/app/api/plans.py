@@ -32,7 +32,6 @@ def create_plan(payload: PlanCreate, db: DBSession, current_user: AdminOnly) -> 
         speed_up_mbps=payload.speed_up_kbps // 1000,
         price=payload.price,
         description=payload.description,
-        taxes=payload.taxes,
         limit_at_up_kbps=payload.limit_at_up_kbps,
         limit_at_down_kbps=payload.limit_at_down_kbps,
         burst_threshold_up_kbps=payload.burst_threshold_up_kbps,
@@ -40,6 +39,12 @@ def create_plan(payload: PlanCreate, db: DBSession, current_user: AdminOnly) -> 
         priority=payload.priority,
         address_list=payload.address_list,
         parent=payload.parent,
+        fup_enabled=payload.fup_enabled,
+        fup_threshold_gb=payload.fup_threshold_gb,
+        fup_reduction_type=payload.fup_reduction_type,
+        fup_reduction_percent=payload.fup_reduction_percent,
+        fup_reduction_down_kbps=payload.fup_reduction_down_kbps,
+        fup_reduction_up_kbps=payload.fup_reduction_up_kbps,
     )
     db.add(p)
     try:

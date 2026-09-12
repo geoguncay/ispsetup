@@ -15,6 +15,7 @@ from app.models.client import Client
 from app.models.client_plan import ClientPlan
 from app.models.suspension_log import SuspensionLog
 from app.models.company import Company
+from app.models.system_settings import SystemSettings
 from app.schemas.payment import PaymentCreate, PaymentResponse
 from app.core.security import decrypt_secret
 from app.services.router.pppoe import sync_pppoe_secret_in_router
@@ -216,9 +217,11 @@ def get_payment_receipt(
         
     # Cargar datos de la empresa para personalizar el PDF
     company = db.query(Company).first()
-    
+    system_settings = db.query(SystemSettings).first()
+    fiscal_tax_rate = float(system_settings.fiscal_tax_rate) if system_settings else 0.0
+
     try:
-        pdf_buffer = generate_receipt_pdf(payment, company)
+        pdf_buffer = generate_receipt_pdf(payment, company, fiscal_tax_rate)
         filename = f"recibo_{str(payment.id)[:8].upper()}.pdf"
         return Response(
             content=pdf_buffer.getvalue(),

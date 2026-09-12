@@ -455,6 +455,9 @@ def run_migrations(bind_engine) -> None:
             END $$;
             """))
             conn.execute(text("ALTER TABLE custom_services ADD COLUMN IF NOT EXISTS recurring BOOLEAN NOT NULL DEFAULT TRUE;"))
+            # Impuesto de servicios personalizados: pasa a ser 100% global (igual que en Planes),
+            # usando la tasa única de system_settings.fiscal_tax_rate.
+            conn.execute(text("ALTER TABLE custom_services DROP COLUMN IF EXISTS taxes;"))
             conn.execute(text("""
             CREATE TABLE IF NOT EXISTS invoice_custom_services (
                 invoice_id VARCHAR(36) REFERENCES invoices(id) ON DELETE CASCADE,
@@ -2201,5 +2204,21 @@ def run_migrations(bind_engine) -> None:
             conn.execute(text("ALTER TABLE routers DROP COLUMN IF EXISTS radius_secret_encrypted;"))
             conn.execute(text("DROP TABLE IF EXISTS radius_ingest_state;"))
             conn.execute(text("DROP TABLE IF EXISTS radius_accounting_sessions;"))
+
+            # ── Impuesto de planes: pasa a ser 100% global (Ajustes > Fiscal) ──
+            # El campo por-plan se elimina; el desglose de IVA en recibos ahora
+            # usa la tasa única de system_settings.fiscal_tax_rate.
+            conn.execute(text("ALTER TABLE plans DROP COLUMN IF EXISTS taxes;"))
+
+            # ── Reducción de velocidad por consumo (FUP) ────────────────────
+            # Solo guarda la política configurada en el plan; la aplicación
+            # automática (monitoreo de consumo + sync de cola reducida en
+            # MikroTik) no está implementada todavía.
+            conn.execute(text("ALTER TABLE plans ADD COLUMN IF NOT EXISTS fup_enabled BOOLEAN NOT NULL DEFAULT FALSE;"))
+            conn.execute(text("ALTER TABLE plans ADD COLUMN IF NOT EXISTS fup_threshold_gb NUMERIC(10, 2);"))
+            conn.execute(text("ALTER TABLE plans ADD COLUMN IF NOT EXISTS fup_reduction_type VARCHAR(20);"))
+            conn.execute(text("ALTER TABLE plans ADD COLUMN IF NOT EXISTS fup_reduction_percent NUMERIC(5, 2);"))
+            conn.execute(text("ALTER TABLE plans ADD COLUMN IF NOT EXISTS fup_reduction_down_kbps INTEGER;"))
+            conn.execute(text("ALTER TABLE plans ADD COLUMN IF NOT EXISTS fup_reduction_up_kbps INTEGER;"))
 
             conn.commit()

@@ -4,7 +4,7 @@ Modelo SQLAlchemy: Plan
 import uuid
 from datetime import datetime
 
-from sqlalchemy import DateTime, Integer, Numeric, String, Uuid, func
+from sqlalchemy import Boolean, DateTime, Integer, Numeric, String, Uuid, func
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.core.database import Base
@@ -21,7 +21,6 @@ class Plan(Base):
     speed_up_mbps: Mapped[int] = mapped_column(Integer, nullable=False)
     price: Mapped[float] = mapped_column(Numeric(10, 2), nullable=False)
     description: Mapped[str | None] = mapped_column(String(255), nullable=True)
-    taxes: Mapped[float] = mapped_column(Numeric(5, 2), nullable=False, default=0.0)
     speed_down_kbps: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     speed_up_kbps: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     limit_at_up_kbps: Mapped[int | None] = mapped_column(Integer, nullable=True)
@@ -31,6 +30,18 @@ class Plan(Base):
     priority: Mapped[int | None] = mapped_column(Integer, nullable=True, default=8)
     address_list: Mapped[str | None] = mapped_column(String(100), nullable=True)
     parent: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    # Reducción de velocidad por consumo (FUP / política de uso justo).
+    # Solo almacena la política; la aplicación automática (monitoreo de consumo +
+    # sincronización de la cola reducida en MikroTik) no está implementada todavía.
+    # Importante: `fup_threshold_gb` se evalúa sobre el consumo acumulado DENTRO
+    # del ciclo de facturación mensual del cliente (no acumulado histórico); el
+    # motor que se implemente debe reiniciar el conteo en cada ciclo nuevo.
+    fup_enabled: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+    fup_threshold_gb: Mapped[float | None] = mapped_column(Numeric(10, 2), nullable=True)
+    fup_reduction_type: Mapped[str | None] = mapped_column(String(20), nullable=True)  # 'percentage' | 'fixed'
+    fup_reduction_percent: Mapped[float | None] = mapped_column(Numeric(5, 2), nullable=True)
+    fup_reduction_down_kbps: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    fup_reduction_up_kbps: Mapped[int | None] = mapped_column(Integer, nullable=True)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), nullable=False
     )

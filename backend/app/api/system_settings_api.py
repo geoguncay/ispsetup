@@ -162,6 +162,13 @@ def get_catalog_settings(db: DBSession, _: CurrentUser) -> CatalogSettingsRead:
     return _to_catalogs_read(cfg)
 
 
+@router.get("/fiscal", response_model=FiscalSettingsRead)
+def get_fiscal_settings(db: DBSession, _: CurrentUser) -> FiscalSettingsRead:
+    """Configuración fiscal (tasa de impuesto global), para cualquier usuario autenticado (usado por Planes para calcular el precio total)."""
+    cfg = _get_or_create(db)
+    return FiscalSettingsRead.model_validate(cfg)
+
+
 @router.get("/system", response_model=SystemSettingsRead)
 def get_system_settings(db: DBSession, _: AdminOnly) -> SystemSettingsRead:
     cfg = _get_or_create(db)

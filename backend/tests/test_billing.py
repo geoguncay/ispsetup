@@ -344,7 +344,6 @@ def test_generate_monthly_invoices_with_custom_services():
         name="IP Publica",
         price=10.00,
         description="IP Fija Publica",
-        taxes=12.00,
         active=True
     )
     db.add(cs)

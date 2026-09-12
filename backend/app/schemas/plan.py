@@ -14,7 +14,6 @@ class PlanBase(BaseModel):
     speed_down_mbps: int = Field(default=0)
     speed_up_mbps: int = Field(default=0)
     description: str | None = Field(default=None, max_length=255)
-    taxes: float = Field(default=0.0, ge=0.0)
     limit_at_up_kbps: int | None = Field(default=None, ge=1)
     limit_at_down_kbps: int | None = Field(default=None, ge=1)
     burst_threshold_up_kbps: int | None = Field(default=None, ge=1)
@@ -22,6 +21,20 @@ class PlanBase(BaseModel):
     priority: int | None = Field(default=8, ge=1, le=8)
     address_list: str | None = Field(default=None, max_length=100)
     parent: str | None = Field(default=None, max_length=100)
+    # Reducción de velocidad por consumo (FUP). Solo política de configuración;
+    # la aplicación automática no está implementada.
+    fup_enabled: bool = Field(default=False)
+    fup_threshold_gb: float | None = Field(
+        default=None, ge=0,
+        description=(
+            "Consumo (GB) que activa la reducción, evaluado dentro del ciclo de "
+            "facturación mensual del cliente (se reinicia en cada ciclo nuevo)."
+        ),
+    )
+    fup_reduction_type: str | None = Field(default=None, pattern="^(percentage|fixed)$")
+    fup_reduction_percent: float | None = Field(default=None, ge=0, le=100)
+    fup_reduction_down_kbps: int | None = Field(default=None, ge=1)
+    fup_reduction_up_kbps: int | None = Field(default=None, ge=1)
 
 
 class PlanCreate(PlanBase):
@@ -34,7 +47,6 @@ class PlanUpdate(BaseModel):
     speed_up_kbps: int | None = Field(default=None, ge=1)
     price: float | None = Field(default=None, gt=0.0)
     description: str | None = Field(default=None, max_length=255)
-    taxes: float | None = Field(default=None, ge=0.0)
     limit_at_up_kbps: int | None = Field(default=None, ge=1)
     limit_at_down_kbps: int | None = Field(default=None, ge=1)
     burst_threshold_up_kbps: int | None = Field(default=None, ge=1)
@@ -42,6 +54,12 @@ class PlanUpdate(BaseModel):
     priority: int | None = Field(default=None, ge=1, le=8)
     address_list: str | None = Field(default=None, max_length=100)
     parent: str | None = Field(default=None, max_length=100)
+    fup_enabled: bool | None = Field(default=None)
+    fup_threshold_gb: float | None = Field(default=None, ge=0)
+    fup_reduction_type: str | None = Field(default=None, pattern="^(percentage|fixed)$")
+    fup_reduction_percent: float | None = Field(default=None, ge=0, le=100)
+    fup_reduction_down_kbps: int | None = Field(default=None, ge=1)
+    fup_reduction_up_kbps: int | None = Field(default=None, ge=1)
 
 
 class PlanResponse(PlanBase):
