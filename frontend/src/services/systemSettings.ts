@@ -148,6 +148,12 @@ export async function updateLocalization(payload: Partial<LocalizationSettings>)
   return data as LocalizationSettings
 }
 
+/** Tasa de impuesto fiscal global, accesible para cualquier usuario autenticado (usado por el formulario de Planes para calcular el precio total). */
+export async function getFiscalSettings(): Promise<FiscalSettings> {
+  const { data } = await api.get('/settings/fiscal')
+  return data
+}
+
 export async function updateFiscal(payload: Partial<FiscalSettings>) {
   const { data } = await api.put('/settings/system/fiscal', payload)
   return data as FiscalSettings

@@ -45,7 +45,6 @@ interface FormPlan {
   speed_down_mbps?: number
   speed_up_mbps?: number
   description?: string
-  taxes?: number
 }
 
 interface FormCustomService {

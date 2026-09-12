@@ -10,13 +10,13 @@ import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
 import api from '@/services/api'
 import { useAuthStore } from '@/stores/authStore'
+import { getFiscalSettings } from '@/services/systemSettings'
 
 interface CustomService {
   id: string
   name: string
   price: number
   description?: string | null
-  taxes: number
   recurring: boolean
   active: boolean
   created_at: string
@@ -27,7 +27,6 @@ const serviceSchema = z.object({
   name: z.string().min(2, 'Mínimo 2 caracteres').max(120),
   description: z.string().max(255).optional().or(z.literal('')),
   price: z.coerce.number().min(0.01, 'Mínimo $0.01'),
-  taxes: z.coerce.number().min(0, 'No puede ser negativo').default(0),
   recurring: z.boolean().default(true),
   active: z.boolean().default(true),
 })
@@ -55,9 +54,19 @@ export function CustomServicesPage() {
     queryFn: fetchCustomServices,
   })
 
-  const { register, handleSubmit, reset, formState: { errors } } = useForm<ServiceFormData>({
+  const { data: fiscalSettings } = useQuery({
+    queryKey: ['fiscal-settings'],
+    queryFn: getFiscalSettings,
+  })
+  const taxRate = fiscalSettings?.fiscal_tax_rate ?? 0
+  const taxName = fiscalSettings?.fiscal_tax_name || 'IVA'
+
+  const { register, handleSubmit, reset, watch, formState: { errors } } = useForm<ServiceFormData>({
     resolver: zodResolver(serviceSchema) as any,
   })
+
+  const watchPrice = watch('price')
+  const priceTotal = (Number(watchPrice) || 0) * (1 + Number(taxRate) / 100)
 
   const saveMutation = useMutation({
     mutationFn: async (data: ServiceFormData) => {
@@ -101,7 +110,6 @@ export function CustomServicesPage() {
       name: '',
       description: '',
       price: 10.0,
-      taxes: 15.0,
       recurring: true,
       active: true,
     })
@@ -115,7 +123,6 @@ export function CustomServicesPage() {
       name: service.name,
       description: service.description || '',
       price: service.price,
-      taxes: service.taxes || 0,
       recurring: service.recurring,
       active: service.active,
     })
@@ -174,53 +181,49 @@ export function CustomServicesPage() {
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
           {services.map((service) => (
-            <div key={service.id} className="glass-card p-5 relative overflow-hidden flex flex-col justify-between group hover:border-brand-500/30 transition-all duration-300">
-              {/* Card Header */}
-              <div>
-                <div className="flex items-center justify-between mb-4">
-                  <div className="w-10 h-10 bg-brand-900/30 rounded-lg flex items-center justify-center border border-brand-800/40">
-                    <Package className="w-5 h-5 text-brand-400" />
+            <div key={service.id} className="glass-card relative overflow-hidden flex flex-col justify-between group hover:border-purple-500/30 hover:-translate-y-0.5 transition-all duration-300">
+              <div className="h-[3px] w-full bg-gradient-to-r from-purple-500 to-purple-400/40" />
+
+              <div className="p-5">
+                {/* Card Header */}
+                <div className="flex items-start justify-between mb-3">
+                  <div className="flex items-center gap-2.5 min-w-0">
+                    <div className="w-9 h-9 shrink-0 bg-purple-500/10 rounded-lg flex items-center justify-center border border-purple-500/30">
+                      <Package className="w-4.5 h-4.5 text-purple-400" />
+                    </div>
+                    <div className="min-w-0">
+                      <h3 className="text-base font-semibold text-foreground truncate leading-tight">{service.name}</h3>
+                      <div className="flex items-center gap-1 mt-1">
+                        <span className={`text-[10px] font-medium px-1.5 py-[1px] rounded border ${service.recurring
+                            ? 'border-blue-500/25 text-blue-400'
+                            : 'border-purple-500/25 text-purple-400'
+                          }`}>
+                          {service.recurring ? 'Recurrente' : 'Único'}
+                        </span>
+                        <span className={`text-[10px] font-medium px-1.5 py-[1px] rounded border ${service.active
+                            ? 'border-emerald-500/25 text-emerald-400'
+                            : 'border-slate-500/25 text-slate-400'
+                          }`}>
+                          {service.active ? 'Activo' : 'Inactivo'}
+                        </span>
+                      </div>
+                    </div>
                   </div>
-                  <div className="text-right">
-                    <span className="text-2xl font-bold text-brand-400 font-mono">${Number(service.price).toFixed(2)}</span>
-                    <span className="text-xs text-muted-foreground block">
-                      {service.recurring ? '/mes' : '/pago único'}
-                    </span>
+                  <div className="text-right shrink-0 pl-2">
+                    <div className="text-xl font-bold text-purple-400 font-mono leading-none">${(Number(service.price) * (1 + Number(taxRate) / 100)).toFixed(2)}</div>
+                    <div className="text-[10px] text-muted-foreground font-mono mt-1">${Number(service.price).toFixed(2)} + {taxRate}% {taxName}</div>
+                    <div className="text-[10px] text-muted-foreground mt-0.5">{service.recurring ? '/mes' : '/pago único'}</div>
                   </div>
                 </div>
 
-                <div className="flex items-center justify-between gap-2 mb-2">
-                  <h3 className="text-lg font-semibold text-foreground truncate">{service.name}</h3>
-                  <div className="flex items-center gap-1.5 shrink-0">
-                    <span className={`flex items-center gap-0.5 text-[10px] font-semibold px-1.5 py-0.5 rounded-full border ${service.recurring
-                        ? 'bg-blue-500/10 border-blue-500/20 text-blue-400'
-                        : 'bg-purple-500/10 border-purple-500/20 text-purple-400'
-                      }`}>
-                      {service.recurring ? 'Recurrente' : 'Único'}
-                    </span>
-                    <span className={`flex items-center gap-0.5 text-[10px] font-semibold px-1.5 py-0.5 rounded-full border ${service.active
-                        ? 'bg-emerald-500/10 border-emerald-500/20 text-emerald-400'
-                        : 'bg-slate-500/10 border-slate-500/20 text-slate-400'
-                      }`}>
-                      {service.active ? 'Activo' : 'Inactivo'}
-                    </span>
-                  </div>
-                </div>
-
-                <p className="text-sm text-muted-foreground min-h-[40px] mb-4 line-clamp-2">
+                <p className="text-xs text-muted-foreground line-clamp-2 min-h-[32px]">
                   {service.description || 'Sin descripción disponible.'}
                 </p>
-
-                {/* Tax info */}
-                <div className="bg-secondary/35 p-3 rounded-lg border border-border/50 mb-4 text-xs flex justify-between text-muted-foreground font-mono">
-                  <span>Impuesto aplicado (IVA):</span>
-                  <span className="font-semibold text-foreground">{service.taxes}%</span>
-                </div>
               </div>
 
               {/* Actions */}
               {isAdmin && (
-                <div className="flex items-center justify-end gap-2 border-t border-border/50 pt-4 mt-2">
+                <div className="flex items-center justify-end gap-2 border-t border-border/50 px-5 py-3">
                   <button
                     onClick={() => openEditDialog(service)}
                     className="btn-secondary py-1.5 px-3 text-xs"
@@ -311,20 +314,16 @@ export function CustomServicesPage() {
                   {errors.price && <p className="text-xs text-destructive mt-1">{errors.price.message}</p>}
                 </div>
 
-                {/* Impuestos */}
+                {/* Precio Total (calculado con el IVA global) */}
                 <div>
-                  <label className="block text-xs font-medium text-foreground mb-1.5">Impuestos (IVA %)</label>
-                  <div className="relative">
-                    <input
-                      type="number"
-                      step="0.1"
-                      placeholder="15"
-                      {...register('taxes')}
-                      className="input-field pr-7 font-mono text-sm"
-                    />
-                    <span className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground text-xs font-mono">%</span>
+                  <label className="block text-xs font-medium text-foreground mb-1.5">Precio Total</label>
+                  <div className="input-field font-mono text-sm flex items-center justify-between bg-secondary/40 cursor-default select-none">
+                    <span className="text-foreground">${priceTotal.toFixed(2)}</span>
+                    <span className="text-[10px] text-muted-foreground">{taxRate}% {taxName}</span>
                   </div>
-                  {errors.taxes && <p className="text-xs text-destructive mt-1">{errors.taxes.message}</p>}
+                  <p className="text-[10px] text-muted-foreground mt-1">
+                    Incluye el {taxName} configurado en Ajustes → Facturación → Fiscal.
+                  </p>
                 </div>
               </div>
 
