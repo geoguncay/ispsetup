@@ -11,6 +11,7 @@ import { z } from 'zod'
 import api from '@/services/api'
 import { useAuthStore } from '@/stores/authStore'
 import { getFiscalSettings } from '@/services/systemSettings'
+import { computePriceBreakdown } from '@/lib/pricing'
 
 interface Plan {
   id: string
@@ -108,6 +109,7 @@ export function PlansPage() {
   })
   const taxRate = fiscalSettings?.fiscal_tax_rate ?? 0
   const taxName = fiscalSettings?.fiscal_tax_name || 'IVA'
+  const priceMode = fiscalSettings?.billing_price_mode
 
   const { register, handleSubmit, reset, watch, formState: { errors } } = useForm<PlanFormData>({
     resolver: zodResolver(planSchema) as any
@@ -120,7 +122,8 @@ export function PlansPage() {
   const watchFupReductionType = watch('fup_reduction_type')
   const watchFupReductionPercent = watch('fup_reduction_percent')
 
-  const priceTotal = (Number(watchPrice) || 0) * (1 + Number(taxRate) / 100)
+  const priceBreakdown = computePriceBreakdown(Number(watchPrice) || 0, taxRate, priceMode)
+  const priceTotal = priceBreakdown.total
 
   const formatKbpsHelper = (kbpsVal: any) => {
     const num = Number(kbpsVal)
@@ -316,8 +319,17 @@ export function PlansPage() {
                     </div>
                   </div>
                   <div className="text-right shrink-0 pl-2">
-                    <div className="text-xl font-bold text-brand-400 font-mono leading-none">${(Number(plan.price) * (1 + Number(taxRate) / 100)).toFixed(2)}</div>
-                    <div className="text-[10px] text-muted-foreground font-mono mt-1">${Number(plan.price).toFixed(2)} + {taxRate}% IVA</div>
+                    {(() => {
+                      const b = computePriceBreakdown(plan.price, taxRate, priceMode)
+                      return (
+                        <>
+                          <div className="text-xl font-bold text-brand-400 font-mono leading-none">${b.total.toFixed(2)}</div>
+                          <div className="text-[10px] text-muted-foreground font-mono mt-1">
+                            {priceMode === 'excluded' ? `$${b.subtotal.toFixed(2)} + ${taxRate}% IVA` : `IVA incluido: $${b.taxAmount.toFixed(2)}`}
+                          </div>
+                        </>
+                      )
+                    })()}
                   </div>
                 </div>
 
@@ -392,7 +404,7 @@ export function PlansPage() {
       {/* Modal Add/Edit Plan */}
       {dialogOpen && createPortal(
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm overflow-y-auto py-10">
-          <div className="glass-card w-full max-w-2xl mx-4 animate-fade-in my-auto">
+          <div className="glass-card w-full max-w-4xl mx-4 animate-fade-in my-auto">
             <div className="flex items-center justify-between p-5 border-b border-border">
               <h2 className="text-lg font-semibold text-foreground">
                 {editingPlan ? `Editar: ${editingPlan.name}` : 'Agregar Plan'}
@@ -460,13 +472,18 @@ export function PlansPage() {
                       {errors.price && <p className="text-xs text-destructive mt-1">{errors.price.message}</p>}
                     </div>
 
-                    {/* Precio Total (calculado con el IVA global) */}
+                    {/* Precio Total (calculado con el IVA global, según el modo de precio de Ajustes) */}
                     <div>
                       <label className="block text-xs font-medium text-foreground mb-1.5">Precio Total</label>
                       <div className="input-field font-mono text-sm flex items-center justify-between bg-secondary/40 cursor-default select-none">
                         <span className="text-foreground">${priceTotal.toFixed(2)}</span>
                         <span className="text-[10px] text-muted-foreground">{taxRate}% {taxName}</span>
                       </div>
+                      <p className="text-[10px] text-muted-foreground mt-1">
+                        {priceMode === 'excluded'
+                          ? `El precio ingresado es la base; se le suma el ${taxName}.`
+                          : `El precio ingresado ya incluye el ${taxName} (${priceBreakdown.taxAmount.toFixed(2)}).`}
+                      </p>
                     </div>
                   </div>
                 </div>

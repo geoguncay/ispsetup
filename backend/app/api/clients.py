@@ -23,6 +23,21 @@ from app.models.invoice import Invoice
 from app.models.custom_service import CustomService
 from app.models.inventory import InventoryItem
 from app.models.client_inventory import ClientInventoryItem
+from app.models.system_settings import SystemSettings
+from app.services.billing_cycle import (
+    advance_period,
+    billing_day_for,
+    compute_invoice_amount,
+    compute_plan_change_proration,
+    current_period_bounds,
+    effective_price,
+    generate_invoice_for_client,
+    oldest_pending_period,
+    oldest_unpaid_period,
+    period_bounds_for,
+    resolve_due_date,
+)
+from app.services.plan_change import apply_plan_change
 from app.services.router.pppoe import (
     sync_pppoe_secret_in_router,
     remove_pppoe_secret_from_router,
@@ -49,6 +64,10 @@ from app.schemas.client import (
     ClientPlanResponse,
     ClientResponse,
     ClientUpdate,
+    InvoicePeriodPreview,
+    NextInvoicePreview,
+    PlanChangePreview,
+    PlanChangeResult,
     SuspensionLogResponse,
 )
 from app.schemas.payment import PaymentResponse
@@ -916,120 +935,210 @@ def get_client_plan_history(
     )
 
 
-@router.post("/{client_id}/assign-plan", response_model=ClientPlanResponse)
-def assign_client_plan(
-    client_id: uuid.UUID, plan_id: uuid.UUID, db: DBSession, current_user: AdminOrTechnician
-) -> ClientPlan:
+@router.get("/{client_id}/plan-change-preview", response_model=PlanChangePreview)
+def preview_plan_change(
+    client_id: uuid.UUID, plan_id: uuid.UUID, db: DBSession, _: AdminOrTechnician
+) -> PlanChangePreview:
     """
-    Asigna un nuevo plan a un cliente.
-    Desactiva el plan activo anterior marcándolo como cancelado/fecha_fin=ahora.
+    Calcula, sin aplicar nada, el detalle de cambiar al cliente al plan `plan_id`:
+    plan actual vs. nuevo, días restantes del periodo de facturación vigente, y el
+    monto del ajuste que se generaría con cada modo ("immediate"/"next_period").
+    Usado por los modales de cambio de plan para mostrar el cálculo antes de confirmar.
     """
     client = db.get(Client, client_id)
     if not client:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Cliente no encontrado")
 
-    plan = db.get(Plan, plan_id)
-    if not plan:
+    new_plan = db.get(Plan, plan_id)
+    if not new_plan:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Plan no encontrado")
 
-    now = datetime.now(timezone.utc)
-
-    # Desactivar planes activos anteriores
-    active_plans = (
+    current_client_plan = (
         db.query(ClientPlan)
         .filter(ClientPlan.cliente_id == client_id, ClientPlan.estado == "activo")
-        .all()
+        .first()
+    )
+    old_plan = current_client_plan.plan if current_client_plan else None
+
+    cfg = db.query(SystemSettings).first() or SystemSettings()
+    now = datetime.now()
+    period_start, period_end = current_period_bounds(client, cfg, now)
+
+    new_plan_effective_price = effective_price(new_plan.price, cfg.fiscal_tax_rate, cfg.billing_price_mode)
+
+    if old_plan:
+        old_plan_effective_price = effective_price(old_plan.price, cfg.fiscal_tax_rate, cfg.billing_price_mode)
+        immediate_adjustment_amount, days_remaining, days_in_period = compute_plan_change_proration(
+            old_plan_effective_price, new_plan_effective_price, client, cfg, now
+        )
+    else:
+        immediate_adjustment_amount = 0.0
+        days_remaining = 0
+        days_in_period = max((period_end - period_start).days, 1)
+
+    return PlanChangePreview(
+        old_plan=old_plan,
+        new_plan=new_plan,
+        is_same_plan=bool(old_plan and old_plan.id == new_plan.id),
+        days_remaining=days_remaining,
+        days_in_period=days_in_period,
+        period_start=period_start,
+        period_end=period_end,
+        immediate_adjustment_amount=immediate_adjustment_amount,
+        next_period_amount=new_plan_effective_price,
     )
 
-    for ap in active_plans:
-        ap.estado = "cancelado"
-        ap.fecha_fin = now
 
-    # Sincronizar cola en MikroTik si el cliente es estático y tiene IP
-    if client.access_method == "static" and client.static_ip:
-        try:
-            addr_list_name = get_clean_list_name(client.router.address_list or plan.address_list)
-            sync_ip_in_address_list(client.router, client.static_ip.ip, client.full_name, list_name=addr_list_name)
-            sync_client_queue(
-                router=client.router,
-                client_name=client.full_name,
-                ip=client.static_ip.ip,
-                speed_up=plan.speed_up_kbps,
-                speed_down=plan.speed_down_kbps,
-                plan_name=plan.name,
-                limit_at_up=plan.limit_at_up_kbps,
-                limit_at_down=plan.limit_at_down_kbps,
-                burst_threshold_up=plan.burst_threshold_up_kbps,
-                burst_threshold_down=plan.burst_threshold_down_kbps,
-                priority=plan.priority,
-                parent=get_clean_parent_name(client.router.parent_queue or plan.parent),
-            )
-        except Exception as e:
-            raise HTTPException(
-                status_code=status.HTTP_502_BAD_GATEWAY,
-                detail=f"Fallo al actualizar la cola en MikroTik: {str(e)}"
-            )
-    
-    # Sincronizar secreto PPPoE si el cliente es PPPoE y tiene secreto
-    elif client.access_method == "pppoe" and client.pppoe_secret:
-        try:
-            # 1. Buscar o crear el PPPoEProfile local para este router y plan
-            profile = db.query(PPPoEProfile).filter(
-                PPPoEProfile.router_id == client.router_id,
-                PPPoEProfile.name == plan.name
-            ).first()
-            if not profile:
-                profile = PPPoEProfile(
-                    name=plan.name,
-                    speed_down_mbps=plan.speed_down_mbps,
-                    speed_up_mbps=plan.speed_up_mbps,
-                    router_id=client.router_id
-                )
-                db.add(profile)
-                db.flush()
-            
-            # 2. Asegurar perfil en MikroTik
-            from app.services.router.pppoe import sync_pppoe_profile_in_router, sync_pppoe_secret_in_router
-            sync_pppoe_profile_in_router(client.router, plan)
-            
-            # 3. Actualizar la relación del secreto
-            client.pppoe_secret.profile_id = profile.id
-            
-            # 4. Sincronizar secreto en MikroTik con el nuevo perfil
-            password_dec = decrypt_secret(client.pppoe_secret.ppp_password)
-            sync_pppoe_secret_in_router(
-                router=client.router,
-                username=client.pppoe_secret.ppp_username,
-                password=password_dec,
-                profile_name=profile.name,
-                client_name=client.full_name,
-                disabled=not client.active
-            )
-        except Exception as e:
-            raise HTTPException(
-                status_code=status.HTTP_502_BAD_GATEWAY,
-                detail=f"Fallo al actualizar el perfil/secreto PPPoE en MikroTik: {str(e)}"
-            )
+@router.post("/{client_id}/assign-plan", response_model=PlanChangeResult)
+def assign_client_plan(
+    client_id: uuid.UUID, plan_id: uuid.UUID, db: DBSession, current_user: AdminOrTechnician,
+    mode: str = "immediate",
+) -> PlanChangeResult:
+    """
+    Asigna un nuevo plan a un cliente, con dos modos quando ya tiene un plan activo:
 
-    # Crear el nuevo registro del plan
-    new_client_plan = ClientPlan(
-        cliente_id=client_id,
-        plan_id=plan_id,
-        fecha_inicio=now,
-        estado="activo",
+    - "immediate": aplica el cambio ahora mismo (cancela el plan activo anterior,
+      sincroniza MikroTik y activa el nuevo). Si el cliente ya tenía un plan activo
+      distinto, genera además una factura de ajuste prorrateada por los días que
+      quedan del periodo de facturación vigente (puede ser un cargo o un crédito).
+    - "next_period": el cliente conserva su plan y velocidad actuales; el cambio
+      queda guardado como pendiente y se aplica automáticamente justo antes de
+      generar su próxima factura mensual (sin prorrateo: se factura el plan nuevo
+      completo desde ese periodo). Requiere que el cliente ya tenga un plan activo.
+    """
+    if mode not in ("immediate", "next_period"):
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="El modo debe ser 'immediate' o 'next_period'.")
+
+    client = db.get(Client, client_id)
+    if not client:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Cliente no encontrado")
+
+    new_plan = db.get(Plan, plan_id)
+    if not new_plan:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Plan no encontrado")
+
+    current_client_plan = (
+        db.query(ClientPlan)
+        .filter(ClientPlan.cliente_id == client_id, ClientPlan.estado == "activo")
+        .first()
     )
-    db.add(new_client_plan)
-    db.commit()
-    db.refresh(new_client_plan)
+    old_plan = current_client_plan.plan if current_client_plan else None
+
+    if old_plan and old_plan.id == new_plan.id and mode == "immediate":
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="El cliente ya tiene asignado este plan.")
+
+    if mode == "next_period":
+        if not old_plan:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="El cliente no tiene un plan activo; usa el cambio inmediato para la primera asignación.",
+            )
+        client.pending_plan_id = new_plan.id
+        client.pending_plan_requested_at = datetime.now(timezone.utc)
+        db.commit()
+
+        log_event(
+            db, AuditAction.ASSIGN_PLAN,
+            entity_type="Client", entity_id=str(client_id), entity_name=client.full_name,
+            user_id=current_user.id, user_name=current_user.name,
+            detail={"plan_name": new_plan.name, "plan_id": str(plan_id), "type": "schedule_next_period"},
+        )
+        return PlanChangeResult(
+            mode="next_period",
+            message=f"El cambio a \"{new_plan.name}\" se aplicará automáticamente al iniciar el próximo periodo de facturación.",
+        )
+
+    # mode == "immediate"
+    adjustment_invoice = None
+    if old_plan and old_plan.id != new_plan.id:
+        cfg = db.query(SystemSettings).first() or SystemSettings()
+        now = datetime.now()
+        old_plan_effective_price = effective_price(old_plan.price, cfg.fiscal_tax_rate, cfg.billing_price_mode)
+        new_plan_effective_price = effective_price(new_plan.price, cfg.fiscal_tax_rate, cfg.billing_price_mode)
+        amount, days_remaining, days_in_period = compute_plan_change_proration(
+            old_plan_effective_price, new_plan_effective_price, client, cfg, now
+        )
+        if amount != 0 and days_remaining > 0:
+            issue_date = datetime.now(timezone.utc)
+            adjustment_invoice = Invoice(
+                client_id=client.id,
+                plan_id=new_plan.id,
+                period=now.strftime("%m/%Y"),
+                amount=amount,
+                concept=(
+                    f"Ajuste por cambio de plan: {old_plan.name} → {new_plan.name} "
+                    f"({days_remaining} de {days_in_period} días restantes del periodo actual)"
+                ),
+                issue_date=issue_date,
+                due_date=resolve_due_date(issue_date, client, cfg),
+                status="pending",
+            )
+            db.add(adjustment_invoice)
+
+    try:
+        apply_plan_change(db, client, new_plan)
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_502_BAD_GATEWAY,
+            detail=f"Fallo al actualizar la velocidad en MikroTik: {str(e)}"
+        )
+
+    # Un cambio inmediato reemplaza cualquier cambio diferido que hubiera quedado pendiente.
+    if client.pending_plan_id:
+        client.pending_plan_id = None
+        client.pending_plan_requested_at = None
+        db.commit()
 
     log_event(
         db, AuditAction.ASSIGN_PLAN,
         entity_type="Client", entity_id=str(client_id), entity_name=client.full_name,
         user_id=current_user.id, user_name=current_user.name,
-        detail={"plan_name": plan.name, "plan_id": str(plan_id)},
+        detail={
+            "plan_name": new_plan.name, "plan_id": str(plan_id),
+            "adjustment_amount": float(adjustment_invoice.amount) if adjustment_invoice else None,
+        },
     )
 
-    return new_client_plan
+    message = "Plan actualizado correctamente."
+    if adjustment_invoice:
+        if adjustment_invoice.amount > 0:
+            message += f" Se generó un cargo de ajuste de ${adjustment_invoice.amount:.2f} por el cambio a mitad de periodo."
+        else:
+            message += f" Se generó un crédito de ${abs(adjustment_invoice.amount):.2f} a favor del cliente por el cambio a mitad de periodo."
+
+    return PlanChangeResult(
+        mode="immediate",
+        message=message,
+        adjustment_invoice_id=adjustment_invoice.id if adjustment_invoice else None,
+        adjustment_amount=float(adjustment_invoice.amount) if adjustment_invoice else None,
+    )
+
+
+@router.delete("/{client_id}/pending-plan-change")
+def cancel_pending_plan_change(
+    client_id: uuid.UUID, db: DBSession, current_user: CurrentUser,
+) -> dict:
+    """Cancela un cambio de plan programado ("al iniciar nuevo periodo"), dejando el plan actual sin cambios futuros."""
+    client = db.get(Client, client_id)
+    if not client:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Cliente no encontrado")
+    if not client.pending_plan_id:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="El cliente no tiene ningún cambio de plan programado.")
+
+    pending_plan_name = client.pending_plan.name if client.pending_plan else None
+    client.pending_plan_id = None
+    client.pending_plan_requested_at = None
+    db.commit()
+
+    log_event(
+        db, AuditAction.ASSIGN_PLAN,
+        entity_type="Client", entity_id=str(client_id), entity_name=client.full_name,
+        user_id=current_user.id, user_name=current_user.name,
+        detail={"type": "cancel_scheduled_plan_change", "plan_name": pending_plan_name},
+    )
+
+    return {"detail": "Cambio de plan programado cancelado correctamente."}
 
 
 @router.post("/{client_id}/sync-router")
@@ -1489,6 +1598,138 @@ def get_client_invoices(client_id: uuid.UUID, db: DBSession, _: AdminOrTechnicia
         .all()
     )
     return invoices
+
+
+@router.get("/{client_id}/next-invoice-preview", response_model=NextInvoicePreview)
+def preview_client_next_invoice(client_id: uuid.UUID, db: DBSession, _: AdminOrTechnician) -> NextInvoicePreview:
+    """
+    Vista previa de Facturación Proyectada en el modal de cliente: cuál es la
+    factura "actual" (el periodo más antiguo aún sin pagar, ya generada o no)
+    y la proyección del periodo siguiente. Usa el mismo cálculo que la
+    generación real (`compute_invoice_amount`, con prorrateo si corresponde),
+    así el monto mostrado siempre coincide con el que produciría el botón
+    "Generar Factura". No crea ni modifica nada.
+    """
+    client = db.get(Client, client_id)
+    if not client:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Cliente no encontrado")
+
+    active_client_plan = (
+        db.query(ClientPlan)
+        .filter(ClientPlan.cliente_id == client_id, ClientPlan.estado == "activo")
+        .first()
+    )
+    if not active_client_plan or not active_client_plan.plan:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="El cliente no tiene un plan activo asignado.",
+        )
+    plan = active_client_plan.plan
+
+    now = datetime.now()
+    start_date = client.billing_start or client.created_at or now
+    cfg = db.query(SystemSettings).first() or SystemSettings()
+
+    now_key = (now.year, now.month)
+
+    def _preview_for(period: str, estimated_issue_date: datetime) -> InvoicePeriodPreview:
+        existing = (
+            db.query(Invoice)
+            .filter(Invoice.client_id == client_id, Invoice.period == period, Invoice.status != "cancelled")
+            .first()
+        )
+        if existing:
+            return InvoicePeriodPreview(
+                period=period, amount=float(existing.amount), due_date=existing.due_date,
+                is_prorated=False, can_generate=False,
+                invoice_id=existing.id, invoice_status=existing.status,
+            )
+        amount, is_prorated = compute_invoice_amount(client, plan, cfg, period)
+        month, year = int(period[:2]), int(period[3:])
+        # Nunca se puede generar un periodo futuro por adelantado, aunque no
+        # tenga factura todavía (ej. cuando ya está todo pagado hasta hoy y
+        # esto es solo la proyección del próximo periodo).
+        can_generate = (year, month) <= now_key
+        return InvoicePeriodPreview(
+            period=period, amount=amount, due_date=resolve_due_date(estimated_issue_date, client, cfg),
+            is_prorated=is_prorated, can_generate=can_generate,
+        )
+
+    current_period = oldest_unpaid_period(db, client_id, start_date, now)
+    next_period = advance_period(current_period)
+    next_month, next_year = int(next_period[:2]), int(next_period[3:])
+    target_day = billing_day_for(client, cfg)
+    next_period_start, _ = period_bounds_for(target_day, next_year, next_month)
+
+    return NextInvoicePreview(
+        plan_name=plan.name,
+        current=_preview_for(current_period, now),
+        next=_preview_for(next_period, next_period_start),
+    )
+
+
+@router.post("/{client_id}/generate-invoice", response_model=InvoiceResponse, status_code=status.HTTP_201_CREATED)
+def generate_client_invoice(client_id: uuid.UUID, db: DBSession, current_user: AdminOrTechnician) -> Invoice:
+    """
+    Genera de forma manual e inmediata una factura para el cliente, sin esperar
+    al día/hora configurados en Ajustes > Facturación.
+
+    Usado por el botón "Generar Factura" de Facturación Proyectada, en el modal
+    de edición del cliente. Requiere que el cliente tenga un plan activo
+    asignado. Si tiene periodos atrasados sin facturar (ej. se le asignó el
+    plan varios meses después de su fecha de alta/inicio de facturación),
+    genera el más antiguo primero; solo se rechaza si el cliente ya tiene
+    facturados todos los periodos hasta el actual inclusive.
+    """
+    client = db.get(Client, client_id)
+    if not client:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Cliente no encontrado")
+
+    active_client_plan = (
+        db.query(ClientPlan)
+        .filter(ClientPlan.cliente_id == client_id, ClientPlan.estado == "activo")
+        .first()
+    )
+    if not active_client_plan or not active_client_plan.plan:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="El cliente no tiene un plan activo asignado.",
+        )
+
+    now = datetime.now()
+    start_date = client.billing_start or client.created_at or now
+    target_period = oldest_pending_period(db, client_id, start_date, now)
+
+    existing_invoice = (
+        db.query(Invoice)
+        .filter(
+            Invoice.client_id == client_id, Invoice.period == target_period,
+            Invoice.status != "cancelled",
+        )
+        .first()
+    )
+    if existing_invoice:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"El cliente ya tiene una factura para el periodo {target_period}.",
+        )
+
+    cfg = db.query(SystemSettings).first() or SystemSettings()
+    new_invoice = generate_invoice_for_client(db, client, active_client_plan.plan, cfg, now, period=target_period)
+    db.commit()
+    db.refresh(new_invoice)
+
+    log_event(
+        db, AuditAction.CREATE_INVOICE,
+        entity_type="Invoice", entity_id=new_invoice.id,
+        entity_name=f"Factura {new_invoice.period} · {client.full_name}",
+        user_id=current_user.id, user_name=current_user.name,
+        detail=audit_detail(
+            "Factura generada manualmente desde Facturación Proyectada",
+            client=client.full_name, period=new_invoice.period, amount=new_invoice.amount,
+        ),
+    )
+    return new_invoice
 
 
 @router.get("/{client_id}/tickets", response_model=list[TicketResponse])

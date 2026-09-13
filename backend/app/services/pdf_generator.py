@@ -9,10 +9,87 @@ from reportlab.lib import colors
 
 from app.models.payment import ClientPayment
 from app.models.company import Company
+from app.models.client import Client
+from app.models.invoice import Invoice
+from app.services.billing_cycle import effective_price
+
+
+def resolve_invoice_line_items(
+    invoice: Invoice | None,
+    client: Client | None,
+    payment_amount: float,
+    fiscal_tax_rate: float,
+    billing_price_mode: str,
+) -> tuple[list[tuple[str, float]], float, float, float, str]:
+    """
+    Decide qué líneas mostrar en el recibo y su desglose de IVA. Devuelve
+    (items, subtotal, total_tax, total_items_amount, period).
+
+    Reconstruye plan + servicios con el precio ACTUAL del catálogo (vía
+    `effective_price`) y los usa como desglose por ítem SOLO si su suma coincide
+    con `invoice.amount` — el caso normal de una factura mensual recién generada.
+    Si no coincide (factura de ajuste por cambio de plan, factura manual con
+    monto propio, o el precio del plan/servicio cambió después de facturar), el
+    desglose por ítem ya no representa lo realmente facturado: se reemplaza por
+    una sola línea con el monto real de la factura (`invoice.amount`), para que
+    Subtotal + IVA siempre cuadre con lo que efectivamente se cobró.
+    """
+    if not invoice:
+        return ([("Servicio de Internet (Abono Directo)", payment_amount)], payment_amount, 0.0, payment_amount, "Mes en Curso")
+
+    period = invoice.period
+    invoice_amount = float(invoice.amount)
+    tax_rate = fiscal_tax_rate or 0.0
+
+    def _split(total: float) -> tuple[float, float]:
+        subtotal = total / (1 + tax_rate / 100) if tax_rate > 0 else total
+        return subtotal, total - subtotal
+
+    candidate_items: list[tuple[str, float]] = []
+    candidate_subtotal = 0.0
+    candidate_tax = 0.0
+    candidate_total = 0.0
+
+    if invoice.plan:
+        plan_total = effective_price(invoice.plan.price, tax_rate, billing_price_mode)
+        plan_subtotal, plan_tax = _split(plan_total)
+        candidate_items.append((f"Plan de Internet: {invoice.plan.name}", plan_total))
+        candidate_subtotal += plan_subtotal
+        candidate_tax += plan_tax
+        candidate_total += plan_total
+
+    custom_services_to_bill = []
+    if invoice.custom_services:
+        custom_services_to_bill = invoice.custom_services
+    elif client and client.custom_services:
+        custom_services_to_bill = client.custom_services
+
+    for cs in custom_services_to_bill:
+        cs_total = effective_price(cs.price, tax_rate, billing_price_mode)
+        cs_subtotal, cs_tax = _split(cs_total)
+        candidate_items.append((f"Valor Agregado: {cs.name}", cs_total))
+        candidate_subtotal += cs_subtotal
+        candidate_tax += cs_tax
+        candidate_total += cs_total
+
+    if candidate_items and abs(candidate_total - invoice_amount) < 0.01:
+        return (candidate_items, candidate_subtotal, candidate_tax, candidate_total, period)
+
+    if invoice_amount > 0:
+        description = invoice.concept or (
+            f"Plan de Internet: {invoice.plan.name}" if invoice.plan else "Servicio de Internet"
+        )
+        invoice_subtotal, invoice_tax = _split(invoice_amount)
+        return ([(description, invoice_amount)], invoice_subtotal, invoice_tax, invoice_amount, period)
+
+    # Sin ítems reconstruibles y sin monto de factura utilizable (p. ej. una nota de
+    # crédito con monto negativo): usar lo efectivamente pagado como último recurso.
+    return ([("Servicio de Internet (Monto Manual)", payment_amount)], payment_amount, 0.0, payment_amount, period)
 
 
 def generate_receipt_pdf(
-    payment: ClientPayment, company: Company | None = None, fiscal_tax_rate: float = 0.0
+    payment: ClientPayment, company: Company | None = None, fiscal_tax_rate: float = 0.0,
+    billing_price_mode: str = "included",
 ) -> BytesIO:
     """
     Genera un comprobante de pago en formato PDF y lo retorna en un buffer de bytes.
@@ -21,6 +98,10 @@ def generate_receipt_pdf(
     `fiscal_tax_rate` es la tasa de IVA global (Ajustes > Facturación > Fiscal), usada para
     desglosar subtotal/impuesto tanto del plan como de los servicios personalizados
     (ninguno de los dos tiene ya una tasa propia).
+
+    `billing_price_mode` (Ajustes > Facturación > Configuración de Facturación) define cómo
+    se interpreta el precio guardado: "included" — el precio ya trae el impuesto, el subtotal
+    se obtiene dividiendo — o "excluded" — el precio es la base sin impuesto, que se suma aparte.
     """
     buffer = BytesIO()
     
@@ -163,81 +244,17 @@ def generate_receipt_pdf(
         ]
     ]
 
-    subtotal = 0.0
-    total_tax = 0.0
-    total_items_amount = 0.0
     payment_amount = float(payment.amount)
 
-    invoice = payment.invoice
-    if invoice:
-        period = invoice.period
-        # 1. Plan Base
-        if invoice.plan:
-            plan = invoice.plan
-            plan_name = f"Plan de Internet: {plan.name}"
-            plan_total = float(plan.price)
-            plan_taxes = fiscal_tax_rate or 0.0
-            plan_subtotal = plan_total / (1 + plan_taxes / 100) if plan_taxes > 0 else plan_total
-            plan_tax = plan_total - plan_subtotal
-            
-            detail_data.append([
-                Paragraph(plan_name, body_style),
-                Paragraph(period, body_style),
-                Paragraph(payment.method.replace("_", " ").title(), body_style),
-                Paragraph(f"${plan_total:.2f}", right_align_body)
-            ])
-            subtotal += plan_subtotal
-            total_tax += plan_tax
-            total_items_amount += plan_total
-
-        # 2. Servicios de valor agregado de la factura (con fallback al cliente para facturas antiguas)
-        client = payment.client
-        custom_services_to_bill = []
-        if invoice.custom_services:
-            custom_services_to_bill = invoice.custom_services
-        elif client and client.custom_services:
-            custom_services_to_bill = client.custom_services
-
-        for cs in custom_services_to_bill:
-            cs_name = f"Valor Agregado: {cs.name}"
-            cs_total = float(cs.price)
-            cs_taxes = fiscal_tax_rate or 0.0
-            cs_subtotal = cs_total / (1 + cs_taxes / 100) if cs_taxes > 0 else cs_total
-            cs_tax = cs_total - cs_subtotal
-            
-            detail_data.append([
-                Paragraph(cs_name, body_style),
-                Paragraph(period, body_style),
-                Paragraph(payment.method.replace("_", " ").title(), body_style),
-                Paragraph(f"${cs_total:.2f}", right_align_body)
-            ])
-            subtotal += cs_subtotal
-            total_tax += cs_tax
-            total_items_amount += cs_total
-
-        # Caso especial: factura manual o sin plan ni servicios asociados pero con monto directo
-        if total_items_amount == 0.0:
-            total_items_amount = payment_amount
-            subtotal = total_items_amount
-            total_tax = 0.0
-            detail_data.append([
-                Paragraph("Servicio de Internet (Monto Manual)", body_style),
-                Paragraph(period, body_style),
-                Paragraph(payment.method.replace("_", " ").title(), body_style),
-                Paragraph(f"${payment_amount:.2f}", right_align_body)
-            ])
-    else:
-        # Fallback si no hay factura asociada
-        period = "Mes en Curso"
-        total_items_amount = payment_amount
-        subtotal = total_items_amount
-        total_tax = 0.0
-        
+    items, subtotal, total_tax, total_items_amount, period = resolve_invoice_line_items(
+        payment.invoice, payment.client, payment_amount, fiscal_tax_rate, billing_price_mode
+    )
+    for description, item_amount in items:
         detail_data.append([
-            Paragraph("Servicio de Internet (Abono Directo)", body_style),
+            Paragraph(description, body_style),
             Paragraph(period, body_style),
             Paragraph(payment.method.replace("_", " ").title(), body_style),
-            Paragraph(f"${payment_amount:.2f}", right_align_body)
+            Paragraph(f"${item_amount:.2f}", right_align_body)
         ])
 
     table_styles = [

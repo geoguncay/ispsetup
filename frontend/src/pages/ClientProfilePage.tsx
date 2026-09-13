@@ -8,7 +8,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import {
   ArrowLeft, RefreshCw, MapPin, Shield, User,
   Wifi, CheckCircle2, XCircle, AlertCircle, Loader2, X, Plus, MessageSquare,
-  Edit2, Trash2, FileText, Download, UploadCloud, CreditCard, Wallet, CalendarClock, Ban
+  Edit2, Trash2, FileText, Download, UploadCloud, CreditCard, Wallet, CalendarClock, Ban, Pencil
 } from 'lucide-react'
 import { MapContainer, TileLayer, Marker } from 'react-leaflet'
 import L from 'leaflet'
@@ -19,6 +19,7 @@ import { useToast } from '@/hooks/useToast'
 import { ClientFormDialog } from '@/components/ClientFormDialog'
 import { PaymentRegisterDialog } from '@/components/PaymentRegisterDialog'
 import { InvoiceCreateDialog } from '@/components/InvoiceCreateDialog'
+import { InvoiceEditDialog } from '@/components/InvoiceEditDialog'
 import TrafficChart from '@/components/TrafficChart'
 import TrafficVolumeChart from '@/components/TrafficVolumeChart'
 import { formatVolume } from '@/lib/traffic'
@@ -85,6 +86,7 @@ export function ClientProfilePage() {
   ])
   const [changePlanOpen, setChangePlanOpen] = useState(false)
   const [selectedPlanId, setSelectedPlanId] = useState('')
+  const [changePlanMode, setChangePlanMode] = useState<'immediate' | 'next_period'>('immediate')
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
   const [suspendOpen, setSuspendOpen] = useState(false)
   const [deferOpen, setDeferOpen] = useState(false)
@@ -126,6 +128,10 @@ export function ClientProfilePage() {
   const [selectedInvoice, setSelectedInvoice] = useState<any>(null)
   const [receiptLoadingMap, setReceiptLoadingMap] = useState<Record<string, boolean>>({})
   const [manualInvoiceOpen, setManualInvoiceOpen] = useState(false)
+  const [voidInvoiceErrorMap, setVoidInvoiceErrorMap] = useState<Record<string, string>>({})
+  const [confirmDeleteInvoiceId, setConfirmDeleteInvoiceId] = useState<string | null>(null)
+  const [editingInvoice, setEditingInvoice] = useState<any>(null)
+  const [deleteInvoiceErrorMsg, setDeleteInvoiceErrorMsg] = useState<string | null>(null)
 
   // Descargar Recibo PDF mediante Fetch de Blob
   const handleDownloadReceipt = async (pagoId: string) => {
@@ -150,6 +156,35 @@ export function ClientProfilePage() {
     }
   }
 
+  // Anular factura YA PAGADA (queda marcada como "cancelled" y también anula su pago)
+  const voidInvoiceMutation = useMutation({
+    mutationFn: async (invoiceId: string) => {
+      await api.post(`/invoices/${invoiceId}/void`)
+    },
+    onSuccess: (_data, invoiceId) => {
+      queryClient.invalidateQueries({ queryKey: ['client-invoices', id] })
+      setVoidInvoiceErrorMap(prev => { const next = { ...prev }; delete next[invoiceId]; return next })
+    },
+    onError: (err: any, invoiceId) => {
+      const msg = err?.response?.data?.detail || 'Error al anular la factura'
+      setVoidInvoiceErrorMap(prev => ({ ...prev, [invoiceId]: msg }))
+    }
+  })
+
+  // Eliminar factura definitivamente (solo sin pagos asociados)
+  const deleteInvoiceMutation = useMutation({
+    mutationFn: async (invoiceId: string) => {
+      await api.delete(`/invoices/${invoiceId}`)
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['client-invoices', id] })
+      setConfirmDeleteInvoiceId(null)
+      setDeleteInvoiceErrorMsg(null)
+    },
+    onError: (err: any) => {
+      setDeleteInvoiceErrorMsg(err?.response?.data?.detail || 'Error al eliminar la factura')
+    }
+  })
 
   // Ticket creation form state
   const [createTicketOpen, setCreateTicketOpen] = useState(false)
@@ -403,23 +438,51 @@ export function ClientProfilePage() {
     enabled: changePlanOpen
   })
 
+  // Detalle y cálculo (prorrateo) del cambio de plan seleccionado, antes de confirmar
+  const { data: planChangePreview, isFetching: isLoadingPlanChangePreview } = useQuery({
+    queryKey: ['plan-change-preview', id, selectedPlanId],
+    queryFn: async () => {
+      const { data } = await api.get(`/clients/${id}/plan-change-preview`, { params: { plan_id: selectedPlanId } })
+      return data
+    },
+    enabled: changePlanOpen && !!selectedPlanId && !!client?.plan_activo,
+  })
+
   // Mutación para Cambiar Plan
   const changePlanMutation = useMutation({
-    mutationFn: async (planId: string) => {
-      await api.post(`/clients/${id}/assign-plan`, null, { params: { plan_id: planId } })
+    mutationFn: async ({ planId, mode }: { planId: string; mode: 'immediate' | 'next_period' }) => {
+      const { data } = await api.post(`/clients/${id}/assign-plan`, null, { params: { plan_id: planId, mode } })
+      return data
     },
-    onSuccess: () => {
+    onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: ['client', id] })
       queryClient.invalidateQueries({ queryKey: ['client-plans', id] })
+      queryClient.invalidateQueries({ queryKey: ['client-invoices', id] })
       queryClient.invalidateQueries({ queryKey: ['clients'] })
       setChangePlanOpen(false)
       setSelectedPlanId('')
+      setChangePlanMode('immediate')
       setErrorMessage(null)
-      addToast('Plan actualizado correctamente.', 'success')
+      addToast(data?.message || 'Plan actualizado correctamente.', 'success')
     },
     onError: (err: any) => {
       const msg = err?.response?.data?.detail || 'Error al cambiar de plan'
       setErrorMessage(msg)
+    }
+  })
+
+  // Mutación para cancelar un cambio de plan programado ("al iniciar nuevo periodo")
+  const cancelPendingPlanChangeMutation = useMutation({
+    mutationFn: async () => {
+      await api.delete(`/clients/${id}/pending-plan-change`)
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['client', id] })
+      queryClient.invalidateQueries({ queryKey: ['clients'] })
+      addToast('Cambio de plan programado cancelado.', 'success')
+    },
+    onError: (err: any) => {
+      addToast(err?.response?.data?.detail || 'Error al cancelar el cambio programado', 'error')
     }
   })
 
@@ -577,7 +640,7 @@ export function ClientProfilePage() {
   const handleAssignPlan = (e: React.FormEvent) => {
     e.preventDefault()
     if (!selectedPlanId) return
-    changePlanMutation.mutate(selectedPlanId)
+    changePlanMutation.mutate({ planId: selectedPlanId, mode: client?.plan_activo ? changePlanMode : 'immediate' })
   }
 
   return (
@@ -1228,7 +1291,14 @@ export function ClientProfilePage() {
                           <tbody>
                             {invoices.map((inv: any) => (
                               <tr key={inv.id} className="hover:bg-secondary/20 transition-all">
-                                <td className="font-bold text-foreground">{inv.period}</td>
+                                <td className="font-bold text-foreground">
+                                  {inv.period}
+                                  {inv.concept && (
+                                    <span className="block text-[9px] font-normal text-muted-foreground max-w-[160px] truncate" title={inv.concept}>
+                                      {inv.concept}
+                                    </span>
+                                  )}
+                                </td>
                                 <td className="font-bold text-brand-400 font-mono">${Number(inv.amount).toFixed(2)}</td>
                                 <td className="text-muted-foreground font-mono">{formatDate(inv.due_date, dateFormat)}</td>
                                 <td>
@@ -1237,39 +1307,74 @@ export function ClientProfilePage() {
                                       ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/25'
                                       : inv.status === 'pending'
                                         ? 'bg-amber-500/10 text-amber-400 border-amber-500/25'
-                                        : 'bg-rose-500/10 text-rose-400 border-rose-500/25'
+                                        : inv.status === 'cancelled'
+                                          ? 'bg-slate-500/10 text-slate-400 border-slate-500/25'
+                                          : 'bg-rose-500/10 text-rose-400 border-rose-500/25'
                                   }`}>
-                                    {inv.status.toUpperCase()}
+                                    {inv.status === 'cancelled' ? 'ANULADA' : inv.status.toUpperCase()}
                                   </span>
                                 </td>
                                 <td className="text-right">
-                                  {inv.status !== 'paid' ? (
-                                    <button
-                                      onClick={() => setSelectedInvoice({
-                                        ...inv,
-                                        client_name: client?.full_name ?? 'Cliente',
-                                        client_cedula: client?.cedula ?? 'N/A'
-                                      })}
-                                      className="bg-emerald-600 hover:bg-emerald-700 text-white font-semibold text-[10px] px-2 py-1 rounded cursor-pointer transition-all flex items-center gap-1 w-fit ml-auto"
-                                    >
-                                      <CreditCard className="w-3 h-3" /> Cobrar
-                                    </button>
-                                  ) : inv.payment_id ? (
-                                    <button
-                                      disabled={receiptLoadingMap[inv.payment_id]}
-                                      onClick={() => handleDownloadReceipt(inv.payment_id)}
-                                      className="bg-primary/20 hover:bg-primary/30 text-primary border border-primary/30 font-semibold text-[10px] px-2 py-1 rounded cursor-pointer transition-all flex items-center gap-1 w-fit ml-auto disabled:opacity-50"
-                                    >
-                                      {receiptLoadingMap[inv.payment_id] ? (
-                                        <RefreshCw className="w-3 h-3 animate-spin" />
-                                      ) : (
-                                        <Download className="w-3 h-3" />
-                                      )}
-                                      PDF
-                                    </button>
-                                  ) : (
-                                    <span className="text-muted-foreground text-[10px]">-</span>
-                                  )}
+                                  <div className="flex flex-col items-end gap-1">
+                                    {(inv.status === 'pending' || inv.status === 'overdue') ? (
+                                      <div className="flex gap-1.5 justify-end">
+                                        <button
+                                          onClick={() => setSelectedInvoice({
+                                            ...inv,
+                                            client_name: client?.full_name ?? 'Cliente',
+                                            client_cedula: client?.cedula ?? 'N/A'
+                                          })}
+                                          className="bg-emerald-600 hover:bg-emerald-700 text-white font-semibold text-[10px] px-2 py-1 rounded cursor-pointer transition-all flex items-center gap-1 w-fit"
+                                        >
+                                          <CreditCard className="w-3 h-3" /> Cobrar
+                                        </button>
+                                        <button
+                                          onClick={() => setEditingInvoice(inv)}
+                                          title="Editar factura"
+                                          className="bg-secondary hover:bg-secondary/80 text-muted-foreground hover:text-foreground border border-border font-semibold text-[10px] px-2 py-1 rounded cursor-pointer transition-all flex items-center gap-1 w-fit"
+                                        >
+                                          <Pencil className="w-3 h-3" />
+                                        </button>
+                                        <button
+                                          onClick={() => { setConfirmDeleteInvoiceId(inv.id); setDeleteInvoiceErrorMsg(null) }}
+                                          title="Eliminar factura"
+                                          className="bg-rose-500/10 hover:bg-rose-500/20 text-rose-400 border border-rose-500/25 font-semibold text-[10px] px-2 py-1 rounded cursor-pointer transition-all flex items-center gap-1 w-fit"
+                                        >
+                                          <Trash2 className="w-3 h-3" />
+                                        </button>
+                                      </div>
+                                    ) : inv.status === 'paid' ? (
+                                      <div className="flex gap-1.5 justify-end">
+                                        {inv.payment_id && (
+                                          <button
+                                            disabled={receiptLoadingMap[inv.payment_id]}
+                                            onClick={() => handleDownloadReceipt(inv.payment_id)}
+                                            className="bg-primary/20 hover:bg-primary/30 text-primary border border-primary/30 font-semibold text-[10px] px-2 py-1 rounded cursor-pointer transition-all flex items-center gap-1 w-fit disabled:opacity-50"
+                                          >
+                                            {receiptLoadingMap[inv.payment_id] ? (
+                                              <RefreshCw className="w-3 h-3 animate-spin" />
+                                            ) : (
+                                              <Download className="w-3 h-3" />
+                                            )}
+                                            PDF
+                                          </button>
+                                        )}
+                                        <button
+                                          disabled={voidInvoiceMutation.isPending}
+                                          onClick={() => voidInvoiceMutation.mutate(inv.id)}
+                                          title="Anular factura (también anula el pago)"
+                                          className="bg-secondary hover:bg-secondary/80 text-muted-foreground hover:text-foreground border border-border font-semibold text-[10px] px-2 py-1 rounded cursor-pointer transition-all flex items-center gap-1 w-fit disabled:opacity-50"
+                                        >
+                                          <Ban className="w-3 h-3" />
+                                        </button>
+                                      </div>
+                                    ) : (
+                                      <span className="text-muted-foreground text-[10px]">-</span>
+                                    )}
+                                    {voidInvoiceErrorMap[inv.id] && (
+                                      <span className="text-[9px] text-rose-400 max-w-[160px] text-right">{voidInvoiceErrorMap[inv.id]}</span>
+                                    )}
+                                  </div>
                                 </td>
                               </tr>
                             ))}
@@ -1713,8 +1818,24 @@ export function ClientProfilePage() {
                   <div>Subida: <span className="text-foreground font-semibold">{client.plan_activo.speed_up_mbps} Mbps</span></div>
                 </div>
 
+                {client.pending_plan && (
+                  <div className="flex items-center justify-between gap-2 text-xs bg-amber-500/10 border border-amber-500/20 rounded-lg px-3 py-2">
+                    <span className="text-amber-400">
+                      Cambio programado a <strong>{client.pending_plan.name}</strong> al iniciar el próximo periodo.
+                    </span>
+                    <button
+                      onClick={() => cancelPendingPlanChangeMutation.mutate()}
+                      disabled={cancelPendingPlanChangeMutation.isPending}
+                      className="text-muted-foreground hover:text-destructive shrink-0 disabled:opacity-50"
+                      title="Cancelar cambio programado"
+                    >
+                      <X className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
+                )}
+
                 <button
-                  onClick={() => { setErrorMessage(null); setChangePlanOpen(true) }}
+                  onClick={() => { setErrorMessage(null); setChangePlanMode('immediate'); setSelectedPlanId(client.plan_activo.id); setChangePlanOpen(true) }}
                   className="btn-primary w-full justify-center text-xs py-2"
                 >
                   Cambiar Plan
@@ -1724,7 +1845,7 @@ export function ClientProfilePage() {
               <div className="space-y-4 py-2 text-center">
                 <p className="text-sm text-muted-foreground">Este cliente no tiene ningún plan activo asignado.</p>
                 <button
-                  onClick={() => { setErrorMessage(null); setChangePlanOpen(true) }}
+                  onClick={() => { setErrorMessage(null); setChangePlanMode('immediate'); setSelectedPlanId(''); setChangePlanOpen(true) }}
                   className="btn-primary w-full justify-center text-xs py-2"
                 >
                   Asignar primer plan
@@ -1776,7 +1897,7 @@ export function ClientProfilePage() {
       {/* Modal Cambiar Plan */}
       {changePlanOpen && createPortal(
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">
-          <div className="glass-card w-full max-w-sm mx-4 animate-fade-in">
+          <div className="glass-card w-full max-w-md mx-4 animate-fade-in">
             <div className="flex items-center justify-between p-5 border-b border-border">
               <h2 className="text-lg font-semibold text-foreground">Asignar Plan de Internet</h2>
               <button
@@ -1791,6 +1912,19 @@ export function ClientProfilePage() {
               {errorMessage && (
                 <div className="bg-destructive/10 border border-destructive/30 rounded-lg p-3 text-xs text-destructive">
                   {errorMessage}
+                </div>
+              )}
+
+              {client.plan_activo && (
+                <div className="bg-secondary/35 border border-border/50 rounded-lg p-3">
+                  <span className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider block mb-1">Plan actual</span>
+                  <div className="flex items-center justify-between">
+                    <span className="text-sm font-semibold text-foreground">{client.plan_activo.name}</span>
+                    <span className="text-sm font-mono font-bold text-brand-400">${Number(client.plan_activo.price).toFixed(2)}/mes</span>
+                  </div>
+                  <span className="text-[11px] text-muted-foreground font-mono">
+                    ↓ {client.plan_activo.speed_down_mbps} Mbps / ↑ {client.plan_activo.speed_up_mbps} Mbps
+                  </span>
                 </div>
               )}
 
@@ -1809,6 +1943,95 @@ export function ClientProfilePage() {
                 </select>
               </div>
 
+              {selectedPlanId && (!client.plan_activo || selectedPlanId === client.plan_activo.id) && (() => {
+                const selectedPlanObj = availablePlans.find((p: any) => p.id === selectedPlanId)
+                if (!selectedPlanObj) return null
+                return (
+                  <div className="bg-brand-500/5 border border-brand-500/20 rounded-lg p-3 space-y-1.5">
+                    <span className="text-[10px] font-semibold text-brand-400 uppercase tracking-wider block">Detalle del Plan</span>
+                    <div className="flex items-center justify-between text-xs">
+                      <span className="font-mono font-semibold text-foreground">{selectedPlanObj.name}</span>
+                      <span className="font-mono font-bold text-brand-400">${Number(selectedPlanObj.price).toFixed(2)}/mes</span>
+                    </div>
+                    {(selectedPlanObj.speed_down_mbps !== undefined || selectedPlanObj.speed_up_mbps !== undefined) && (
+                      <div className="text-[10px] text-muted-foreground flex gap-3 font-medium">
+                        <span>📥 Down: {selectedPlanObj.speed_down_mbps || 0} Mbps</span>
+                        <span>📤 Up: {selectedPlanObj.speed_up_mbps || 0} Mbps</span>
+                      </div>
+                    )}
+                  </div>
+                )
+              })()}
+
+              {client.plan_activo && selectedPlanId && selectedPlanId !== client.plan_activo.id && (
+                isLoadingPlanChangePreview ? (
+                  <div className="flex items-center gap-2 text-xs text-muted-foreground py-1">
+                    <Loader2 className="w-3.5 h-3.5 animate-spin" /> Calculando...
+                  </div>
+                ) : planChangePreview && !planChangePreview.is_same_plan ? (
+                  <div className="bg-brand-500/5 border border-brand-500/20 rounded-lg p-3 space-y-1.5">
+                    <span className="text-[10px] font-semibold text-brand-400 uppercase tracking-wider block">Detalle del cambio</span>
+                    <div className="flex items-center justify-between text-xs">
+                      <span className="text-muted-foreground">Nuevo plan</span>
+                      <span className="font-mono font-semibold text-foreground">
+                        {planChangePreview.new_plan.name} — ${Number(planChangePreview.new_plan.price).toFixed(2)}/mes
+                      </span>
+                    </div>
+                    {changePlanMode === 'immediate' ? (
+                      <>
+                        <div className="flex items-center justify-between text-xs">
+                          <span className="text-muted-foreground">Días restantes del periodo</span>
+                          <span className="font-mono text-foreground">{planChangePreview.days_remaining} de {planChangePreview.days_in_period}</span>
+                        </div>
+                        <div className="flex items-center justify-between text-xs pt-1 border-t border-border/50">
+                          <span className="text-muted-foreground">{planChangePreview.immediate_adjustment_amount >= 0 ? 'Cargo de ajuste' : 'Crédito a favor'}</span>
+                          <span className={`font-mono font-bold ${planChangePreview.immediate_adjustment_amount >= 0 ? 'text-amber-400' : 'text-emerald-400'}`}>
+                            ${Math.abs(planChangePreview.immediate_adjustment_amount).toFixed(2)}
+                          </span>
+                        </div>
+                      </>
+                    ) : (
+                      <div className="flex items-center justify-between text-xs pt-1 border-t border-border/50">
+                        <span className="text-muted-foreground">Se facturará desde el próximo periodo</span>
+                        <span className="font-mono font-bold text-foreground">${planChangePreview.next_period_amount.toFixed(2)}</span>
+                      </div>
+                    )}
+                  </div>
+                ) : null
+              )}
+
+              {client.plan_activo && (
+                <div>
+                  <label className="block text-sm font-medium text-foreground mb-1.5">¿Cuándo aplicar el cambio? *</label>
+                  <div className="grid grid-cols-1 gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setChangePlanMode('immediate')}
+                      className={`text-left p-3 rounded-lg border transition-all ${
+                        changePlanMode === 'immediate' ? 'border-brand-500 bg-brand-500/10' : 'border-border hover:bg-secondary/40'
+                      }`}
+                    >
+                      <span className="text-sm font-semibold text-foreground block">Cambio inmediato</span>
+                      <span className="text-xs text-muted-foreground">
+                        Se aplica ahora mismo. Genera una factura de ajuste prorrateada por los días que quedan del periodo actual.
+                      </span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setChangePlanMode('next_period')}
+                      className={`text-left p-3 rounded-lg border transition-all ${
+                        changePlanMode === 'next_period' ? 'border-brand-500 bg-brand-500/10' : 'border-border hover:bg-secondary/40'
+                      }`}
+                    >
+                      <span className="text-sm font-semibold text-foreground block">Al iniciar nuevo periodo</span>
+                      <span className="text-xs text-muted-foreground">
+                        El cliente conserva su plan y velocidad actuales hasta su próxima factura; ahí se aplica el plan nuevo completo, sin prorrateo.
+                      </span>
+                    </button>
+                  </div>
+                </div>
+              )}
+
               <div className="flex gap-3 pt-2">
                 <button
                   type="button"
@@ -1823,7 +2046,11 @@ export function ClientProfilePage() {
                   className="btn-primary flex-1 justify-center"
                 >
                   {changePlanMutation.isPending && <Loader2 className="w-4 h-4 animate-spin" />}
-                  {changePlanMutation.isPending ? 'Procesando...' : 'Asignar Plan'}
+                  {changePlanMutation.isPending
+                    ? 'Procesando...'
+                    : client.plan_activo && changePlanMode === 'next_period'
+                      ? 'Programar Cambio'
+                      : 'Asignar Plan'}
                 </button>
               </div>
             </form>
@@ -2409,6 +2636,52 @@ export function ClientProfilePage() {
           queryClient.invalidateQueries({ queryKey: ['client-invoices', id] })
         }}
       />
+
+      {/* Modal Editar Factura */}
+      <InvoiceEditDialog
+        isOpen={editingInvoice !== null}
+        onClose={() => setEditingInvoice(null)}
+        invoice={editingInvoice}
+        onSuccess={() => {
+          refetch()
+          queryClient.invalidateQueries({ queryKey: ['client-invoices', id] })
+        }}
+      />
+
+      {/* Modal Confirmar Eliminación de Factura */}
+      {confirmDeleteInvoiceId && createPortal(
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">
+          <div className="glass-card p-6 w-full max-w-sm mx-4 animate-fade-in">
+            <h3 className="text-lg font-semibold text-foreground mb-2">¿Eliminar factura?</h3>
+            <p className="text-muted-foreground text-sm mb-4">
+              Esta acción no se puede deshacer. Solo se puede eliminar si no tiene ningún pago registrado.
+            </p>
+
+            {deleteInvoiceErrorMsg && (
+              <div className="p-3 mb-4 rounded bg-destructive/10 border border-destructive/20 text-destructive text-xs animate-fade-in">
+                {deleteInvoiceErrorMsg}
+              </div>
+            )}
+
+            <div className="flex gap-3">
+              <button
+                onClick={() => { setConfirmDeleteInvoiceId(null); setDeleteInvoiceErrorMsg(null) }}
+                className="btn-secondary flex-1 justify-center"
+              >
+                Cancelar
+              </button>
+              <button
+                onClick={() => deleteInvoiceMutation.mutate(confirmDeleteInvoiceId)}
+                disabled={deleteInvoiceMutation.isPending}
+                className="btn-destructive flex-1 justify-center"
+              >
+                {deleteInvoiceMutation.isPending ? 'Eliminando...' : 'Eliminar'}
+              </button>
+            </div>
+          </div>
+        </div>,
+        document.body
+      )}
 
       <ToastContainer toasts={toasts} onClose={removeToast} />
     </div>

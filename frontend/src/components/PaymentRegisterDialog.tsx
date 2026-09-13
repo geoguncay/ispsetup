@@ -32,6 +32,7 @@ export function PaymentRegisterDialog({
   const [amount, setAmount] = useState<string>('')
   const [method, setMethod] = useState<string>('cash')
   const [notes, setNotes] = useState<string>('')
+  const [paymentDate, setPaymentDate] = useState<string>('')
   const [errorMsg, setErrorMsg] = useState<string | null>(null)
   const [methods, setMethods] = useState<{ value: string; label: string }[]>([])
 
@@ -39,6 +40,7 @@ export function PaymentRegisterDialog({
   useEffect(() => {
     if (invoice) {
       setAmount(invoice.amount.toString())
+      setPaymentDate(new Date().toISOString().split('T')[0])
 
       const saved = localStorage.getItem('isp_payment_methods')
       let loadedMethods = [
@@ -77,6 +79,7 @@ export function PaymentRegisterDialog({
         amount: parseFloat(amount),
         method: method,
         notes: notes.trim() || null,
+        payment_date: paymentDate ? `${paymentDate}T12:00:00` : null,
       }
 
       const { data } = await api.post('/payments', payload)
@@ -108,6 +111,11 @@ export function PaymentRegisterDialog({
     const parsedAmount = parseFloat(amount)
     if (isNaN(parsedAmount) || parsedAmount <= 0) {
       setErrorMsg('El monto debe ser un número superior a 0')
+      return
+    }
+
+    if (paymentDate && paymentDate > new Date().toISOString().split('T')[0]) {
+      setErrorMsg('La fecha de pago no puede ser futura')
       return
     }
 
@@ -178,6 +186,25 @@ export function PaymentRegisterDialog({
               className="input-field font-mono text-base font-bold text-brand-300"
               placeholder="0.00"
             />
+          </div>
+
+          {/* Fecha real del pago (puede ser anterior a hoy, ej. un cobro de
+              campo que se registra en el sistema días después) */}
+          <div className="space-y-2">
+            <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider block">
+              Fecha del Pago
+            </label>
+            <input
+              type="date"
+              required
+              max={new Date().toISOString().split('T')[0]}
+              value={paymentDate}
+              onChange={(e) => setPaymentDate(e.target.value)}
+              className="input-field font-mono cursor-pointer"
+            />
+            <p className="text-[10px] text-muted-foreground">
+              Fecha en que se recibió el cobro (no la de hoy si se registra después). Se usa para las estadísticas de caja.
+            </p>
           </div>
 
           {/* Selector Métodos Pago */}

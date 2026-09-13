@@ -3,7 +3,7 @@ Endpoints API para ClientPayment (Pagos)
 """
 import uuid
 import logging
-from datetime import datetime, time
+from datetime import datetime, time, timezone
 from fastapi import APIRouter, HTTPException, status, Depends, Response
 from sqlalchemy import func
 from sqlalchemy.orm import Session
@@ -28,6 +28,13 @@ from app.services.audit_service import AuditAction, audit_detail, log_event
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/payments", tags=["payments"])
+
+
+def _strip_tz(dt: datetime) -> datetime:
+    """Normaliza a naive-UTC para poder comparar sin importar si `dt` trae zona horaria o no."""
+    if dt.tzinfo is not None:
+        return dt.astimezone(timezone.utc).replace(tzinfo=None)
+    return dt
 
 
 @router.post("", response_model=PaymentResponse)
@@ -55,14 +62,24 @@ def create_payment(
             detail="La factura ya se encuentra pagada"
         )
 
+    now = datetime.now()
+    payment_date = payment_in.payment_date or now
+    if _strip_tz(payment_date) > now:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="La fecha de pago no puede ser futura.",
+        )
+
     # 1. Marcar la factura como pagada
     invoice.status = "paid"
 
-    # 2. Registrar el pago
+    # 2. Registrar el pago (payment_date puede ser anterior a hoy: el cobro
+    # real ocurrió antes de que se registre en el sistema)
     payment = ClientPayment(
         client_id=invoice.client_id,
         invoice_id=invoice.id,
         amount=payment_in.amount,
+        payment_date=payment_date,
         method=payment_in.method,
         status="completed",
         notes=payment_in.notes,
@@ -163,10 +180,13 @@ def get_daily_cash(
     today_start = datetime.combine(datetime.now().date(), time.min)
     today_end = datetime.combine(datetime.now().date(), time.max)
     
-    # Consultar transacciones del día
+    # Consultar transacciones del día (un pago anulado ya no cuenta como recaudado)
     payments = (
         db.query(ClientPayment)
-        .filter(ClientPayment.payment_date >= today_start, ClientPayment.payment_date <= today_end)
+        .filter(
+            ClientPayment.payment_date >= today_start, ClientPayment.payment_date <= today_end,
+            ClientPayment.status != "cancelled",
+        )
         .all()
     )
 
@@ -219,9 +239,10 @@ def get_payment_receipt(
     company = db.query(Company).first()
     system_settings = db.query(SystemSettings).first()
     fiscal_tax_rate = float(system_settings.fiscal_tax_rate) if system_settings else 0.0
+    billing_price_mode = system_settings.billing_price_mode if system_settings else "included"
 
     try:
-        pdf_buffer = generate_receipt_pdf(payment, company, fiscal_tax_rate)
+        pdf_buffer = generate_receipt_pdf(payment, company, fiscal_tax_rate, billing_price_mode)
         filename = f"recibo_{str(payment.id)[:8].upper()}.pdf"
         return Response(
             content=pdf_buffer.getvalue(),

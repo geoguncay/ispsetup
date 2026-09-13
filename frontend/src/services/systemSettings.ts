@@ -17,6 +17,8 @@ export interface FiscalSettings {
   fiscal_tax_name: string
   fiscal_invoice_prefix: string
   fiscal_invoice_next_number: number
+  /** "included": el precio ya trae el IVA. "excluded": el precio es la base, hay que sumarlo. */
+  billing_price_mode: string
 }
 
 export interface SmtpSettingsRead {

@@ -6,6 +6,8 @@ import { createPortal } from 'react-dom'
 import { X, Loader2, Receipt, Calendar, User, CreditCard, AlertCircle, CheckCircle2, RefreshCw } from 'lucide-react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import api from '@/services/api'
+import { getBillingDueDateSettings } from '@/services/systemSettings'
+import { computeSuggestedDueDate, formatDateInput, resolveDueTimeSuffix } from '@/lib/dueDate'
 
 interface InvoiceCreateDialogProps {
   isOpen: boolean
@@ -20,6 +22,13 @@ interface FormPlan {
   id: string
   name: string
   price: number
+}
+
+interface FormCustomService {
+  id: string
+  name: string
+  price: number
+  active: boolean
 }
 
 export function InvoiceCreateDialog({
@@ -39,15 +48,20 @@ export function InvoiceCreateDialog({
   const [clientId, setClientId] = useState('')
   const [clientSearch, setClientSearch] = useState('')
   const [selectedPlanId, setSelectedPlanId] = useState('')
+  const [baseSelection, setBaseSelection] = useState('') // "" | `plan:<id>` | `service:<id>`
   const [amount, setAmount] = useState('')
+  const [concept, setConcept] = useState('')
   const [period, setPeriod] = useState('')
   const [dueDate, setDueDate] = useState('')
+  const [dueDateTouched, setDueDateTouched] = useState(false)
   const [errorMsg, setErrorMsg] = useState<string | null>(null)
   const [showDropdown, setShowDropdown] = useState(false)
 
   // Monthly Billing Trigger states
   const [generating, setGenerating] = useState(false)
   const [genSuccessMsg, setGenSuccessMsg] = useState<string | null>(null)
+
+  const todayStr = formatDateInput(new Date())
 
   // Cargar mes/año actual por defecto y resetear estados
   useEffect(() => {
@@ -57,19 +71,15 @@ export function InvoiceCreateDialog({
       setGenerating(false)
       setActiveTab('manual')
       setSelectedPlanId('')
+      setBaseSelection('')
       setAmount('')
+      setConcept('')
+      setDueDateTouched(false)
 
       const today = new Date()
       const mm = String(today.getMonth() + 1).padStart(2, '0')
       const yyyy = today.getFullYear()
       setPeriod(`${mm}/${yyyy}`)
-
-      const expDate = new Date()
-      expDate.setDate(today.getDate() + 10)
-      const expY = expDate.getFullYear()
-      const expM = String(expDate.getMonth() + 1).padStart(2, '0')
-      const expD = String(expDate.getDate()).padStart(2, '0')
-      setDueDate(`${expY}-${expM}-${expD}`)
 
       if (preselectedClientId) {
         setClientId(preselectedClientId)
@@ -81,12 +91,51 @@ export function InvoiceCreateDialog({
     }
   }, [isOpen, preselectedClientId, preselectedClientName])
 
+  // Reglas de vencimiento configuradas en Ajustes > Facturación (mismas que usa la facturación automática)
+  const { data: dueDateSettings } = useQuery({
+    queryKey: ['billing-due-date-settings'],
+    queryFn: getBillingDueDateSettings,
+    enabled: isOpen,
+    staleTime: 5 * 60 * 1000,
+  })
+
+  // Día de corte del cliente seleccionado, solo necesario si el modo de vencimiento es "cutoff_date"
+  const { data: selectedClientDetail } = useQuery({
+    queryKey: ['invoice-create-client-detail', clientId],
+    queryFn: async () => {
+      const { data } = await api.get(`/clients/${clientId}`)
+      return data
+    },
+    enabled: isOpen && !!clientId && dueDateSettings?.billing_due_mode === 'cutoff_date',
+  })
+
+  // Sugiere el vencimiento (config real de Ajustes) mientras el usuario no lo haya editado a mano.
+  useEffect(() => {
+    if (!isOpen || dueDateTouched) return
+    const suggested = computeSuggestedDueDate(
+      new Date(),
+      selectedClientDetail?.billing_period_start_day ?? null,
+      dueDateSettings
+    )
+    setDueDate(formatDateInput(suggested))
+  }, [isOpen, dueDateTouched, dueDateSettings, selectedClientDetail])
+
   // Obtener Planes
   const { data: plans = [] } = useQuery<FormPlan[]>({
     queryKey: ['plans-invoice-create'],
     queryFn: async () => {
       const { data } = await api.get('/plans')
       return data
+    },
+    enabled: isOpen,
+  })
+
+  // Obtener Servicios Personalizados
+  const { data: customServices = [] } = useQuery<FormCustomService[]>({
+    queryKey: ['custom-services-invoice-create'],
+    queryFn: async () => {
+      const { data } = await api.get('/custom-services')
+      return data.filter((cs: FormCustomService) => cs.active)
     },
     enabled: isOpen,
   })
@@ -104,16 +153,30 @@ export function InvoiceCreateDialog({
     enabled: isOpen && !preselectedClientId && clientSearch.length >= 2,
   })
 
-  // Autofill monto al seleccionar un plan
-  const handlePlanChange = (planId: string) => {
-    setSelectedPlanId(planId)
-    if (planId) {
+  // Al elegir un plan o servicio, autocompleta monto y concepto (el concepto se
+  // puede seguir editando libremente después — esto es solo un punto de partida).
+  const handleBaseSelectionChange = (value: string) => {
+    setBaseSelection(value)
+    if (value.startsWith('plan:')) {
+      const planId = value.slice('plan:'.length)
+      setSelectedPlanId(planId)
       const plan = plans.find(p => p.id === planId)
       if (plan) {
         setAmount(plan.price.toString())
+        setConcept(`Plan de Internet: ${plan.name}`)
+      }
+    } else if (value.startsWith('service:')) {
+      const serviceId = value.slice('service:'.length)
+      setSelectedPlanId('')
+      const service = customServices.find(s => s.id === serviceId)
+      if (service) {
+        setAmount(service.price.toString())
+        setConcept(`Valor Agregado: ${service.name}`)
       }
     } else {
+      setSelectedPlanId('')
       setAmount('')
+      setConcept('')
     }
   }
 
@@ -128,7 +191,8 @@ export function InvoiceCreateDialog({
         plan_id: selectedPlanId || null,
         period: period.trim(),
         amount: parseFloat(amount),
-        due_date: `${dueDate}T23:59:59`,
+        concept: concept.trim() || null,
+        due_date: `${dueDate}${resolveDueTimeSuffix(dueDateSettings)}`,
       }
 
       const { data } = await api.post('/invoices', payload)
@@ -190,6 +254,11 @@ export function InvoiceCreateDialog({
     const periodPattern = /^(0[1-9]|1[0-2])\/\d{4}$/
     if (!periodPattern.test(period)) {
       setErrorMsg('El periodo debe tener el formato MM/AAAA (ej. 06/2026).')
+      return
+    }
+
+    if (dueDate < todayStr) {
+      setErrorMsg('La fecha de vencimiento no puede ser anterior a la fecha de emisión (hoy).')
       return
     }
 
@@ -321,23 +390,51 @@ export function InvoiceCreateDialog({
               )}
             </div>
 
-            {/* Selector de Plan */}
+            {/* Selector de Plan / Servicio Base (autocompleta monto y concepto, ambos editables después) */}
             <div className="space-y-1.5">
               <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider block">
-                Concepto / Plan Base <span className="text-[10px] lowercase text-muted-foreground">(opcional)</span>
+                Plan o Servicio Base <span className="text-[10px] lowercase text-muted-foreground">(opcional, solo para autocompletar)</span>
               </label>
               <select
-                value={selectedPlanId}
-                onChange={(e) => handlePlanChange(e.target.value)}
+                value={baseSelection}
+                onChange={(e) => handleBaseSelectionChange(e.target.value)}
                 className="input-field cursor-pointer"
               >
-                <option value="">-- Sin Plan (Monto Personalizado) --</option>
-                {plans.map((p) => (
-                  <option key={p.id} value={p.id}>
-                    {p.name} (${Number(p.price).toFixed(2)})
-                  </option>
-                ))}
+                <option value="">-- Monto y concepto personalizados --</option>
+                {plans.length > 0 && (
+                  <optgroup label="Planes de Internet">
+                    {plans.map((p) => (
+                      <option key={p.id} value={`plan:${p.id}`}>
+                        {p.name} (${Number(p.price).toFixed(2)})
+                      </option>
+                    ))}
+                  </optgroup>
+                )}
+                {customServices.length > 0 && (
+                  <optgroup label="Servicios Personalizados">
+                    {customServices.map((s) => (
+                      <option key={s.id} value={`service:${s.id}`}>
+                        {s.name} (${Number(s.price).toFixed(2)})
+                      </option>
+                    ))}
+                  </optgroup>
+                )}
               </select>
+            </div>
+
+            {/* Campo Concepto (siempre editable, libre) */}
+            <div className="space-y-1.5">
+              <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider block">
+                Concepto <span className="text-[10px] lowercase text-muted-foreground">(opcional, se puede escribir a preferencia)</span>
+              </label>
+              <input
+                type="text"
+                value={concept}
+                onChange={(e) => setConcept(e.target.value)}
+                placeholder="Descripción de la factura..."
+                className="input-field"
+                maxLength={255}
+              />
             </div>
 
             {/* Campo Monto */}
@@ -381,10 +478,14 @@ export function InvoiceCreateDialog({
                 <input
                   type="date"
                   required
+                  min={todayStr}
                   value={dueDate}
-                  onChange={(e) => setDueDate(e.target.value)}
+                  onChange={(e) => { setDueDate(e.target.value); setDueDateTouched(true) }}
                   className="input-field font-mono cursor-pointer"
                 />
+                <p className="text-[10px] text-muted-foreground">
+                  Sugerido según Ajustes → Facturación; se puede elegir otra fecha (nunca antes de hoy).
+                </p>
               </div>
             </div>
 

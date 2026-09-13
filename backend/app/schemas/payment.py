@@ -12,6 +12,10 @@ class PaymentCreate(BaseModel):
     amount: float = Field(gt=0)
     method: str = Field(min_length=1, max_length=50)
     notes: str | None = Field(default=None, max_length=255)
+    # Fecha real en que se recibió el pago (puede ser anterior a hoy, ej. un
+    # cobro de campo que se registra en el sistema días después). Si no se
+    # envía, se usa el momento del registro (comportamiento anterior).
+    payment_date: datetime | None = Field(default=None)
 
 
 class PaymentResponse(BaseModel):

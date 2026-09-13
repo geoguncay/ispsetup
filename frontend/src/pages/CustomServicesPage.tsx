@@ -11,6 +11,7 @@ import { z } from 'zod'
 import api from '@/services/api'
 import { useAuthStore } from '@/stores/authStore'
 import { getFiscalSettings } from '@/services/systemSettings'
+import { computePriceBreakdown } from '@/lib/pricing'
 
 interface CustomService {
   id: string
@@ -60,13 +61,15 @@ export function CustomServicesPage() {
   })
   const taxRate = fiscalSettings?.fiscal_tax_rate ?? 0
   const taxName = fiscalSettings?.fiscal_tax_name || 'IVA'
+  const priceMode = fiscalSettings?.billing_price_mode
 
   const { register, handleSubmit, reset, watch, formState: { errors } } = useForm<ServiceFormData>({
     resolver: zodResolver(serviceSchema) as any,
   })
 
   const watchPrice = watch('price')
-  const priceTotal = (Number(watchPrice) || 0) * (1 + Number(taxRate) / 100)
+  const priceBreakdown = computePriceBreakdown(Number(watchPrice) || 0, taxRate, priceMode)
+  const priceTotal = priceBreakdown.total
 
   const saveMutation = useMutation({
     mutationFn: async (data: ServiceFormData) => {
@@ -210,8 +213,17 @@ export function CustomServicesPage() {
                     </div>
                   </div>
                   <div className="text-right shrink-0 pl-2">
-                    <div className="text-xl font-bold text-purple-400 font-mono leading-none">${(Number(service.price) * (1 + Number(taxRate) / 100)).toFixed(2)}</div>
-                    <div className="text-[10px] text-muted-foreground font-mono mt-1">${Number(service.price).toFixed(2)} + {taxRate}% {taxName}</div>
+                    {(() => {
+                      const b = computePriceBreakdown(service.price, taxRate, priceMode)
+                      return (
+                        <>
+                          <div className="text-xl font-bold text-purple-400 font-mono leading-none">${b.total.toFixed(2)}</div>
+                          <div className="text-[10px] text-muted-foreground font-mono mt-1">
+                            {priceMode === 'excluded' ? `$${b.subtotal.toFixed(2)} + ${taxRate}% ${taxName}` : `${taxName} incluido: $${b.taxAmount.toFixed(2)}`}
+                          </div>
+                        </>
+                      )
+                    })()}
                     <div className="text-[10px] text-muted-foreground mt-0.5">{service.recurring ? '/mes' : '/pago único'}</div>
                   </div>
                 </div>
@@ -253,7 +265,7 @@ export function CustomServicesPage() {
       {/* Modal Add/Edit Service */}
       {dialogOpen && createPortal(
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm overflow-y-auto py-10">
-          <div className="glass-card w-full max-w-md mx-4 animate-fade-in my-auto">
+          <div className="glass-card w-full max-w-lg mx-4 animate-fade-in my-auto">
             <div className="flex items-center justify-between p-5 border-b border-border">
               <h2 className="text-lg font-semibold text-foreground">
                 {editingService ? `Editar: ${editingService.name}` : 'Agregar Servicio'}
@@ -322,7 +334,9 @@ export function CustomServicesPage() {
                     <span className="text-[10px] text-muted-foreground">{taxRate}% {taxName}</span>
                   </div>
                   <p className="text-[10px] text-muted-foreground mt-1">
-                    Incluye el {taxName} configurado en Ajustes → Facturación → Fiscal.
+                    {priceMode === 'excluded'
+                      ? `El precio ingresado es la base; se le suma el ${taxName}.`
+                      : `El precio ingresado ya incluye el ${taxName} (${priceBreakdown.taxAmount.toFixed(2)}).`}
                   </p>
                 </div>
               </div>

@@ -13,6 +13,7 @@ class InvoiceBase(BaseModel):
     period: str = Field(min_length=7, max_length=10)  # "MM/AAAA"
     amount: float
     due_date: datetime
+    concept: str | None = Field(default=None, max_length=255)
 
 
 class InvoiceCreate(InvoiceBase):
@@ -20,7 +21,15 @@ class InvoiceCreate(InvoiceBase):
 
 
 class InvoiceUpdate(BaseModel):
-    status: str = Field(pattern="^(pending|paid|overdue)$")
+    status: str = Field(pattern="^(pending|paid|overdue|cancelled)$")
+
+
+class InvoiceEdit(BaseModel):
+    """Edición de una factura pendiente/vencida (sin pagos aún). Todos los campos son opcionales."""
+    amount: float | None = Field(default=None, gt=0.0)
+    period: str | None = Field(default=None, min_length=7, max_length=10)  # "MM/AAAA"
+    due_date: datetime | None = None
+    concept: str | None = Field(default=None, max_length=255)
 
 
 class InvoiceResponse(BaseModel):
@@ -35,6 +44,7 @@ class InvoiceResponse(BaseModel):
     due_date: datetime
     status: str
     created_at: datetime
+    concept: str | None = None
     client_name: str | None = None
     client_cedula: str | None = None
     plan_name: str | None = None
@@ -60,6 +70,7 @@ class InvoiceResponse(BaseModel):
                 "due_date": getattr(data, "due_date", None),
                 "status": getattr(data, "status", None),
                 "created_at": getattr(data, "created_at", None),
+                "concept": getattr(data, "concept", None),
                 "client_name": client.full_name if client else None,
                 "client_cedula": client.cedula if client else None,
                 "plan_name": plan.name if plan else None,

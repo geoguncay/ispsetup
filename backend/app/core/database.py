@@ -2221,4 +2221,9 @@ def run_migrations(bind_engine) -> None:
             conn.execute(text("ALTER TABLE plans ADD COLUMN IF NOT EXISTS fup_reduction_down_kbps INTEGER;"))
             conn.execute(text("ALTER TABLE plans ADD COLUMN IF NOT EXISTS fup_reduction_up_kbps INTEGER;"))
 
+            # ── Cambio de plan diferido + facturas de ajuste (prorrateo) ────
+            conn.execute(text("ALTER TABLE clients ADD COLUMN IF NOT EXISTS pending_plan_id VARCHAR(36) REFERENCES plans(id) ON DELETE SET NULL;"))
+            conn.execute(text("ALTER TABLE clients ADD COLUMN IF NOT EXISTS pending_plan_requested_at TIMESTAMP WITH TIME ZONE;"))
+            conn.execute(text("ALTER TABLE invoices ADD COLUMN IF NOT EXISTS concept VARCHAR(255);"))
+
             conn.commit()

@@ -1,3 +1,4 @@
+import uuid
 import pytest
 from fastapi.testclient import TestClient
 from sqlalchemy import create_engine
@@ -104,7 +105,8 @@ def test_generate_monthly_invoices_task():
     router = db.query(Router).first()
     plan = db.query(Plan).first()
 
-    # Crear cliente activo con plan activo
+    # Crear cliente activo con plan activo (de alta hace tiempo, para que el
+    # periodo en curso no sea su primer periodo y así no se prorratee)
     c = Client(
         full_name="Cliente Activo",
         cedula="1724024888",
@@ -112,7 +114,8 @@ def test_generate_monthly_invoices_task():
         address="Quito",
         router_id=router.id,
         access_method="static",
-        active=True
+        active=True,
+        created_at=datetime(2020, 1, 1),
     )
     db.add(c)
     db.flush()
@@ -134,6 +137,40 @@ def test_generate_monthly_invoices_task():
     # Ejecutar de nuevo para comprobar protección de duplicados
     res2 = generate_monthly_invoices(force=True)
     assert res2["invoices_created"] == 0
+    db.close()
+
+
+def test_generate_monthly_invoices_adds_tax_when_price_mode_excluded():
+    from app.models.system_settings import SystemSettings
+
+    db = TestingSessionLocal()
+    router = db.query(Router).first()
+    plan = db.query(Plan).first()  # price = 25.00
+
+    db.add(SystemSettings(fiscal_tax_rate=15.0, billing_price_mode="excluded"))
+
+    c = Client(
+        full_name="Cliente Precio Excluido",
+        cedula="1724024892",
+        phone="0999999999",
+        address="Quito",
+        router_id=router.id,
+        access_method="static",
+        active=True,
+        created_at=datetime(2020, 1, 1),
+    )
+    db.add(c)
+    db.flush()
+    db.add(ClientPlan(cliente_id=c.id, plan_id=plan.id, estado="activo"))
+    db.commit()
+
+    res = generate_monthly_invoices(force=True)
+    assert res["status"] == "success"
+    assert res["invoices_created"] == 1
+
+    invoice = db.query(Invoice).filter(Invoice.client_id == c.id).first()
+    assert invoice is not None
+    assert float(invoice.amount) == 28.75  # 25.00 * 1.15
     db.close()
 
 
@@ -357,7 +394,8 @@ def test_generate_monthly_invoices_with_custom_services():
         address="Quito",
         router_id=router.id,
         access_method="static",
-        active=True
+        active=True,
+        created_at=datetime(2020, 1, 1),
     )
     db.add(c)
     db.flush()
@@ -431,6 +469,50 @@ def test_create_manual_invoice_endpoint(client: TestClient):
     assert res_data["status"] == "pending"
 
 
+def test_create_manual_invoice_rejects_due_date_before_issue_date(client: TestClient):
+    login = client.post(
+        "/api/auth/login",
+        json={"email": "admin@test.com", "password": "adminpass123"},
+    )
+    token = login.json()["access_token"]
+    headers = {"Authorization": f"Bearer {token}"}
+
+    db = TestingSessionLocal()
+    router = db.query(Router).first()
+    plan = db.query(Plan).first()
+
+    c = Client(
+        full_name="Cliente Vencimiento Invalido",
+        cedula="1724024893",
+        phone="0999999999",
+        address="Quito",
+        router_id=router.id,
+        access_method="static",
+        active=True
+    )
+    db.add(c)
+    db.commit()
+    client_id = c.id
+    plan_id = plan.id
+    db.close()
+
+    past_due_date = (datetime.now() - timedelta(days=5)).isoformat()
+    response = client.post(
+        "/api/invoices",
+        json={
+            "client_id": str(client_id),
+            "plan_id": str(plan_id),
+            "period": "07/2026",
+            "amount": 50.00,
+            "due_date": past_due_date
+        },
+        headers=headers
+    )
+
+    assert response.status_code == 400
+    assert "anterior a la fecha de emisión" in response.json()["detail"]
+
+
 def test_generate_monthly_invoices_with_non_recurring_custom_services(client: TestClient):
     from app.models.custom_service import CustomService
     db = TestingSessionLocal()
@@ -464,7 +546,8 @@ def test_generate_monthly_invoices_with_non_recurring_custom_services(client: Te
         address="Guayaquil",
         router_id=router.id,
         access_method="static",
-        active=True
+        active=True,
+        created_at=datetime(2020, 1, 1),
     )
     c.custom_services.append(cs_recurring)
     c.custom_services.append(cs_non_recurring)
@@ -514,3 +597,323 @@ def test_generate_monthly_invoices_with_non_recurring_custom_services(client: Te
     assert updated_client.custom_services[0].name == "Soporte VIP Recurrente"
 
     db.close()
+
+
+def _login_headers(client: TestClient) -> dict:
+    login = client.post(
+        "/api/auth/login",
+        json={"email": "admin@test.com", "password": "adminpass123"},
+    )
+    token = login.json()["access_token"]
+    return {"Authorization": f"Bearer {token}"}
+
+
+def test_generate_client_invoice_endpoint(client: TestClient):
+    """Botón "Generar Factura" del modal de cliente: genera la factura del
+    periodo vigente al instante, sin esperar al día configurado en Ajustes."""
+    headers = _login_headers(client)
+
+    db = TestingSessionLocal()
+    router = db.query(Router).first()
+    plan = db.query(Plan).first()
+
+    # De alta desde el día 1 del mes en curso (antes del día de corte por
+    # defecto, el 5): mismo periodo que "ahora", sin atrasos ni prorrateo.
+    c = Client(
+        full_name="Cliente Boton Generar Factura",
+        cedula="1724024899",
+        phone="0999999999",
+        address="Quito",
+        router_id=router.id,
+        access_method="static",
+        active=True,
+        created_at=datetime.now().replace(day=1, hour=0, minute=0, second=0, microsecond=0),
+    )
+    db.add(c)
+    db.flush()
+    db.add(ClientPlan(cliente_id=c.id, plan_id=plan.id, estado="activo"))
+    db.commit()
+    client_id = c.id
+    db.close()
+
+    response = client.post(f"/api/clients/{client_id}/generate-invoice", headers=headers)
+    assert response.status_code == 201
+    res_data = response.json()
+    assert res_data["client_id"] == str(client_id)
+    assert res_data["amount"] == 25.00
+    assert res_data["status"] == "pending"
+    assert res_data["period"] == datetime.now().strftime("%m/%Y")
+
+    # Reintentar en el mismo periodo debe rechazarse (ya existe factura no anulada)
+    again = client.post(f"/api/clients/{client_id}/generate-invoice", headers=headers)
+    assert again.status_code == 400
+
+
+def test_generate_client_invoice_endpoint_requires_active_plan(client: TestClient):
+    headers = _login_headers(client)
+
+    db = TestingSessionLocal()
+    router = db.query(Router).first()
+
+    c = Client(
+        full_name="Cliente Sin Plan",
+        cedula="1724024900",
+        phone="0999999999",
+        address="Quito",
+        router_id=router.id,
+        access_method="static",
+        active=True,
+    )
+    db.add(c)
+    db.commit()
+    client_id = c.id
+    db.close()
+
+    response = client.post(f"/api/clients/{client_id}/generate-invoice", headers=headers)
+    assert response.status_code == 400
+
+
+def test_compute_invoice_amount_prorates_first_period_only():
+    """El monto de la primera factura se prorratea si el cliente arrancó a
+    mitad del periodo de facturación; los periodos siguientes van completos."""
+    from app.models.system_settings import SystemSettings
+    from app.services.billing_cycle import compute_invoice_amount
+
+    db = TestingSessionLocal()
+    router = db.query(Router).first()
+    plan = db.query(Plan).first()  # price = 25.00
+
+    cfg = SystemSettings(billing_generation_mode="fixed_day", billing_default_payment_day=5)
+    db.add(cfg)
+
+    # Periodo de corte día 5: el ciclo 04/2026 va del 05/04 al 05/05 (30 días).
+    c = Client(
+        full_name="Cliente Prorrateo",
+        cedula="1724024950",
+        phone="0999999999",
+        address="Quito",
+        router_id=router.id,
+        access_method="static",
+        active=True,
+        billing_start=datetime(2026, 4, 20),
+    )
+    db.add(c)
+    db.commit()
+
+    # Arranca el día 20: le quedan 15 de los 30 días del periodo → mitad del plan.
+    amount, is_prorated = compute_invoice_amount(c, plan, cfg, "04/2026")
+    assert is_prorated is True
+    assert amount == 12.50
+
+    # El periodo siguiente ya es un mes completo, sin prorratear.
+    amount2, is_prorated2 = compute_invoice_amount(c, plan, cfg, "05/2026")
+    assert is_prorated2 is False
+    assert amount2 == 25.00
+
+    db.close()
+
+
+def _months_ago(dt: datetime, months: int) -> datetime:
+    month = dt.month - months
+    year = dt.year
+    while month < 1:
+        month += 12
+        year -= 1
+    return dt.replace(year=year, month=month, day=1)
+
+
+def test_generate_client_invoice_endpoint_backfills_oldest_pending_period(client: TestClient):
+    """Cliente con periodos atrasados sin facturar (ej. se le asignó el plan
+    varios meses después de su alta): el botón debe generar el periodo más
+    antiguo pendiente, aunque el periodo actual ya esté facturado."""
+    headers = _login_headers(client)
+    now = datetime.now()
+    two_months_ago = _months_ago(now, 2)
+
+    db = TestingSessionLocal()
+    router = db.query(Router).first()
+    plan = db.query(Plan).first()
+
+    c = Client(
+        full_name="Cliente Con Atraso",
+        cedula="1724024901",
+        phone="0999999999",
+        address="Quito",
+        router_id=router.id,
+        access_method="static",
+        active=True,
+        created_at=two_months_ago,
+        billing_start=two_months_ago,
+    )
+    db.add(c)
+    db.flush()
+    db.add(ClientPlan(cliente_id=c.id, plan_id=plan.id, estado="activo"))
+    # El periodo actual ya está facturado (ej. lo generó el batch automático).
+    db.add(Invoice(
+        client_id=c.id, plan_id=plan.id, period=now.strftime("%m/%Y"),
+        amount=25.00, issue_date=now, due_date=now + timedelta(days=10), status="pending",
+    ))
+    db.commit()
+    client_id = c.id
+    db.close()
+
+    response = client.post(f"/api/clients/{client_id}/generate-invoice", headers=headers)
+    assert response.status_code == 201
+    res_data = response.json()
+    assert res_data["period"] == two_months_ago.strftime("%m/%Y")
+    assert res_data["amount"] == 25.00
+
+    # Siguiente click: el periodo intermedio (mes pasado), no el actual (ya facturado).
+    one_month_ago = _months_ago(now, 1)
+    response2 = client.post(f"/api/clients/{client_id}/generate-invoice", headers=headers)
+    assert response2.status_code == 201
+    assert response2.json()["period"] == one_month_ago.strftime("%m/%Y")
+
+    # Ya no quedan periodos atrasados: el actual está facturado, se rechaza.
+    response3 = client.post(f"/api/clients/{client_id}/generate-invoice", headers=headers)
+    assert response3.status_code == 400
+    assert now.strftime("%m/%Y") in response3.json()["detail"]
+
+
+def test_next_invoice_preview_advances_only_once_paid(client: TestClient):
+    """La "Primera factura" del modal: mientras el periodo más antiguo no esté
+    PAGADO se sigue mostrando (con su estado real si ya fue generada); recién
+    al pagarla, la vista avanza al siguiente periodo proyectado."""
+    headers = _login_headers(client)
+    now = datetime.now()
+    start = now.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+
+    db = TestingSessionLocal()
+    router = db.query(Router).first()
+    plan = db.query(Plan).first()  # price = 25.00
+
+    c = Client(
+        full_name="Cliente Preview Factura",
+        cedula="1724024902",
+        phone="0999999999",
+        address="Quito",
+        router_id=router.id,
+        access_method="static",
+        active=True,
+        created_at=start,
+        billing_start=start,
+    )
+    db.add(c)
+    db.flush()
+    db.add(ClientPlan(cliente_id=c.id, plan_id=plan.id, estado="activo"))
+    db.commit()
+    client_id = c.id
+    db.close()
+
+    current_period = now.strftime("%m/%Y")
+
+    # 1. Sin ninguna factura todavía: la actual es el periodo en curso y se puede generar.
+    preview = client.get(f"/api/clients/{client_id}/next-invoice-preview", headers=headers)
+    assert preview.status_code == 200
+    data = preview.json()
+    assert data["current"]["period"] == current_period
+    assert data["current"]["can_generate"] is True
+    assert data["current"]["amount"] == 25.00
+
+    # 2. Se genera la factura (pendiente de pago): sigue siendo "la actual",
+    #    pero ya no se puede volver a generar.
+    gen = client.post(f"/api/clients/{client_id}/generate-invoice", headers=headers)
+    assert gen.status_code == 201
+    invoice_id = gen.json()["id"]
+
+    preview2 = client.get(f"/api/clients/{client_id}/next-invoice-preview", headers=headers)
+    data2 = preview2.json()
+    assert data2["current"]["period"] == current_period
+    assert data2["current"]["can_generate"] is False
+    assert data2["current"]["invoice_status"] == "pending"
+
+    # 3. Se marca como pagada: la vista avanza al periodo siguiente.
+    db = TestingSessionLocal()
+    inv = db.get(Invoice, uuid.UUID(invoice_id))
+    inv.status = "paid"
+    db.commit()
+    db.close()
+
+    preview3 = client.get(f"/api/clients/{client_id}/next-invoice-preview", headers=headers)
+    data3 = preview3.json()
+    assert data3["current"]["period"] != current_period
+    # Es el mes siguiente (todavía no vigente): se muestra como proyección,
+    # sin botón de generar hasta que llegue su periodo.
+    assert data3["current"]["can_generate"] is False
+    assert data3["current"]["invoice_status"] is None
+
+
+def test_create_payment_with_backdated_payment_date(client: TestClient):
+    """"Registrar Pago Manual" con fecha de pago distinta a hoy: se guarda tal
+    cual (para las estadísticas de caja) y no aparece en la caja de HOY."""
+    headers = _login_headers(client)
+
+    db = TestingSessionLocal()
+    router = db.query(Router).first()
+    plan = db.query(Plan).first()
+
+    c = Client(
+        full_name="Cliente Pago Atrasado", cedula="1724024903", phone="0999999999",
+        address="Quito", router_id=router.id, access_method="static", active=True,
+    )
+    db.add(c)
+    db.flush()
+    inv = Invoice(
+        client_id=c.id, plan_id=plan.id, period="08/2026", amount=25.00,
+        due_date=datetime.now() + timedelta(days=10), status="pending",
+    )
+    db.add(inv)
+    db.commit()
+    invoice_id = inv.id
+    db.close()
+
+    three_days_ago = (datetime.now() - timedelta(days=3)).isoformat()
+    response = client.post(
+        "/api/payments",
+        json={
+            "invoice_id": str(invoice_id), "amount": 25.00, "method": "cash",
+            "payment_date": three_days_ago,
+        },
+        headers=headers,
+    )
+    assert response.status_code == 200
+    res_data = response.json()
+    assert res_data["payment_date"][:10] == three_days_ago[:10]
+
+    # No debe contarse en la caja de hoy: el cobro real fue hace 3 días.
+    today_cash = client.get("/api/payments/today", headers=headers)
+    assert today_cash.json()["total_collected"] == 0.0
+
+
+def test_create_payment_rejects_future_payment_date(client: TestClient):
+    headers = _login_headers(client)
+
+    db = TestingSessionLocal()
+    router = db.query(Router).first()
+    plan = db.query(Plan).first()
+
+    c = Client(
+        full_name="Cliente Pago Futuro", cedula="1724024904", phone="0999999999",
+        address="Quito", router_id=router.id, access_method="static", active=True,
+    )
+    db.add(c)
+    db.flush()
+    inv = Invoice(
+        client_id=c.id, plan_id=plan.id, period="08/2026", amount=25.00,
+        due_date=datetime.now() + timedelta(days=10), status="pending",
+    )
+    db.add(inv)
+    db.commit()
+    invoice_id = inv.id
+    db.close()
+
+    tomorrow = (datetime.now() + timedelta(days=1)).isoformat()
+    response = client.post(
+        "/api/payments",
+        json={
+            "invoice_id": str(invoice_id), "amount": 25.00, "method": "cash",
+            "payment_date": tomorrow,
+        },
+        headers=headers,
+    )
+    assert response.status_code == 400

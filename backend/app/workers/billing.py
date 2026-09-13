@@ -3,13 +3,19 @@ Tareas Celery para facturación mensual automatizada y control de vencimientos.
 """
 import calendar
 import logging
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timezone
 
 from app.core import database
 from app.models.client import Client
 from app.models.client_plan import ClientPlan
 from app.models.invoice import Invoice
+from app.models.plan import Plan
 from app.models.system_settings import SystemSettings
+from app.services.billing_cycle import (
+    billing_day_for as _billing_day_for,
+    generate_invoice_for_client,
+)
+from app.services.plan_change import apply_plan_change
 from app.workers.celery_app import celery_app
 from app.services.audit_service import AuditAction, audit_detail, log_event
 
@@ -24,22 +30,6 @@ def _get_settings(db) -> SystemSettings:
         db.commit()
         db.refresh(cfg)
     return cfg
-
-
-def _billing_day_for(client: Client, cfg: SystemSettings) -> int:
-    """
-    Día del mes en que corresponde generar la factura del cliente, según
-    la configuración de Ajustes: "fixed_day" (billing_default_payment_day, igual
-    para todos), "cutoff_date" (día de corte propio del cliente, billing_period_start_day)
-    o "billing_start" (día del mes en que inició la facturación del cliente,
-    usando su fecha de alta si no tiene billing_start definido).
-    """
-    if cfg.billing_generation_mode == "cutoff_date":
-        return client.billing_period_start_day or 1
-    if cfg.billing_generation_mode == "billing_start":
-        start_date = client.billing_start or client.created_at
-        return start_date.day if start_date else 1
-    return cfg.billing_default_payment_day or 1
 
 
 def _should_generate_today(now: datetime, client: Client, cfg: SystemSettings) -> bool:
@@ -58,34 +48,6 @@ def _should_generate_today(now: datetime, client: Client, cfg: SystemSettings) -
     except ValueError:
         hour_cfg, minute_cfg = 8, 0
     return (now.hour, now.minute) >= (hour_cfg, minute_cfg)
-
-
-def _resolve_due_date(issue_date: datetime, client: Client, cfg: SystemSettings) -> datetime:
-    """
-    Calcula la fecha de vencimiento de una factura según la configuración de Ajustes:
-    - modo "fixed_term": issue_date + billing_default_grace_days días.
-    - modo "cutoff_date": coincide con el día de corte del cliente (billing_period_start_day),
-      usando el próximo día de corte a partir de la emisión.
-    - hora "start_of_day"/"end_of_day": fija la hora del resultado a 00:00:00 o 23:59:59.
-    """
-    if cfg.billing_due_mode == "cutoff_date":
-        cutoff_day = client.billing_period_start_day or issue_date.day
-        last_day = calendar.monthrange(issue_date.year, issue_date.month)[1]
-        due_date = issue_date.replace(day=min(cutoff_day, last_day))
-        if due_date.date() < issue_date.date():
-            next_month = issue_date.month % 12 + 1
-            next_year = issue_date.year + (1 if issue_date.month == 12 else 0)
-            last_day_next = calendar.monthrange(next_year, next_month)[1]
-            due_date = issue_date.replace(
-                year=next_year, month=next_month, day=min(cutoff_day, last_day_next)
-            )
-    else:
-        grace_days = cfg.billing_default_grace_days if cfg.billing_default_grace_days is not None else 10
-        due_date = issue_date + timedelta(days=grace_days)
-
-    if cfg.billing_due_time == "start_of_day":
-        return due_date.replace(hour=0, minute=0, second=0, microsecond=0)
-    return due_date.replace(hour=23, minute=59, second=59, microsecond=0)
 
 
 @celery_app.task(name="app.workers.billing.generate_monthly_invoices")
@@ -122,6 +84,41 @@ def generate_monthly_invoices(
             if not force and not _should_generate_today(now, client, cfg):
                 continue
 
+            # Si el cliente tiene un cambio de plan diferido ("al iniciar nuevo
+            # periodo"), aplicarlo ahora, justo antes de facturar este periodo,
+            # para que la factura que se genere a continuación ya use el plan nuevo.
+            if client.pending_plan_id:
+                pending_plan = db.get(Plan, client.pending_plan_id)
+                if pending_plan:
+                    try:
+                        # SAVEPOINT propio: si falla la sincronización con MikroTik,
+                        # solo se revierte lo de este cliente, sin arrastrar las
+                        # facturas de otros clientes ya generadas (aún sin commit)
+                        # en esta misma corrida del lote.
+                        with db.begin_nested():
+                            apply_plan_change(db, client, pending_plan, commit=False)
+                            client.pending_plan_id = None
+                            client.pending_plan_requested_at = None
+                        log_event(
+                            db, AuditAction.ASSIGN_PLAN,
+                            entity_type="Client", entity_id=client.id, entity_name=client.full_name,
+                            detail=audit_detail(
+                                "Cambio de plan diferido aplicado al iniciar el nuevo periodo",
+                                plan_name=pending_plan.name, source="generate_monthly_invoices",
+                            ),
+                        )
+                    except Exception as e:
+                        logger.error(
+                            f"Fallo al aplicar el cambio de plan diferido de {client.full_name} "
+                            f"a '{pending_plan.name}': {e}. Se reintentará en la próxima corrida.",
+                            exc_info=True,
+                        )
+                else:
+                    # El plan pendiente ya no existe (fue eliminado): descartar el cambio.
+                    client.pending_plan_id = None
+                    client.pending_plan_requested_at = None
+                    db.commit()
+
             # Buscar el plan activo del cliente
             active_client_plan = (
                 db.query(ClientPlan)
@@ -136,9 +133,13 @@ def generate_monthly_invoices(
             plan = active_client_plan.plan
 
             # Verificar si ya existe factura para este cliente en el periodo actual
+            # (una factura anulada no cuenta: el periodo queda libre para re-facturarse)
             existing_invoice = (
                 db.query(Invoice)
-                .filter(Invoice.client_id == client.id, Invoice.period == current_period)
+                .filter(
+                    Invoice.client_id == client.id, Invoice.period == current_period,
+                    Invoice.status != "cancelled",
+                )
                 .first()
             )
 
@@ -146,33 +147,11 @@ def generate_monthly_invoices(
                 logger.info(f"El cliente {client.full_name} ya tiene una factura para el periodo {current_period}.")
                 continue
 
-            # Crear factura
-            issue_date = now
-            due_date = _resolve_due_date(issue_date, client, cfg)
-
-            # Calcular monto total: plan base + servicios personalizados
-            active_custom_services = list(client.custom_services)
-            total_amount = plan.price + sum(cs.price for cs in active_custom_services)
-
-            new_invoice = Invoice(
-                client_id=client.id,
-                plan_id=plan.id,
-                period=current_period,
-                amount=total_amount,
-                issue_date=issue_date,
-                due_date=due_date,
-                status="pending",
-                custom_services=active_custom_services
-            )
-
-            # Remover servicios no recurrentes del cliente
-            for cs in active_custom_services:
-                if not cs.recurring:
-                    client.custom_services.remove(cs)
-
-            db.add(new_invoice)
+            # Crear factura: plan base + servicios personalizados, sumando el IVA por
+            # ítem si Ajustes > Facturación tiene el modo "excluded" (precio sin impuesto).
+            new_invoice = generate_invoice_for_client(db, client, plan, cfg, now)
             invoices_created += 1
-            logger.info(f"Factura generada para {client.full_name} — Periodo: {current_period}, Monto: ${total_amount:.2f}")
+            logger.info(f"Factura generada para {client.full_name} — Periodo: {current_period}, Monto: ${new_invoice.amount:.2f}")
             
         db.commit()
         log_event(

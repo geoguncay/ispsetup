@@ -7,7 +7,7 @@ import { useForm, Resolver } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
 import { X, Loader2, MapPin, User, CreditCard, Bell, Wifi, Layers, Package, Plus, Search, Trash2 } from 'lucide-react'
-import { useQuery, useMutation } from '@tanstack/react-query'
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { MapContainer, TileLayer, Marker, useMapEvents, useMap } from 'react-leaflet'
 import L from 'leaflet'
 import 'leaflet/dist/leaflet.css'
@@ -77,6 +77,38 @@ interface SelectedInventoryItem {
 
 // Centrado por defecto en Quito, Ecuador
 const DEFAULT_CENTER: [number, number] = [-0.180653, -78.467834]
+
+interface InvoicePeriodPreview {
+  period: string
+  amount: number
+  due_date: string
+  is_prorated: boolean
+  can_generate: boolean
+  invoice_status: string | null
+}
+
+interface NextInvoicePreview {
+  plan_name: string
+  current: InvoicePeriodPreview
+  next: InvoicePeriodPreview
+}
+
+function formatIsoDate(iso: string): string {
+  const d = new Date(iso)
+  const day = String(d.getDate()).padStart(2, '0')
+  const month = String(d.getMonth() + 1).padStart(2, '0')
+  const year = d.getFullYear()
+  return `${day}/${month}/${year}`
+}
+
+function invoiceStatusLabel(status: string): string {
+  switch (status) {
+    case 'pending': return 'Pendiente de pago'
+    case 'overdue': return 'Vencida'
+    case 'paid': return 'Pagada'
+    default: return status
+  }
+}
 
 // Catálogos de respaldo, usados mientras carga /settings/catalogs o si aún no se ha configurado nada en Ajustes
 const DEFAULT_PAYMENT_METHODS = [
@@ -263,8 +295,11 @@ interface ClientFormDialogProps {
 
 export function ClientFormDialog({ open, onClose, client, onSuccess }: ClientFormDialogProps) {
   const isEdit = !!client
+  const queryClient = useQueryClient()
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
+  const [invoiceGenMessage, setInvoiceGenMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null)
   const [step, setStep] = useState<1 | 2 | 3 | 4 | 5>(1)
+  const [planChangeMode, setPlanChangeMode] = useState<'immediate' | 'next_period'>('immediate')
 
   // Estado para equipos de inventario asignados
   const [selectedInventoryItems, setSelectedInventoryItems] = useState<SelectedInventoryItem[]>([])
@@ -333,6 +368,16 @@ export function ClientFormDialog({ open, onClose, client, onSuccess }: ClientFor
     enabled: open,
   })
 
+  // El <select> de plan se resetea (reset()) antes de que /plans termine de cargar, así que
+  // el <option> del plan actual del cliente todavía no existe en el DOM y el navegador no
+  // puede seleccionarlo (queda visualmente vacío aunque el valor del formulario sea correcto).
+  // Al terminar de cargar los planes, se vuelve a fijar explícitamente para que se vea marcado.
+  useEffect(() => {
+    if (open && isEdit && client && plans.length > 0) {
+      setValue('plan_id', client.plan_activo?.id ?? '')
+    }
+  }, [open, isEdit, client, plans.length, setValue])
+
   // Obtener artículos de inventario para asignar
   const { data: inventoryItems = [] } = useQuery<InventoryItemOption[]>({
     queryKey: ['inventory-form'],
@@ -361,8 +406,31 @@ export function ClientFormDialog({ open, onClose, client, onSuccess }: ClientFor
     staleTime: 5 * 60 * 1000,
   })
 
+  // Facturación Proyectada real (cliente ya existente con plan contratado):
+  // reemplaza al simulador cuando hay datos reales de facturación que mostrar,
+  // y avanza sola al siguiente periodo una vez que la actual se paga.
+  const { data: invoicePreview } = useQuery({
+    queryKey: ['client-next-invoice-preview', client?.id],
+    queryFn: async () => {
+      const { data } = await api.get(`/clients/${client!.id}/next-invoice-preview`)
+      return data as NextInvoicePreview
+    },
+    enabled: open && isEdit && !!client?.plan_activo,
+  })
+
   const selectedPlanId = watch('plan_id')
   const selectedCustomServiceIds = watch('custom_service_ids') || []
+
+  // Detalle y cálculo (prorrateo) del cambio de plan seleccionado, antes de confirmar
+  const isChangingPlan = isEdit && !!client?.plan_activo && !!selectedPlanId && selectedPlanId !== client.plan_activo.id
+  const { data: planChangePreview, isFetching: isLoadingPlanChangePreview } = useQuery({
+    queryKey: ['plan-change-preview', client?.id, selectedPlanId],
+    queryFn: async () => {
+      const { data } = await api.get(`/clients/${client!.id}/plan-change-preview`, { params: { plan_id: selectedPlanId } })
+      return data
+    },
+    enabled: open && isChangingPlan,
+  })
 
   // Detecta cambios reales en el modal (campos del formulario + equipos asignados)
   // para resaltar el botón Guardar solo cuando hay algo que persistir.
@@ -669,6 +737,8 @@ export function ClientFormDialog({ open, onClose, client, onSuccess }: ClientFor
     if (open) {
       setStep(1)
       setErrorMessage(null)
+      setInvoiceGenMessage(null)
+      setPlanChangeMode('immediate')
       const today = new Date()
       const yyyy = today.getFullYear()
       const mm = String(today.getMonth() + 1).padStart(2, '0')
@@ -847,7 +917,9 @@ export function ClientFormDialog({ open, onClose, client, onSuccess }: ClientFor
         delete payload.plan_id
         await api.put(`/clients/${client!.id}`, payload)
         if (planIdToAssign) {
-          await api.post(`/clients/${client!.id}/assign-plan`, null, { params: { plan_id: planIdToAssign } })
+          // Sin plan activo previo (primera asignación): siempre inmediato, sin prorrateo posible.
+          const mode = client?.plan_activo ? planChangeMode : 'immediate'
+          await api.post(`/clients/${client!.id}/assign-plan`, null, { params: { plan_id: planIdToAssign, mode } })
         }
       } else {
         await api.post('/clients', payload)
@@ -858,6 +930,29 @@ export function ClientFormDialog({ open, onClose, client, onSuccess }: ClientFor
       const errorResponse = err as { response?: { data?: { detail?: string } } }
       const msg = errorResponse?.response?.data?.detail || 'Error al guardar el cliente'
       setErrorMessage(typeof msg === 'string' ? msg : JSON.stringify(msg))
+    },
+  })
+
+  // Genera de inmediato la factura del periodo vigente (botón "Generar Factura"
+  // en Facturación Proyectada), sin esperar al día/hora de Ajustes > Facturación.
+  const generateInvoiceMutation = useMutation({
+    mutationFn: async () => {
+      const { data } = await api.post(`/clients/${client!.id}/generate-invoice`)
+      return data
+    },
+    onSuccess: (invoice: { period: string; amount: number }) => {
+      setInvoiceGenMessage({
+        type: 'success',
+        text: `Factura del periodo ${invoice.period} generada por $${Number(invoice.amount).toFixed(2)}.`,
+      })
+      queryClient.invalidateQueries({ queryKey: ['client-invoices', client!.id] })
+      queryClient.invalidateQueries({ queryKey: ['invoices'] })
+      queryClient.invalidateQueries({ queryKey: ['client-next-invoice-preview', client!.id] })
+    },
+    onError: (err: unknown) => {
+      const errorResponse = err as { response?: { data?: { detail?: string } } }
+      const msg = errorResponse?.response?.data?.detail || 'Error al generar la factura'
+      setInvoiceGenMessage({ type: 'error', text: typeof msg === 'string' ? msg : JSON.stringify(msg) })
     },
   })
 
@@ -1275,6 +1370,17 @@ export function ClientFormDialog({ open, onClose, client, onSuccess }: ClientFor
                           Sin plan activo — selecciona uno para asignarlo al guardar.
                         </div>
                       )}
+
+                      {client?.plan_activo && (
+                        <div className="bg-secondary/35 border border-border/50 rounded-lg p-3">
+                          <span className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider block mb-1">Plan actual</span>
+                          <div className="flex items-center justify-between">
+                            <span className="text-xs font-bold text-foreground">{client.plan_activo.name}</span>
+                            <span className="text-xs font-mono font-bold text-brand-400">${Number(client.plan_activo.price).toFixed(2)}/mes</span>
+                          </div>
+                        </div>
+                      )}
+
                       <select {...register('plan_id')} className="input-field cursor-pointer font-mono">
                         {!client?.plan_activo && <option value="">Sin plan (asignar después)</option>}
                         {plans.map((p) => (
@@ -1282,13 +1388,11 @@ export function ClientFormDialog({ open, onClose, client, onSuccess }: ClientFor
                         ))}
                       </select>
 
-                      {client?.plan_activo && selectedPlanId && selectedPlanId !== client.plan_activo.id && (
-                        <div className="bg-amber-500/10 border border-amber-500/20 rounded-lg p-3 text-[11px] text-amber-300 leading-relaxed">
-                          ⚠️ Al guardar se cancelará el plan actual y se activará el nuevo de inmediato (con prorrateo), sincronizando el equipo del cliente.
-                        </div>
-                      )}
-
-                      {(() => {
+                      {/* Detalle del plan seleccionado: siempre visible mientras no se esté
+                          calculando un cambio real (primera asignación, o mismo plan actual).
+                          Cuando sí hay un cambio de plan en curso, "Detalle del cambio" más abajo
+                          ya incluye este mismo detalle junto con el cálculo. */}
+                      {!isChangingPlan && (() => {
                         const selectedPlanObj = plans.find((p) => p.id === selectedPlanId)
                         if (!selectedPlanObj) return null
                         return (
@@ -1305,6 +1409,71 @@ export function ClientFormDialog({ open, onClose, client, onSuccess }: ClientFor
                           </div>
                         )
                       })()}
+
+                      {isChangingPlan && (
+                        <div className="space-y-2">
+                          <label className="block text-xs font-semibold text-muted-foreground uppercase tracking-wider">¿Cuándo aplicar el cambio?</label>
+                          <div className="grid grid-cols-1 gap-2">
+                            <button
+                              type="button"
+                              onClick={() => setPlanChangeMode('immediate')}
+                              className={`text-left p-2.5 rounded-lg border transition-all ${
+                                planChangeMode === 'immediate' ? 'border-brand-500 bg-brand-500/10' : 'border-border hover:bg-secondary/40'
+                              }`}
+                            >
+                              <span className="text-xs font-semibold text-foreground block">Cambio inmediato</span>
+                              <span className="text-[10px] text-muted-foreground">Se aplica ahora, con ajuste prorrateado por los días restantes del periodo.</span>
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => setPlanChangeMode('next_period')}
+                              className={`text-left p-2.5 rounded-lg border transition-all ${
+                                planChangeMode === 'next_period' ? 'border-brand-500 bg-brand-500/10' : 'border-border hover:bg-secondary/40'
+                              }`}
+                            >
+                              <span className="text-xs font-semibold text-foreground block">Al iniciar nuevo periodo</span>
+                              <span className="text-[10px] text-muted-foreground">Conserva el plan actual hasta la próxima factura; ahí se aplica completo, sin prorrateo.</span>
+                            </button>
+                          </div>
+                        </div>
+                      )}
+
+                      {isChangingPlan && (
+                        isLoadingPlanChangePreview ? (
+                          <div className="flex items-center gap-2 text-xs text-muted-foreground py-1">
+                            <Loader2 className="w-3.5 h-3.5 animate-spin" /> Calculando...
+                          </div>
+                        ) : planChangePreview ? (
+                          <div className="bg-brand-500/5 border border-brand-500/20 rounded-xl p-3.5 space-y-1.5 animate-fade-in">
+                            <div className="text-[10px] font-bold text-brand-300 uppercase tracking-wider">Detalle del cambio</div>
+                            <div className="text-xs font-bold text-foreground">
+                              {planChangePreview.new_plan.name} — ${Number(planChangePreview.new_plan.price).toFixed(2)}/mes
+                            </div>
+                            {(planChangePreview.new_plan.speed_down_mbps !== undefined || planChangePreview.new_plan.speed_up_mbps !== undefined) && (
+                              <div className="text-[10px] text-muted-foreground flex gap-3 font-medium">
+                                <span>📥 Down: {planChangePreview.new_plan.speed_down_mbps || 0} Mbps</span>
+                                <span>📤 Up: {planChangePreview.new_plan.speed_up_mbps || 0} Mbps</span>
+                              </div>
+                            )}
+                            {planChangeMode === 'immediate' ? (
+                              <div className="flex items-center justify-between text-xs pt-1.5 border-t border-border/40">
+                                <span className="text-muted-foreground">
+                                  {planChangePreview.immediate_adjustment_amount >= 0 ? 'Cargo de ajuste' : 'Crédito a favor'}
+                                  {' '}({planChangePreview.days_remaining} de {planChangePreview.days_in_period} días restantes)
+                                </span>
+                                <span className={`font-mono font-bold ${planChangePreview.immediate_adjustment_amount >= 0 ? 'text-amber-400' : 'text-emerald-400'}`}>
+                                  ${Math.abs(planChangePreview.immediate_adjustment_amount).toFixed(2)}
+                                </span>
+                              </div>
+                            ) : (
+                              <div className="flex items-center justify-between text-xs pt-1.5 border-t border-border/40">
+                                <span className="text-muted-foreground">Se facturará desde el próximo periodo</span>
+                                <span className="font-mono font-bold text-foreground">${planChangePreview.next_period_amount.toFixed(2)}</span>
+                              </div>
+                            )}
+                          </div>
+                        ) : null
+                      )}
                     </div>
                   )}
 
@@ -1562,7 +1731,112 @@ export function ClientFormDialog({ open, onClose, client, onSuccess }: ClientFor
 
                 {/* Simulación de Facturación */}
                 <div className="glass-card p-5 border border-border/60 bg-secondary/10 space-y-3 flex flex-col justify-between">
-                  {(() => {
+                  {isEdit && client?.plan_activo ? (
+                    invoicePreview ? (
+                      <div className="space-y-3">
+                        <div className="text-[11px] font-bold text-brand-400 uppercase tracking-wider">
+                          Facturación Proyectada
+                        </div>
+                        <p className="text-[10px] text-muted-foreground -mt-2">
+                          {dueDateSettings?.billing_due_mode === 'cutoff_date'
+                            ? 'Vencimiento = fecha de corte del cliente (Ajustes → Facturación).'
+                            : `Vencimiento = emisión + ${dueDateSettings?.billing_default_grace_days ?? 10} días (Ajustes → Facturación).`}
+                        </p>
+
+                        {/* Factura actual: la del periodo más antiguo aún sin pagar */}
+                        <div className="bg-brand-500/10 border border-brand-500/20 rounded-xl p-3.5 space-y-2">
+                          <div className="flex justify-between items-center pb-1.5 border-b border-brand-500/10">
+                            <span className="text-[10px] font-bold text-brand-300 uppercase">
+                              {invoicePreview.current.invoice_status ? 'Factura actual' : 'Próxima factura'}
+                            </span>
+                            <span className="text-sm font-mono font-black text-brand-400">
+                              ${invoicePreview.current.amount.toFixed(2)}
+                            </span>
+                          </div>
+                          <div className="grid grid-cols-2 gap-y-1 text-[10px] text-muted-foreground">
+                            <span>Plan:</span>
+                            <span className="text-right text-foreground font-medium">{invoicePreview.plan_name}</span>
+
+                            <span>Período:</span>
+                            <span className="text-right text-foreground font-mono">{invoicePreview.current.period}</span>
+
+                            <span>Fecha Vencimiento:</span>
+                            <span className="text-right text-foreground font-mono">{formatIsoDate(invoicePreview.current.due_date)}</span>
+
+                            {invoicePreview.current.is_prorated && (
+                              <>
+                                <span>Monto:</span>
+                                <span className="text-right text-brand-400 font-medium">Prorrateado (alta a mitad de periodo)</span>
+                              </>
+                            )}
+
+                            {invoicePreview.current.invoice_status && (
+                              <>
+                                <span>Estado:</span>
+                                <span className="text-right text-foreground font-medium">
+                                  {invoiceStatusLabel(invoicePreview.current.invoice_status)}
+                                </span>
+                              </>
+                            )}
+                          </div>
+
+                          {invoicePreview.current.can_generate ? (
+                            <div className="pt-2 border-t border-brand-500/10 space-y-1.5">
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setInvoiceGenMessage(null)
+                                  generateInvoiceMutation.mutate()
+                                }}
+                                disabled={generateInvoiceMutation.isPending}
+                                className="w-full flex items-center justify-center gap-1.5 rounded-lg bg-brand-500 hover:bg-brand-600 disabled:opacity-60 disabled:cursor-not-allowed text-white text-[11px] font-semibold py-1.5 cursor-pointer transition-colors"
+                              >
+                                {generateInvoiceMutation.isPending ? (
+                                  <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                                ) : (
+                                  <CreditCard className="w-3.5 h-3.5" />
+                                )}
+                                Generar Factura
+                              </button>
+                              {invoiceGenMessage && (
+                                <p className={`text-[10px] text-center ${invoiceGenMessage.type === 'success' ? 'text-emerald-500' : 'text-destructive'}`}>
+                                  {invoiceGenMessage.text}
+                                </p>
+                              )}
+                            </div>
+                          ) : invoicePreview.current.invoice_status && invoicePreview.current.invoice_status !== 'paid' ? (
+                            <p className="pt-2 border-t border-brand-500/10 text-[10px] text-center text-muted-foreground">
+                              Ya generada — se marca como pagada desde Pagos.
+                            </p>
+                          ) : null}
+                        </div>
+
+                        {/* Proyección del siguiente periodo */}
+                        <div className="bg-secondary/10 border border-border/40 rounded-xl p-3.5 space-y-2">
+                          <div className="flex justify-between items-center pb-1.5 border-b border-border/20">
+                            <span className="text-[10px] font-bold text-muted-foreground uppercase">
+                              Proyección siguiente
+                            </span>
+                            <span className="text-sm font-mono font-bold text-foreground">
+                              ${invoicePreview.next.amount.toFixed(2)}/mes
+                            </span>
+                          </div>
+                          <div className="grid grid-cols-2 gap-y-1 text-[10px] text-muted-foreground">
+                            <span>Período:</span>
+                            <span className="text-right text-foreground font-mono">{invoicePreview.next.period}</span>
+
+                            <span>Vencimiento estimado:</span>
+                            <span className="text-right text-foreground font-mono">{formatIsoDate(invoicePreview.next.due_date)}</span>
+                          </div>
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="text-[10px] text-muted-foreground text-center py-6">
+                        Cargando facturación proyectada…
+                      </div>
+                    )
+                  ) : (
+                  (() => {
                     const { firstInvoice, nextInvoice } = getSimulation()
                     return (
                       <div className="space-y-3">
@@ -1652,7 +1926,8 @@ export function ClientFormDialog({ open, onClose, client, onSuccess }: ClientFor
                         </div>
                       </div>
                     )
-                  })()}
+                  })()
+                  )}
                 </div>
               </div>
             </div>

@@ -32,6 +32,10 @@ class Invoice(Base):
     )
     period: Mapped[str] = mapped_column(String(10), nullable=False)  # Formato "MM/AAAA", e.g., "06/2026"
     amount: Mapped[float] = mapped_column(Numeric(10, 2), nullable=False)
+    # Descripción libre para facturas que no son la mensualidad estándar del plan
+    # (p. ej. ajustes prorrateados por cambio de plan a mitad de periodo). Puede
+    # ser negativo cuando el ajuste es a favor del cliente (downgrade).
+    concept: Mapped[str | None] = mapped_column(String(255), nullable=True)
     issue_date: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), nullable=False
     )

@@ -56,6 +56,13 @@ class Client(Base):
     scheduled_suspension: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     scheduled_suspension_reason: Mapped[str | None] = mapped_column(String(255), nullable=True)
     scheduled_reactivation: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    # Cambio de plan diferido: el cliente conserva su plan/velocidad actual hasta
+    # que la tarea de facturación mensual (generate_monthly_invoices) lo aplique
+    # automáticamente justo antes de generar la factura de su próximo periodo.
+    pending_plan_id: Mapped[uuid.UUID | None] = mapped_column(
+        Uuid(native_uuid=False), ForeignKey("plans.id", ondelete="SET NULL"), nullable=True
+    )
+    pending_plan_requested_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), nullable=False
     )
@@ -68,6 +75,7 @@ class Client(Base):
 
     # Relaciones
     router = relationship("Router")
+    pending_plan = relationship("Plan", foreign_keys=[pending_plan_id])
     client_plans = relationship("ClientPlan", back_populates="client", cascade="all, delete-orphan")
     static_ip = relationship("StaticIP", back_populates="client", uselist=False, cascade="all, delete-orphan")
     pppoe_secret = relationship("PPPoESecret", back_populates="client", uselist=False, cascade="all, delete-orphan")

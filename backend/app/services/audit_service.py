@@ -57,6 +57,9 @@ class AuditAction:
     # Pagos
     CREATE_PAYMENT = "CREATE_PAYMENT"
     CREATE_INVOICE = "CREATE_INVOICE"
+    UPDATE_INVOICE = "UPDATE_INVOICE"
+    VOID_INVOICE = "VOID_INVOICE"
+    DELETE_INVOICE = "DELETE_INVOICE"
     GENERATE_MONTHLY_INVOICES = "GENERATE_MONTHLY_INVOICES"
     MARK_INVOICES_OVERDUE = "MARK_INVOICES_OVERDUE"
 
@@ -138,6 +141,9 @@ ACTION_DEFAULTS: dict[str, tuple[str, str, str]] = {
     AuditAction.DELETE_PLAN: ("Plan", "Plan", "Plan eliminado"),
     AuditAction.CREATE_PAYMENT: ("Payment", "Pago", "Pago registrado"),
     AuditAction.CREATE_INVOICE: ("Invoice", "Factura", "Factura creada"),
+    AuditAction.UPDATE_INVOICE: ("Invoice", "Factura", "Factura editada"),
+    AuditAction.VOID_INVOICE: ("Invoice", "Factura", "Factura anulada"),
+    AuditAction.DELETE_INVOICE: ("Invoice", "Factura", "Factura eliminada"),
     AuditAction.GENERATE_MONTHLY_INVOICES: ("InvoiceBatch", "Facturación mensual", "Facturas mensuales generadas"),
     AuditAction.MARK_INVOICES_OVERDUE: ("InvoiceBatch", "Control de vencimientos", "Facturas vencidas actualizadas"),
     AuditAction.UPDATE_COMPANY: ("Company", "Empresa", "Datos de empresa actualizados"),

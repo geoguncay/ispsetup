@@ -2,14 +2,16 @@
  * InvoicesPage — Portal global de gestión de facturas y cobros para ISP.
  */
 import { useState } from 'react'
-import { useQuery, useQueryClient } from '@tanstack/react-query'
+import { createPortal } from 'react-dom'
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Link } from 'react-router-dom'
-import { Receipt, Search, AlertTriangle, CheckCircle2, Clock, Download, PlusCircle, RefreshCw, CreditCard, User, AlertCircle
+import { Receipt, Search, AlertTriangle, CheckCircle2, Clock, Download, PlusCircle, RefreshCw, CreditCard, User, AlertCircle, Ban, Trash2, Pencil
 } from 'lucide-react'
 import api from '@/services/api'
 import { useAuthStore } from '@/stores/authStore'
 import { PaymentRegisterDialog } from '@/components/PaymentRegisterDialog'
 import { InvoiceCreateDialog } from '@/components/InvoiceCreateDialog'
+import { InvoiceEditDialog } from '@/components/InvoiceEditDialog'
 import { useDateFormat } from '@/hooks/useDateFormat'
 import { formatDate } from '@/lib/utils'
 
@@ -21,12 +23,18 @@ export function InvoicesPage() {
   // Filtros locales
   const [search, setSearch] = useState('')
   const [invoiceCreateOpen, setInvoiceCreateOpen] = useState(false)
-  const [statusFilter, setStatusFilter] = useState<'all' | 'pending' | 'overdue' | 'paid'>('all')
+  const [statusFilter, setStatusFilter] = useState<'all' | 'pending' | 'overdue' | 'paid' | 'cancelled'>('all')
   const [onlyOverdue, setOnlyOverdue] = useState(false)
 
   // Estado para Diálogo de Cobro
   const [selectedInvoice, setSelectedInvoice] = useState<any>(null)
   const [receiptLoadingMap, setReceiptLoadingMap] = useState<Record<string, boolean>>({})
+
+  // Estado para anular / editar / eliminar factura
+  const [voidErrorMap, setVoidErrorMap] = useState<Record<string, string>>({})
+  const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null)
+  const [deleteErrorMsg, setDeleteErrorMsg] = useState<string | null>(null)
+  const [editingInvoice, setEditingInvoice] = useState<any>(null)
 
   // Consultar facturas de la API
   const { data: invoices = [], isLoading, error } = useQuery({
@@ -69,6 +77,36 @@ export function InvoicesPage() {
     }
   }
 
+  // Anular factura YA PAGADA (queda marcada como "cancelled" y también anula su pago)
+  const voidMutation = useMutation({
+    mutationFn: async (invoiceId: string) => {
+      await api.post(`/invoices/${invoiceId}/void`)
+    },
+    onSuccess: (_data, invoiceId) => {
+      queryClient.invalidateQueries({ queryKey: ['invoices'] })
+      setVoidErrorMap(prev => { const next = { ...prev }; delete next[invoiceId]; return next })
+    },
+    onError: (err: any, invoiceId) => {
+      const msg = err?.response?.data?.detail || 'Error al anular la factura'
+      setVoidErrorMap(prev => ({ ...prev, [invoiceId]: msg }))
+    }
+  })
+
+  // Eliminar factura definitivamente (solo sin pagos asociados)
+  const deleteMutation = useMutation({
+    mutationFn: async (invoiceId: string) => {
+      await api.delete(`/invoices/${invoiceId}`)
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['invoices'] })
+      setConfirmDeleteId(null)
+      setDeleteErrorMsg(null)
+    },
+    onError: (err: any) => {
+      setDeleteErrorMsg(err?.response?.data?.detail || 'Error al eliminar la factura')
+    }
+  })
+
   // Filtrado por búsqueda en cliente o cédula
   const filteredInvoices = invoices.filter((inv: any) => {
     const term = search.toLowerCase()
@@ -78,8 +116,10 @@ export function InvoicesPage() {
   })
 
   // Calcular métricas rápidas basadas en el listado completo consultado
-  const totalInvoices = invoices.length
-  const totalAmount = invoices.reduce((sum: number, i: any) => sum + Number(i.amount), 0)
+  // (una factura anulada no cuenta para ningún total: nunca llegó a cobrarse)
+  const billableInvoices = invoices.filter((i: any) => i.status !== 'cancelled')
+  const totalInvoices = billableInvoices.length
+  const totalAmount = billableInvoices.reduce((sum: number, i: any) => sum + Number(i.amount), 0)
   const pendingAmount = invoices.filter((i: any) => i.status === 'pending').reduce((sum: number, i: any) => sum + Number(i.amount), 0)
   const overdueAmount = invoices.filter((i: any) => i.status === 'overdue').reduce((sum: number, i: any) => sum + Number(i.amount), 0)
   const collectedAmount = invoices.filter((i: any) => i.status === 'paid').reduce((sum: number, i: any) => sum + Number(i.amount), 0)
@@ -175,7 +215,7 @@ export function InvoicesPage() {
         <div className="flex flex-wrap items-center gap-3 w-full lg:w-auto justify-end">
           {/* Selector Estado */}
           <div className="flex bg-secondary/30 border border-border p-1 rounded-lg">
-            {(['all', 'pending', 'overdue', 'paid'] as const).map((st) => (
+            {(['all', 'pending', 'overdue', 'paid', 'cancelled'] as const).map((st) => (
               <button
                 key={st}
                 onClick={() => setStatusFilter(st)}
@@ -265,34 +305,69 @@ export function InvoicesPage() {
                           ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/25'
                           : inv.status === 'pending'
                             ? 'bg-amber-500/10 text-amber-400 border-amber-500/25'
-                            : 'bg-rose-500/10 text-rose-400 border-rose-500/25'
+                            : inv.status === 'cancelled'
+                              ? 'bg-slate-500/10 text-slate-400 border-slate-500/25'
+                              : 'bg-rose-500/10 text-rose-400 border-rose-500/25'
                         }`}>
-                        {inv.status.toUpperCase()}
+                        {inv.status === 'cancelled' ? 'ANULADA' : inv.status.toUpperCase()}
                       </span>
                     </td>
                     <td className="text-right">
-                      <div className="flex gap-2 justify-end">
-                        {(inv.status === 'pending' || inv.status === 'overdue') && (
-                          <button
-                            onClick={() => setSelectedInvoice(inv)}
-                            className="bg-emerald-600 hover:bg-emerald-700 text-white font-semibold text-xs px-2.5 py-1.5 rounded-md flex items-center gap-1 cursor-pointer transition-all shadow-sm shadow-emerald-600/10"
-                          >
-                            <CreditCard className="w-3.5 h-3.5" /> Registrar Cobro
-                          </button>
-                        )}
-                        {inv.status === 'paid' && inv.payment_id && (
-                          <button
-                            disabled={receiptLoadingMap[inv.payment_id]}
-                            onClick={() => handleDownloadReceipt(inv.payment_id)}
-                            className="bg-primary/20 hover:bg-primary/30 text-primary border border-primary/30 font-semibold text-xs px-2.5 py-1.5 rounded-md flex items-center gap-1 cursor-pointer transition-all disabled:opacity-50"
-                          >
-                            {receiptLoadingMap[inv.payment_id] ? (
-                              <RefreshCw className="w-3.5 h-3.5 animate-spin" />
-                            ) : (
-                              <Download className="w-3.5 h-3.5" />
-                            )}
-                            Recibo PDF
-                          </button>
+                      <div className="flex flex-col items-end gap-1">
+                        <div className="flex gap-2 justify-end">
+                          {(inv.status === 'pending' || inv.status === 'overdue') && (
+                            <>
+                              <button
+                                onClick={() => setSelectedInvoice(inv)}
+                                className="bg-emerald-600 hover:bg-emerald-700 text-white font-semibold text-xs px-2.5 py-1.5 rounded-md flex items-center gap-1 cursor-pointer transition-all shadow-sm shadow-emerald-600/10"
+                              >
+                                <CreditCard className="w-3.5 h-3.5" /> Registrar Cobro
+                              </button>
+                              <button
+                                onClick={() => setEditingInvoice(inv)}
+                                title="Editar factura"
+                                className="bg-secondary hover:bg-secondary/80 text-muted-foreground hover:text-foreground border border-border font-semibold text-xs px-2.5 py-1.5 rounded-md flex items-center gap-1 cursor-pointer transition-all"
+                              >
+                                <Pencil className="w-3.5 h-3.5" /> Editar
+                              </button>
+                              <button
+                                onClick={() => { setConfirmDeleteId(inv.id); setDeleteErrorMsg(null) }}
+                                title="Eliminar factura"
+                                className="bg-rose-500/10 hover:bg-rose-500/20 text-rose-400 border border-rose-500/25 font-semibold text-xs px-2.5 py-1.5 rounded-md flex items-center gap-1 cursor-pointer transition-all"
+                              >
+                                <Trash2 className="w-3.5 h-3.5" /> Eliminar
+                              </button>
+                            </>
+                          )}
+                          {inv.status === 'paid' && (
+                            <>
+                              {inv.payment_id && (
+                                <button
+                                  disabled={receiptLoadingMap[inv.payment_id]}
+                                  onClick={() => handleDownloadReceipt(inv.payment_id)}
+                                  className="bg-primary/20 hover:bg-primary/30 text-primary border border-primary/30 font-semibold text-xs px-2.5 py-1.5 rounded-md flex items-center gap-1 cursor-pointer transition-all disabled:opacity-50"
+                                >
+                                  {receiptLoadingMap[inv.payment_id] ? (
+                                    <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                                  ) : (
+                                    <Download className="w-3.5 h-3.5" />
+                                  )}
+                                  Recibo PDF
+                                </button>
+                              )}
+                              <button
+                                disabled={voidMutation.isPending}
+                                onClick={() => voidMutation.mutate(inv.id)}
+                                title="Anular factura (también anula el pago)"
+                                className="bg-secondary hover:bg-secondary/80 text-muted-foreground hover:text-foreground border border-border font-semibold text-xs px-2.5 py-1.5 rounded-md flex items-center gap-1 cursor-pointer transition-all disabled:opacity-50"
+                              >
+                                <Ban className="w-3.5 h-3.5" /> Anular
+                              </button>
+                            </>
+                          )}
+                        </div>
+                        {voidErrorMap[inv.id] && (
+                          <span className="text-[10px] text-rose-400 max-w-[220px] text-right">{voidErrorMap[inv.id]}</span>
                         )}
                       </div>
                     </td>
@@ -322,6 +397,51 @@ export function InvoicesPage() {
           queryClient.invalidateQueries({ queryKey: ['invoices'] })
         }}
       />
+
+      {/* Modal Editar Factura */}
+      <InvoiceEditDialog
+        isOpen={editingInvoice !== null}
+        onClose={() => setEditingInvoice(null)}
+        invoice={editingInvoice}
+        onSuccess={() => {
+          queryClient.invalidateQueries({ queryKey: ['invoices'] })
+        }}
+      />
+
+      {/* Modal Confirmar Eliminación de Factura */}
+      {confirmDeleteId && createPortal(
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">
+          <div className="glass-card p-6 w-full max-w-sm mx-4 animate-fade-in">
+            <h3 className="text-lg font-semibold text-foreground mb-2">¿Eliminar factura?</h3>
+            <p className="text-muted-foreground text-sm mb-4">
+              Esta acción no se puede deshacer. Solo se puede eliminar si no tiene ningún pago registrado.
+            </p>
+
+            {deleteErrorMsg && (
+              <div className="p-3 mb-4 rounded bg-destructive/10 border border-destructive/20 text-destructive text-xs animate-fade-in">
+                {deleteErrorMsg}
+              </div>
+            )}
+
+            <div className="flex gap-3">
+              <button
+                onClick={() => { setConfirmDeleteId(null); setDeleteErrorMsg(null) }}
+                className="btn-secondary flex-1 justify-center"
+              >
+                Cancelar
+              </button>
+              <button
+                onClick={() => deleteMutation.mutate(confirmDeleteId)}
+                disabled={deleteMutation.isPending}
+                className="btn-destructive flex-1 justify-center"
+              >
+                {deleteMutation.isPending ? 'Eliminando...' : 'Eliminar'}
+              </button>
+            </div>
+          </div>
+        </div>,
+        document.body
+      )}
     </div>
   )
 }

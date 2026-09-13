@@ -148,7 +148,50 @@ class ClientUpdate(BaseModel):
         return v
 
 
+class PlanChangeResult(BaseModel):
+    """Resultado de POST /clients/{id}/assign-plan."""
+    mode: str  # "immediate" | "next_period"
+    message: str
+    adjustment_invoice_id: uuid.UUID | None = None
+    adjustment_amount: float | None = None
+
+
+class PlanChangePreview(BaseModel):
+    """Resultado de GET /clients/{id}/plan-change-preview: detalle y cálculos antes de confirmar el cambio."""
+    old_plan: PlanResponse | None = None
+    new_plan: PlanResponse
+    is_same_plan: bool
+    days_remaining: int
+    days_in_period: int
+    period_start: datetime
+    period_end: datetime
+    immediate_adjustment_amount: float
+    next_period_amount: float
+
+
 # Schema para ClientPlan
+class InvoicePeriodPreview(BaseModel):
+    """Una entrada (la factura actual o la proyección de la siguiente) de
+    GET /clients/{id}/next-invoice-preview."""
+    period: str
+    amount: float
+    due_date: datetime
+    is_prorated: bool
+    can_generate: bool
+    invoice_id: uuid.UUID | None = None
+    invoice_status: str | None = None
+
+
+class NextInvoicePreview(BaseModel):
+    """Resultado de GET /clients/{id}/next-invoice-preview: la factura del
+    periodo más antiguo aún sin pagar (`current`, la que muestra y genera el
+    botón "Generar Factura" del modal) y la proyección del periodo siguiente
+    (`next`, solo informativa)."""
+    plan_name: str
+    current: InvoicePeriodPreview
+    next: InvoicePeriodPreview
+
+
 class ClientPlanResponse(BaseModel):
     model_config = {"from_attributes": True}
 
@@ -196,6 +239,9 @@ class ClientResponse(ClientBase):
     scheduled_suspension: datetime | None = None
     scheduled_suspension_reason: str | None = None
     scheduled_reactivation: datetime | None = None
+    pending_plan_id: uuid.UUID | None = None
+    pending_plan_requested_at: datetime | None = None
+    pending_plan: PlanResponse | None = None
 
 
 # Schema de respuesta de listado de clientes con paginación

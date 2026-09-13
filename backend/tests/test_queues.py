@@ -141,8 +141,8 @@ def test_create_client_creates_queue(mock_sync_queue, mock_sync_ip, client: Test
     )
 
 
-@patch("app.api.clients.sync_ip_in_address_list")
-@patch("app.api.clients.sync_client_queue")
+@patch("app.services.plan_change.sync_ip_in_address_list")
+@patch("app.services.plan_change.sync_client_queue")
 def test_assign_plan_updates_queue(mock_sync_queue, mock_sync_ip, client: TestClient):
     login = client.post(
         "/api/auth/login",

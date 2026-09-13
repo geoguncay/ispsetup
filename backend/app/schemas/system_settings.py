@@ -57,6 +57,11 @@ class FiscalSettingsRead(BaseModel):
     fiscal_tax_name: str
     fiscal_invoice_prefix: str
     fiscal_invoice_next_number: int
+    # No es un campo "fiscal" en sentido estricto, pero se expone aquí para que
+    # cualquier usuario autenticado (no solo admin) pueda calcular el precio
+    # total de Planes/Servicios respetando si billing_price_mode es "included"
+    # (el precio ya trae el impuesto) o "excluded" (hay que sumarlo).
+    billing_price_mode: str
 
 
 # ── Notificaciones (SMTP — solo configuración, sin envío real aún) ──────────
