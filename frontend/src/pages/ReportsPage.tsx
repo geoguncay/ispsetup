@@ -1,6 +1,7 @@
 /**
  * ReportsPage — Módulo de reportes (Fase 4.3): ingresos, clientes, consumo y mora,
  * cada uno con selector de período/filtros y descarga en PDF / Excel.
+ * Cada reporte es una página propia (/reports/revenue, /reports/clients, ...).
  */
 import { useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
@@ -13,8 +14,9 @@ import {
 } from 'recharts'
 import api from '@/services/api'
 import { formatVolume } from '@/lib/traffic'
+import { SubscribersStatsPage } from '@/pages/SubscribersStatsPage'
 
-type ReportTab = 'revenue' | 'clients' | 'consumption' | 'overdue'
+type ReportType = 'revenue' | 'clients' | 'consumption' | 'overdue'
 
 // ── Tipos (mirror de backend/app/schemas/reports.py) ──────────────────────────
 interface RevenuePeriodPoint { label: string; amount: number; payments_count: number }
@@ -45,14 +47,7 @@ interface OverdueReport {
   total_amount: number; total_invoices: number; total_clients: number; items: OverdueInvoicePoint[]
 }
 
-const TABS: { id: ReportTab; label: string; icon: typeof Receipt }[] = [
-  { id: 'revenue', label: 'Ingresos', icon: DollarSign },
-  { id: 'clients', label: 'Clientes', icon: Users },
-  { id: 'consumption', label: 'Consumo', icon: Activity },
-  { id: 'overdue', label: 'Mora', icon: AlertTriangle },
-]
-
-async function downloadReport(reportType: ReportTab, format: 'pdf' | 'excel', params: Record<string, string>) {
+async function downloadReport(reportType: ReportType, format: 'pdf' | 'excel', params: Record<string, string>) {
   const query = new URLSearchParams(params).toString()
   const response = await api.get(`/reports/${reportType}/${format}${query ? `?${query}` : ''}`, { responseType: 'blob' })
   const ext = format === 'pdf' ? 'pdf' : 'xlsx'
@@ -70,7 +65,7 @@ async function downloadReport(reportType: ReportTab, format: 'pdf' | 'excel', pa
   window.URL.revokeObjectURL(url)
 }
 
-function ExportButtons({ reportType, params }: { reportType: ReportTab; params: Record<string, string> }) {
+function ExportButtons({ reportType, params }: { reportType: ReportType; params: Record<string, string> }) {
   const [loading, setLoading] = useState<'pdf' | 'excel' | null>(null)
 
   const handle = async (format: 'pdf' | 'excel') => {
@@ -126,8 +121,19 @@ function KpiCard({ label, value, icon: Icon, accent }: { label: string; value: s
   )
 }
 
+function ReportHeader({ title, description, icon: Icon }: { title: string; description: string; icon: typeof Receipt }) {
+  return (
+    <div>
+      <h1 className="text-xl font-bold text-foreground flex items-center gap-2">
+        <Icon className="w-5 h-5 text-brand-400" /> {title}
+      </h1>
+      <p className="text-muted-foreground text-xs mt-1">{description}</p>
+    </div>
+  )
+}
+
 // ── Ingresos ──────────────────────────────────────────────────────────────────
-function RevenueTab() {
+export function RevenueReportPage() {
   const [groupBy, setGroupBy] = useState<'month' | 'quarter' | 'year'>('month')
   const [dateFrom, setDateFrom] = useState('')
   const [dateTo, setDateTo] = useState('')
@@ -143,6 +149,7 @@ function RevenueTab() {
 
   return (
     <div className="space-y-4">
+      <ReportHeader title="Reporte de Ingresos" description="Ingresos por período, plan y sede, con exportación a PDF y Excel." icon={DollarSign} />
       <div className="glass-card p-4 flex flex-wrap items-end justify-between gap-3">
         <div className="flex flex-wrap items-end gap-3">
           <div className="flex flex-col gap-1">
@@ -219,7 +226,7 @@ function RevenueTab() {
 }
 
 // ── Clientes ──────────────────────────────────────────────────────────────────
-function ClientsTab() {
+export function ClientsReportPage() {
   const [dateFrom, setDateFrom] = useState('')
   const [dateTo, setDateTo] = useState('')
   const params: Record<string, string> = {}
@@ -233,6 +240,7 @@ function ClientsTab() {
 
   return (
     <div className="space-y-4">
+      <ReportHeader title="Reporte de Clientes" description="Evolución de clientes y estadísticas de suscriptores, con exportación a PDF y Excel." icon={Users} />
       <div className="glass-card p-4 flex flex-wrap items-end justify-between gap-3">
         <DateRangeFilters dateFrom={dateFrom} dateTo={dateTo} onFrom={setDateFrom} onTo={setDateTo} />
         <ExportButtons reportType="clients" params={params} />
@@ -264,12 +272,16 @@ function ClientsTab() {
           </div>
         </>
       )}
+
+      <div className="border-t border-border/50 pt-6">
+        <SubscribersStatsPage />
+      </div>
     </div>
   )
 }
 
 // ── Consumo ───────────────────────────────────────────────────────────────────
-function ConsumptionTab() {
+export function ConsumptionReportPage() {
   const [dateFrom, setDateFrom] = useState('')
   const [dateTo, setDateTo] = useState('')
   const params: Record<string, string> = {}
@@ -283,6 +295,8 @@ function ConsumptionTab() {
 
   return (
     <div className="space-y-4">
+      <ReportHeader title="Reporte de Consumo" description="Top consumidores, promedio por plan y horas pico, con exportación a PDF y Excel." icon={Activity} />
+      
       <div className="glass-card p-4 flex flex-wrap items-end justify-between gap-3">
         <DateRangeFilters dateFrom={dateFrom} dateTo={dateTo} onFrom={setDateFrom} onTo={setDateTo} />
         <ExportButtons reportType="consumption" params={params} />
@@ -342,12 +356,13 @@ function ConsumptionTab() {
           </div>
         </>
       )}
+
     </div>
   )
 }
 
 // ── Mora ──────────────────────────────────────────────────────────────────────
-function OverdueTab() {
+export function OverdueReportPage() {
   const { data, isLoading } = useQuery<OverdueReport>({
     queryKey: ['reports-overdue'],
     queryFn: async () => (await api.get('/reports/overdue')).data,
@@ -355,6 +370,7 @@ function OverdueTab() {
 
   return (
     <div className="space-y-4">
+      <ReportHeader title="Reporte de Mora" description="Facturas vencidas y clientes en mora, con exportación a PDF y Excel." icon={AlertTriangle} />
       <div className="flex justify-end"><ExportButtons reportType="overdue" params={{}} /></div>
 
       {isLoading || !data ? (
@@ -393,46 +409,6 @@ function OverdueTab() {
           </div>
         </>
       )}
-    </div>
-  )
-}
-
-// ── Contenedor ────────────────────────────────────────────────────────────────
-export function ReportsPage() {
-  const [activeTab, setActiveTab] = useState<ReportTab>('revenue')
-
-  return (
-    <div className="space-y-6">
-      <div>
-        <h1 className="text-xl font-bold text-foreground flex items-center gap-2">
-          <TrendingUp className="w-5 h-5 text-brand-400" /> Reportes
-        </h1>
-        <p className="text-muted-foreground text-xs mt-1">Ingresos, clientes, consumo y mora, con exportación a PDF y Excel.</p>
-      </div>
-
-      <div className="flex gap-1 border-b border-border/50">
-        {TABS.map((tab) => {
-          const Icon = tab.icon
-          return (
-            <button
-              key={tab.id}
-              onClick={() => setActiveTab(tab.id)}
-              className={`flex items-center gap-2 px-4 py-2.5 text-sm font-medium border-b-2 transition-colors ${
-                activeTab === tab.id
-                  ? 'border-brand-500 text-brand-400'
-                  : 'border-transparent text-muted-foreground hover:text-foreground'
-              }`}
-            >
-              <Icon className="w-4 h-4" /> {tab.label}
-            </button>
-          )
-        })}
-      </div>
-
-      {activeTab === 'revenue' && <RevenueTab />}
-      {activeTab === 'clients' && <ClientsTab />}
-      {activeTab === 'consumption' && <ConsumptionTab />}
-      {activeTab === 'overdue' && <OverdueTab />}
     </div>
   )
 }

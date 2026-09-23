@@ -1,5 +1,5 @@
 /**
- * SubscribersStatsPage — Visualización de estadísticas generales e informes de suscriptores.
+ * SubscribersStatsPage — Estadísticas de suscriptores. Se muestra como sección dentro de Reportes → Clientes.
  */
 import { useState, useMemo } from 'react'
 import { useQuery } from '@tanstack/react-query'
@@ -158,11 +158,10 @@ export function SubscribersStatsPage() {
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 ">
         <div>
-          <h1 className="sm:text-2xl font-bold text-foreground flex items-center gap-2">
-            {/* graphing chart */}
-            <BarChart2 className="w-6 h-6 text-cyan-400 animate-pulse" />
+          <h2 className="text-lg font-bold text-foreground flex items-center gap-2">
+            <BarChart2 className="w-5 h-5 text-cyan-400" />
             Estadísticas de Suscriptores
-          </h1>
+          </h2>
         </div>
         <button
           onClick={handleRefresh}

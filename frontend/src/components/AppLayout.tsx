@@ -7,7 +7,7 @@ import { useQuery } from '@tanstack/react-query'
 import {
   LayoutDashboard, Router, Users,
   LogOut, Menu, X, ChevronDown, Activity, Settings, Network,
-  Zap, Building, Sliders, BarChart2, Receipt, DollarSign, Package, Truck,
+  Zap, Building, Sliders, BarChart2, AlertTriangle, Receipt, DollarSign, Package, Truck,
   Bell, TrendingUp,
 } from 'lucide-react'
 import { useAuthStore } from '@/stores/authStore'
@@ -38,7 +38,6 @@ const navItems: NavItem[] = [
     roles: ['admin', 'technician'],
     items: [
       { to: '/routers', icon: Router, label: 'Routers' },
-      { to: '/traffic', icon: Activity, label: 'Tráfico' },
     ]
   },
   {
@@ -47,7 +46,6 @@ const navItems: NavItem[] = [
     roles: ['admin', 'technician'],
     items: [
       { to: '/clients', icon: Users, label: 'Clientes' },
-      { to: '/subscribers/stats', icon: BarChart2, label: 'Estadísticas' },
     ]
   },
   {
@@ -66,7 +64,18 @@ const navItems: NavItem[] = [
     items: [
       { to: '/invoices', icon: Receipt, label: 'Facturas' },
       { to: '/payments', icon: DollarSign, label: 'Pagos' },
-      { to: '/reports', icon: TrendingUp, label: 'Reportes' },
+    ]
+  },
+  {
+    label: 'Reportes',
+    icon: TrendingUp,
+    roles: ['admin', 'technician'],
+    items: [
+      { to: '/reports/revenue', icon: DollarSign, label: 'Ingresos' },
+      { to: '/reports/clients', icon: Users, label: 'Clientes' },
+      { to: '/reports/traffic', icon: Activity, label: 'Tráfico' },
+      { to: '/reports/consumption', icon: BarChart2, label: 'Consumo' },
+      { to: '/reports/overdue', icon: AlertTriangle, label: 'Mora' },
     ]
   },
   {

@@ -2,7 +2,7 @@
  * App.tsx — Router principal de la aplicación.
  */
 import { useEffect } from 'react'
-import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
+import { BrowserRouter, Routes, Route, Navigate, useSearchParams } from 'react-router-dom'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { useAuthStore } from '@/stores/authStore'
 import { ProtectedRoute } from '@/components/ProtectedRoute'
@@ -15,12 +15,11 @@ import { ClientsPage } from '@/pages/ClientsPage'
 import { ClientProfilePage } from '@/pages/ClientProfilePage'
 import { PlansPage } from '@/pages/PlansPage'
 import { RouterProfilePage } from '@/pages/RouterProfilePage'
-import { TrafficPage } from '@/pages/TrafficPage'
 import { CustomServicesPage } from '@/pages/CustomServicesPage'
-import { SubscribersStatsPage } from '@/pages/SubscribersStatsPage'
 import { InvoicesPage } from '@/pages/InvoicesPage'
 import { PaymentsPage } from '@/pages/PaymentsPage'
-import { ReportsPage } from '@/pages/ReportsPage'
+import { RevenueReportPage, ClientsReportPage, ConsumptionReportPage, OverdueReportPage } from '@/pages/ReportsPage'
+import { TrafficPage } from '@/pages/TrafficPage'
 import { InventoryPage } from '@/pages/InventoryPage'
 import { ProvidersPage } from '@/pages/ProvidersPage'
 import { SettingsPage } from '@/pages/SettingsPage'
@@ -35,6 +34,14 @@ const queryClient = new QueryClient({
     },
   },
 })
+
+/** /reports (y el antiguo /reports?tab=x) → /reports/<tab>, por defecto Ingresos. */
+function ReportsRedirect() {
+  const [params] = useSearchParams()
+  const tab = params.get('tab')
+  const valid = ['revenue', 'clients', 'consumption', 'overdue', 'traffic']
+  return <Navigate to={`/reports/${tab && valid.includes(tab) ? tab : 'revenue'}`} replace />
+}
 
 function AppContent() {
   const { fetchMe, isAuthenticated } = useAuthStore()
@@ -57,15 +64,20 @@ function AppContent() {
           <Route path="/dashboard" element={<DashboardPage />} />
           <Route path="/routers" element={<Router />} />
           <Route path="/routers/:id" element={<RouterProfilePage />} />
-          <Route path="/traffic" element={<TrafficPage />} />
+          <Route path="/traffic" element={<Navigate to="/reports/traffic" replace />} />
           <Route path="/clients" element={<ClientsPage />} />
           <Route path="/clients/:id" element={<ClientProfilePage />} />
-          <Route path="/subscribers/stats" element={<SubscribersStatsPage />} />
+          <Route path="/subscribers/stats" element={<Navigate to="/reports/clients" replace />} />
           <Route path="/plans" element={<PlansPage />} />
           <Route path="/custom-services" element={<CustomServicesPage />} />
           <Route path="/invoices" element={<InvoicesPage />} />
           <Route path="/payments" element={<PaymentsPage />} />
-          <Route path="/reports" element={<ReportsPage />} />
+          <Route path="/reports" element={<ReportsRedirect />} />
+          <Route path="/reports/revenue" element={<RevenueReportPage />} />
+          <Route path="/reports/clients" element={<ClientsReportPage />} />
+          <Route path="/reports/traffic" element={<TrafficPage />} />
+          <Route path="/reports/consumption" element={<ConsumptionReportPage />} />
+          <Route path="/reports/overdue" element={<OverdueReportPage />} />
           <Route path="/inventory" element={<InventoryPage />} />
           <Route path="/providers" element={<ProvidersPage />} />
           <Route path="/profile" element={<ProfilePage />} />

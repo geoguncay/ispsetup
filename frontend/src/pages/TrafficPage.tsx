@@ -1,5 +1,5 @@
 /**
- * TrafficPage — Monitoreo de tráfico de red en tiempo real.
+ * TrafficPage — Monitoreo de tráfico de red en tiempo real. Disponible en Reportes → Tráfico.
  */
 import React, { useState, useEffect, useMemo } from 'react'
 import { useQuery } from '@tanstack/react-query'
