@@ -8,7 +8,7 @@ import {
   LayoutDashboard, Router, Users,
   LogOut, Menu, X, ChevronDown, Activity, Settings, Network,
   Zap, Building, Sliders, BarChart2, AlertTriangle, Receipt, DollarSign, Package, Truck,
-  Bell, TrendingUp,
+  Bell, TrendingUp, Shuffle,
 } from 'lucide-react'
 import { useAuthStore } from '@/stores/authStore'
 import api from '@/services/api'
@@ -38,6 +38,7 @@ const navItems: NavItem[] = [
     roles: ['admin', 'technician'],
     items: [
       { to: '/routers', icon: Router, label: 'Routers' },
+      { to: '/load-balancers', icon: Shuffle, label: 'Balanceadores' },
     ]
   },
   {

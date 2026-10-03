@@ -10,6 +10,8 @@ import { AppLayout } from '@/components/AppLayout'
 import { LoginPage } from '@/pages/LoginPage'
 import { DashboardPage } from '@/pages/DashboardPage'
 import { Router } from '@/pages/RouterPage'
+import { LoadBalancerPage } from '@/pages/LoadBalancerPage'
+import { LoadBalancerProfilePage } from '@/pages/LoadBalancerProfilePage'
 import { ProfilePage } from '@/pages/ProfilePage'
 import { ClientsPage } from '@/pages/ClientsPage'
 import { ClientProfilePage } from '@/pages/ClientProfilePage'
@@ -64,6 +66,8 @@ function AppContent() {
           <Route path="/dashboard" element={<DashboardPage />} />
           <Route path="/routers" element={<Router />} />
           <Route path="/routers/:id" element={<RouterProfilePage />} />
+          <Route path="/load-balancers" element={<LoadBalancerPage />} />
+          <Route path="/load-balancers/:id" element={<LoadBalancerProfilePage />} />
           <Route path="/traffic" element={<Navigate to="/reports/traffic" replace />} />
           <Route path="/clients" element={<ClientsPage />} />
           <Route path="/clients/:id" element={<ClientProfilePage />} />

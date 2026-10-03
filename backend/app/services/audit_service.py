@@ -37,6 +37,13 @@ class AuditAction:
     SYNC_GATEWAY = "SYNC_GATEWAY"
     TERMINATE_PPPOE_SESSION = "TERMINATE_PPPOE_SESSION"
 
+    # Balanceadores de carga
+    CREATE_LOAD_BALANCER = "CREATE_LOAD_BALANCER"
+    UPDATE_LOAD_BALANCER = "UPDATE_LOAD_BALANCER"
+    DELETE_LOAD_BALANCER = "DELETE_LOAD_BALANCER"
+    TEST_LOAD_BALANCER_CONNECTION = "TEST_LOAD_BALANCER_CONNECTION"
+    APPLY_LOAD_BALANCER_SCRIPT = "APPLY_LOAD_BALANCER_SCRIPT"
+
     # Clientes
     CREATE_CLIENT = "CREATE_CLIENT"
     UPDATE_CLIENT = "UPDATE_CLIENT"
@@ -126,6 +133,11 @@ ACTION_DEFAULTS: dict[str, tuple[str, str, str]] = {
     AuditAction.SYNC_PPPOE_PROFILES: ("Router", "Router", "Perfiles PPPoE sincronizados"),
     AuditAction.SYNC_GATEWAY: ("Router", "Router", "Sincronización con router ejecutada"),
     AuditAction.TERMINATE_PPPOE_SESSION: ("Router", "Router", "Sesión PPPoE terminada"),
+    AuditAction.CREATE_LOAD_BALANCER: ("LoadBalancer", "Balanceador de carga", "Balanceador de carga creado"),
+    AuditAction.UPDATE_LOAD_BALANCER: ("LoadBalancer", "Balanceador de carga", "Balanceador de carga actualizado"),
+    AuditAction.DELETE_LOAD_BALANCER: ("LoadBalancer", "Balanceador de carga", "Balanceador de carga eliminado"),
+    AuditAction.TEST_LOAD_BALANCER_CONNECTION: ("LoadBalancer", "Balanceador de carga", "Prueba de conexión ejecutada"),
+    AuditAction.APPLY_LOAD_BALANCER_SCRIPT: ("LoadBalancer", "Balanceador de carga", "Script de balanceo ejecutado"),
     AuditAction.CREATE_CLIENT: ("Client", "Cliente", "Cliente creado"),
     AuditAction.UPDATE_CLIENT: ("Client", "Cliente", "Cliente actualizado"),
     AuditAction.DELETE_CLIENT: ("Client", "Cliente", "Cliente eliminado"),

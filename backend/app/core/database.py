@@ -892,6 +892,12 @@ def run_migrations(bind_engine) -> None:
             conn.execute(text("ALTER TABLE system_settings ADD COLUMN IF NOT EXISTS zt_api_token_encrypted TEXT;"))
             conn.execute(text("ALTER TABLE system_settings ADD COLUMN IF NOT EXISTS zt_enabled BOOLEAN NOT NULL DEFAULT FALSE;"))
             conn.execute(text("ALTER TABLE routers ADD COLUMN IF NOT EXISTS zerotier_node_id VARCHAR(20);"))
+            conn.execute(text("ALTER TABLE load_balancers ADD COLUMN IF NOT EXISTS zerotier_node_id VARCHAR(20);"))
+            conn.execute(text("ALTER TABLE load_balancers ADD COLUMN IF NOT EXISTS algorithm VARCHAR(20) NOT NULL DEFAULT 'pcc';"))
+            conn.execute(text("ALTER TABLE load_balancers ADD COLUMN IF NOT EXISTS wan_links JSONB;"))
+            conn.execute(text("ALTER TABLE load_balancers ADD COLUMN IF NOT EXISTS last_script_source TEXT;"))
+            conn.execute(text("ALTER TABLE load_balancers ADD COLUMN IF NOT EXISTS last_script_applied_at TIMESTAMP WITH TIME ZONE;"))
+            conn.execute(text("ALTER TABLE load_balancers ADD COLUMN IF NOT EXISTS last_script_status VARCHAR(20);"))
             # Renombrar columnas en español de system_settings que tenían un ADD COLUMN
             # histórico con el nombre viejo (deben ejecutarse antes de los ADD COLUMN de abajo).
             conn.execute(text("""

@@ -7,16 +7,28 @@ import logging
 import ssl
 import time
 from contextlib import contextmanager
-from typing import Generator
+from typing import Generator, Protocol, runtime_checkable
 
 import librouteros
 from librouteros import connect
 from librouteros.api import Api
 
 from app.core.security import decrypt_secret
-from app.models.router import Router
 
 logger = logging.getLogger(__name__)
+
+
+@runtime_checkable
+class RouterOSDevice(Protocol):
+    """
+    Cualquier equipo que se conecte por la API RouterOS (Router, LoadBalancer, ...).
+    RouterPool solo necesita estos atributos, no un modelo SQLAlchemy concreto.
+    """
+    name: str
+    ip: str
+    api_port: int
+    api_username: str
+    password_enc: str
 
 MAX_CONNECTIONS_PER_GATEWAY = 2
 _CONFIG_TTL = 60  # segundos de vida del caché de configuración
@@ -94,7 +106,7 @@ class RouterPool:
         return ctx.wrap_socket
 
     @contextmanager
-    def connect_to(self, router: Router) -> Generator[Api, None, None]:
+    def connect_to(self, router: RouterOSDevice) -> Generator[Api, None, None]:
         """
         Context manager síncrono que devuelve una conexión activa al router.
         Aplica timeout, attempts y ssl desde SystemSettings.

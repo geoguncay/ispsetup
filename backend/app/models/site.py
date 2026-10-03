@@ -32,6 +32,8 @@ class Site(Base):
 
     # Relación de uno a muchos con Router
     routers = relationship("Router", back_populates="site")
+    # Relación de uno a muchos con LoadBalancer
+    load_balancers = relationship("LoadBalancer", back_populates="site")
 
     def __repr__(self) -> str:
         return f"<Site id={self.id} name={self.name}>"

@@ -5,6 +5,8 @@ export const ACTION_LABELS: Record<string, string> = {
   GATEWAY_ONLINE: 'Router en línea', GATEWAY_OFFLINE: 'Router fuera de línea', IMPORT_CLIENTS: 'Clientes importados del router',
   TEST_GATEWAY_CONNECTION: 'Conexión de router probada', UPDATE_GATEWAY_QUEUE: 'Cola padre actualizada',
   SYNC_PPPOE_PROFILES: 'Perfiles PPPoE sincronizados', SYNC_GATEWAY: 'Router sincronizado', TERMINATE_PPPOE_SESSION: 'Sesión PPPoE terminada',
+  CREATE_LOAD_BALANCER: 'Balanceador creado', UPDATE_LOAD_BALANCER: 'Balanceador actualizado', DELETE_LOAD_BALANCER: 'Balanceador eliminado',
+  TEST_LOAD_BALANCER_CONNECTION: 'Conexión de balanceador probada', APPLY_LOAD_BALANCER_SCRIPT: 'Script de balanceo ejecutado',
   CREATE_CLIENT: 'Cliente creado', UPDATE_CLIENT: 'Cliente actualizado', DELETE_CLIENT: 'Cliente eliminado',
   SUSPEND_CLIENT: 'Cliente suspendido', ACTIVATE_CLIENT: 'Cliente activado', SYNC_CLIENT: 'Cliente sincronizado',
   IMPORT_CLIENT_FILE: 'Archivo de clientes importado', CREATE_TICKET: 'Ticket creado', ASSIGN_PLAN: 'Plan asignado', TOGGLE_QUEUE: 'Estado de cola modificado',
@@ -30,7 +32,7 @@ export const ACTION_OPTIONS = Object.entries(ACTION_LABELS)
   .sort((a, b) => a.label.localeCompare(b.label, 'es'))
 
 export const ENTITY_OPTIONS = [
-  ['Router', 'Router'], ['Client', 'Cliente'], ['User', 'Usuario'], ['Plan', 'Plan'],
+  ['Router', 'Router'], ['LoadBalancer', 'Balanceador de carga'], ['Client', 'Cliente'], ['User', 'Usuario'], ['Plan', 'Plan'],
   ['Invoice', 'Factura'], ['InvoiceBatch', 'Facturación'], ['Payment', 'Pago'], ['Company', 'Empresa'],
   ['Site', 'Sitio'], ['Ticket', 'Ticket'], ['CustomService', 'Servicio'], ['Supplier', 'Proveedor'],
   ['ProductCategory', 'Categoría'], ['InventoryItem', 'Inventario'], ['InventoryImport', 'Importación de inventario'],

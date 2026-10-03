@@ -12,8 +12,10 @@ celery_app = Celery(
     backend=settings.REDIS_URL,
     include=[
         "app.workers.health_check",
+        "app.workers.lb_health",
         "app.workers.suspension",
         "app.workers.traffic",
+        "app.workers.lb_traffic",
         "app.workers.billing"
     ],
 )
@@ -30,6 +32,11 @@ celery_app.conf.update(
         # Health check de todos los routers cada 30 segundos
         "check-all-routers-health": {
             "task": "app.workers.health_check.check_all_routers",
+            "schedule": 30.0,  # segundos
+        },
+        # Health check de todos los balanceadores de carga cada 30 segundos
+        "check-all-load-balancers-health": {
+            "task": "app.workers.lb_health.check_all_load_balancers",
             "schedule": 30.0,  # segundos
         },
         # Verificación diaria de suspensiones a la 1:00 AM
@@ -50,6 +57,11 @@ celery_app.conf.update(
         # Monitoreo de tráfico cada 5 segundos
         "poll-traffic-5s": {
             "task": "app.workers.traffic.poll_traffic",
+            "schedule": 5.0,  # segundos
+        },
+        # Monitoreo de interfaces de balanceadores de carga cada 5 segundos
+        "poll-lb-interfaces-5s": {
+            "task": "app.workers.lb_traffic.poll_lb_interfaces",
             "schedule": 5.0,  # segundos
         },
         # Generación de facturas: se evalúa cada hora; el día y la hora reales
