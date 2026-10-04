@@ -818,10 +818,11 @@ export function ClientProfilePage() {
                         {client.billing_type === 'backward' ? 'Postpago' : 'Prepago'}
                       </span>
                     </div>
+                    {client.custom_services && client.custom_services.length > 0 && (
                     <div className="flex flex-col py-1 gap-1">
                       <span className="text-muted-foreground">Servicios Adicionales:</span>
                       <div className="flex flex-wrap gap-1 mt-1">
-                        {client.custom_services && client.custom_services.length > 0 ? (
+                        {(
                           client.custom_services.map((cs: any) => (
                             <span
                               key={cs.id}
@@ -835,11 +836,10 @@ export function ClientProfilePage() {
                               {cs.name} (${Number(cs.price).toFixed(2)})
                             </span>
                           ))
-                        ) : (
-                          <span className="text-[10px] text-muted-foreground italic">Ninguno</span>
                         )}
                       </div>
                     </div>
+                    )}
                   </div>
                 </div>
 
