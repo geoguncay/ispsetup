@@ -1082,7 +1082,7 @@ export function ClientFormDialog({ open, onClose, client, onSuccess }: ClientFor
               }`}
             >
               <Wifi className="w-4 h-4" />
-              Red
+              Red e Internet
             </button>
             <button
               type="button"
