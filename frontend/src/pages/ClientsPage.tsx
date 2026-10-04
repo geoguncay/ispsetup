@@ -7,12 +7,9 @@ import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useNavigate, useLocation } from 'react-router-dom'
 import { ToastContainer } from '@/components/Toast'
 import { useToast } from '@/hooks/useToast'
-import { RefreshCw, Search, Users, Wifi, UserCheck, UserX, SlidersHorizontal, MapPin, ArrowUpDown, ChevronUp, ChevronDown,
+import { RefreshCw, Search, Users, Wifi, UserCheck, UserX, SlidersHorizontal, ArrowUpDown, ChevronUp, ChevronDown,
   Upload, Clock, RotateCcw, PlusCircle
 } from 'lucide-react'
-import { MapContainer, TileLayer, Marker, Popup, useMap } from 'react-leaflet'
-import L from 'leaflet'
-import 'leaflet/dist/leaflet.css'
 import api from '@/services/api'
 import { ClientFormDialog } from '@/components/ClientFormDialog'
 import { ClientImportDialog } from '@/components/ClientImportDialog'
@@ -56,61 +53,6 @@ interface Plan {
   name: string
 }
 
-// Icono personalizado SVG de Leaflet para evitar problemas de rutas de Vite
-const markerSvg = `data:image/svg+xml;utf8,${encodeURIComponent(`
-  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="%232563eb" width="36" height="36">
-    <path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5c-1.38 0-2.5-1.12-2.5-2.5s1.12-2.5 2.5-2.5 2.5 1.12 2.5 2.5-1.12 2.5-2.5 2.5z"/>
-  </svg>
-`)}`
-
-const customMarkerIcon = L.icon({
-  iconUrl: markerSvg,
-  iconSize: [36, 36],
-  iconAnchor: [18, 36],
-  popupAnchor: [0, -30],
-})
-
-const DEFAULT_CENTER: [number, number] = [-0.180653, -78.467834]
-
-const routerMarkerIcon = L.divIcon({
-  className: '',
-  html: `<div style="width:40px;height:40px;display:flex;align-items:center;justify-content:center;">
-    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="40" height="40">
-      <circle cx="12" cy="12" r="12" fill="%232563eb" opacity="0.15"/>
-      <circle cx="12" cy="12" r="9" fill="none" stroke="%232563eb" stroke-width="1.5" opacity="0.4"/>
-      <path d="M4.93 4.93a10 10 0 0 1 14.14 0M7.76 7.76a6 6 0 0 1 8.49 0M10.59 10.59a2 2 0 0 1 2.83 0" stroke="%232563eb" stroke-width="2" stroke-linecap="round" fill="none"/>
-      <circle cx="12" cy="13" r="1.5" fill="%232563eb"/>
-      <line x1="12" y1="14.5" x2="12" y2="18" stroke="%232563eb" stroke-width="2" stroke-linecap="round"/>
-    </svg>
-  </div>`,
-  iconSize: [40, 40],
-  iconAnchor: [20, 20],
-  popupAnchor: [0, -22],
-})
-
-function MapController({ clients, selectedRouter, filterKey }: {
-  clients: Client[]
-  selectedRouter: RouterOption | undefined
-  filterKey: string
-}) {
-  const map = useMap()
-  const lastKey = useRef('')
-
-  useEffect(() => {
-    if (lastKey.current === filterKey) return
-    lastKey.current = filterKey
-
-    if (selectedRouter?.latitude != null && selectedRouter?.longitude != null) {
-      map.flyTo([selectedRouter.latitude, selectedRouter.longitude], 14, { duration: 0.8 })
-    } else {
-      const first = clients.find(c => c.latitude && c.longitude)
-      if (first) map.flyTo([first.latitude!, first.longitude!], 14, { duration: 0.8 })
-    }
-  }, [filterKey, selectedRouter, clients, map])
-
-  return null
-}
-
 export function ClientsPage() {
   const navigate = useNavigate()
   const location = useLocation()
@@ -140,7 +82,6 @@ export function ClientsPage() {
   const [accessMethod, setAccessMethod] = useState('')
   const [medium, setMedium] = useState('')
   const [page, setPage] = useState(1)
-  const [viewMode, setViewMode] = useState<'list' | 'map'>('list')
   const limit = 10
 
   // Estados para ordenamiento
@@ -240,27 +181,6 @@ export function ClientsPage() {
           </h1>
         </div>
         <div className="flex items-center gap-3">
-          <div className="flex bg-secondary/50 rounded-lg p-0.5 border border-border/60">
-            <button
-              type="button"
-              onClick={() => setViewMode('list')}
-              className={`px-3 py-1.5 text-xs font-semibold rounded-md transition-all duration-200 ${viewMode === 'list'
-                ? 'bg-brand-500 text-white shadow-sm'
-                : 'text-muted-foreground hover:text-foreground'}`}
-            >
-              Listado
-            </button>
-            <button
-              type="button"
-              onClick={() => setViewMode('map')}
-              className={`px-3 py-1.5 text-xs font-semibold rounded-md transition-all duration-200 flex items-center gap-1.5 ${viewMode === 'map'
-                ? 'bg-brand-500 text-white shadow-sm'
-                : 'text-muted-foreground hover:text-foreground'}`}
-            >
-              <MapPin className="w-4 h-4" />
-              Mapa Clientes
-            </button>
-          </div>
           <button
             onClick={() => setImportOpen(true)}
             className="bg-secondary hidden sm:flex items-center hover:bg-secondary-hover text-secondary-foreground font-semibold px-4 py-2.5 rounded-lg justify-center gap-1 transition-all shadow-lg shadow-secondary/20 cursor-pointer"
@@ -395,116 +315,6 @@ export function ClientsPage() {
         </div>
       ) : (
         <div className="space-y-4">
-          {viewMode === 'map' ? (
-            <div className="glass-card overflow-hidden h-[600px] border border-border/40 relative">
-              <MapContainer
-                center={DEFAULT_CENTER}
-                zoom={12}
-                scrollWheelZoom={true}
-                style={{ height: '100%', width: '100%', zIndex: 10 }}
-              >
-                <TileLayer
-                  attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
-                  url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
-                />
-                <MapController
-                  clients={clientsData.items}
-                  selectedRouter={routers.find(r => r.id === routerId)}
-                  filterKey={`${routerId}-${siteId}`}
-                />
-                {/* Marcador del router seleccionado */}
-                {(() => {
-                  const gw = routers.find(r => r.id === routerId)
-                  if (!gw?.latitude || !gw?.longitude) return null
-                  return (
-                    <Marker position={[gw.latitude, gw.longitude]} icon={routerMarkerIcon}>
-                      <Popup>
-                        <div className="p-1 font-sans min-w-[160px]">
-                          <p className="font-bold text-sm text-foreground m-0">{gw.name}</p>
-                          <p className="text-[11px] text-muted-foreground mt-1 m-0">Router · Centro de referencia</p>
-                          <p className="text-[10px] font-mono text-muted-foreground mt-0.5 m-0">
-                            {gw.latitude.toFixed(5)}, {gw.longitude.toFixed(5)}
-                          </p>
-                        </div>
-                      </Popup>
-                    </Marker>
-                  )
-                })()}
-                {clientsData.items
-                  .filter((client: Client) => client.latitude && client.longitude)
-                  .map((client: Client) => {
-                    let status: 'active' | 'scheduled_suspension' | 'scheduled_reactivation' | 'suspended' = 'active';
-                    if (client.active) {
-                      if (client.scheduled_suspension) status = 'scheduled_suspension';
-                    } else {
-                      status = client.scheduled_reactivation ? 'scheduled_reactivation' : 'suspended';
-                    }
-
-                    const markerColor = status === 'active'
-                      ? '%2310b981'
-                      : status === 'scheduled_suspension'
-                        ? '%230ea5e9'
-                        : status === 'scheduled_reactivation'
-                          ? '%23a855f7'
-                          : '%23f59e0b';
-                    const customSvg = `data:image/svg+xml;utf8,${encodeURIComponent(`
-                      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="${markerColor}" width="36" height="36">
-                        <path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5c-1.38 0-2.5-1.12-2.5-2.5s1.12-2.5 2.5-2.5 2.5 1.12 2.5 2.5-1.12 2.5-2.5 2.5z"/>
-                      </svg>
-                    `)}`;
-                    const dynamicIcon = L.icon({
-                      iconUrl: customSvg,
-                      iconSize: [36, 36],
-                      iconAnchor: [18, 36],
-                      popupAnchor: [0, -30],
-                    });
-
-                    return (
-                      <Marker
-                        key={client.id}
-                        position={[client.latitude!, client.longitude!]}
-                        icon={dynamicIcon}
-                      >
-                        <Popup>
-                          <div className="p-1 space-y-2 text-foreground font-sans min-w-[200px]">
-                            <h4 className="font-bold text-sm text-foreground m-0">{client.full_name}</h4>
-                            <p className="text-xs text-muted-foreground m-0">Cédula: {client.cedula}</p>
-                            <p className="text-xs text-muted-foreground m-0">Tel: {client.phone}</p>
-                            <div className="flex items-center gap-1.5 text-xs mt-1">
-                              <span className="font-semibold text-muted-foreground">IP:</span>
-                              <span className="font-mono text-foreground font-semibold">{client.static_ip?.ip ?? '—'}</span>
-                            </div>
-                            <div className="flex items-center gap-1.5 text-xs">
-                              <span className="font-semibold text-muted-foreground">Plan:</span>
-                              <span className="text-brand-400 font-medium">{client.plan_activo?.name ?? 'Sin plan'}</span>
-                            </div>
-                            <div className="flex items-center justify-between border-t border-border/40 pt-2 mt-2">
-                              <span className={`text-[10px] uppercase font-bold px-2 py-0.5 rounded-full ${status === 'active'
-                                ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/25'
-                                : status === 'scheduled_suspension'
-                                  ? 'bg-sky-500/10 text-sky-400 border border-sky-500/25'
-                                  : status === 'scheduled_reactivation'
-                                    ? 'bg-purple-500/10 text-purple-400 border border-purple-500/25'
-                                    : 'bg-amber-500/10 text-amber-400 border border-amber-500/25'
-                                }`}>
-                                {status === 'active' ? 'Activo' : status === 'scheduled_suspension' ? 'Aplazado' : status === 'scheduled_reactivation' ? 'Reactivación prog.' : 'Suspendido'}
-                              </span>
-                              <button
-                                type="button"
-                                onClick={() => navigate(`/clients/${client.id}`)}
-                                className="text-[10px] uppercase font-bold text-brand-400 hover:text-brand-300 transition-colors"
-                              >
-                                Ver Perfil &rarr;
-                              </button>
-                            </div>
-                          </div>
-                        </Popup>
-                      </Marker>
-                    )
-                  })}
-              </MapContainer>
-            </div>
-          ) : (
             <>
               <div className="glass-card overflow-hidden">
                 <table className="data-table">
@@ -760,7 +570,6 @@ export function ClientsPage() {
                 </div>
               )}
             </>
-          )}
         </div>
       )}
 

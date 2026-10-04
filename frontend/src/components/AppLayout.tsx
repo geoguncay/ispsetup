@@ -8,7 +8,7 @@ import {
   LayoutDashboard, Router, Users,
   LogOut, Menu, X, ChevronDown, Activity, Settings, Network,
   Zap, Building, Sliders, BarChart2, AlertTriangle, Receipt, DollarSign, Package, Truck,
-  Bell, TrendingUp, Shuffle,
+  Bell, TrendingUp, Shuffle, MapPin, Radio, Cable,
 } from 'lucide-react'
 import { useAuthStore } from '@/stores/authStore'
 import api from '@/services/api'
@@ -77,6 +77,15 @@ const navItems: NavItem[] = [
       { to: '/reports/traffic', icon: Activity, label: 'Tráfico' },
       { to: '/reports/consumption', icon: BarChart2, label: 'Consumo' },
       { to: '/reports/overdue', icon: AlertTriangle, label: 'Mora' },
+    ]
+  },
+  {
+    label: 'Mapas',
+    icon: MapPin,
+    roles: ['admin', 'technician'],
+    items: [
+      { to: '/maps/radio', icon: Radio, label: 'Radio' },
+      { to: '/maps/fiber', icon: Cable, label: 'Fibra' },
     ]
   },
   {

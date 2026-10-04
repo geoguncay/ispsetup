@@ -25,6 +25,8 @@ import { ClientsReportPage } from '@/pages/reports/ClientsReportPage'
 import { ConsumptionReportPage } from '@/pages/reports/ConsumptionReportPage'
 import { OverdueReportPage } from '@/pages/reports/OverdueReportPage'
 import { TrafficReportPage } from '@/pages/reports/TrafficReportPage'
+import { RadioMapPage } from '@/pages/maps/RadioMapPage'
+import { FiberMapPage } from '@/pages/maps/FiberMapPage'
 import { InventoryPage } from '@/pages/InventoryPage'
 import { ProvidersPage } from '@/pages/ProvidersPage'
 import { SettingsPage } from '@/pages/SettingsPage'
@@ -85,6 +87,9 @@ function AppContent() {
           <Route path="/reports/traffic" element={<TrafficReportPage />} />
           <Route path="/reports/consumption" element={<ConsumptionReportPage />} />
           <Route path="/reports/overdue" element={<OverdueReportPage />} />
+          <Route path="/maps" element={<Navigate to="/maps/radio" replace />} />
+          <Route path="/maps/radio" element={<RadioMapPage />} />
+          <Route path="/maps/fiber" element={<FiberMapPage />} />
           <Route path="/inventory" element={<InventoryPage />} />
           <Route path="/providers" element={<ProvidersPage />} />
           <Route path="/profile" element={<ProfilePage />} />

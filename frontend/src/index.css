@@ -300,3 +300,14 @@
 .recharts-surface:focus {
   outline: none !important;
 }
+
+/* Popup de mapa colocado debajo del marcador: sin la punta que apunta hacia abajo. */
+.leaflet-popup.popup-below .leaflet-popup-tip-container {
+  display: none;
+}
+
+/* Sin marco de enfoque al hacer clic sobre elementos del mapa (enlaces, marcadores). */
+.leaflet-container .leaflet-interactive:focus,
+.leaflet-container path:focus {
+  outline: none;
+}

@@ -23,3 +23,4 @@ from app.models.system_settings import SystemSettings
 from app.models.audit_log import AuditLog
 from app.models.client_inventory import ClientInventoryItem
 from app.models.router_sync_queue import RouterSyncQueue
+from app.models.map_topology import MapAccessPoint, MapLink
