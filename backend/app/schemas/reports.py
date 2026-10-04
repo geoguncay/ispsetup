@@ -42,6 +42,30 @@ class RevenueReport(BaseModel):
     by_site: list[RevenueBySite]
 
 
+class RevenueDailyPoint(BaseModel):
+    label: str          # "2026-10-03"
+    amount: float
+    payments_count: int
+
+
+class RevenueSlice(BaseModel):
+    """Ingresos de una ventana de fechas (el período solo, o acumulado hasta su fin)."""
+    date_from: datetime
+    date_to: datetime
+    total_amount: float
+    total_payments: int
+    by_plan: list[RevenueByPlan]
+    by_site: list[RevenueBySite]
+    series: list[RevenueDailyPoint]  # por día (simple: solo días con pagos; acumulado: corrido día a día)
+
+
+class RevenuePeriodDetail(BaseModel):
+    label: str
+    group_by: str
+    simple: RevenueSlice
+    accumulated: RevenueSlice
+
+
 # ── Reporte de clientes ─────────────────────────────────────────────────────
 class ClientsMonthPoint(BaseModel):
     label: str          # "2026-01"

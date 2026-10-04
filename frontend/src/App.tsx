@@ -20,8 +20,11 @@ import { RouterProfilePage } from '@/pages/RouterProfilePage'
 import { CustomServicesPage } from '@/pages/CustomServicesPage'
 import { InvoicesPage } from '@/pages/InvoicesPage'
 import { PaymentsPage } from '@/pages/PaymentsPage'
-import { RevenueReportPage, ClientsReportPage, ConsumptionReportPage, OverdueReportPage } from '@/pages/ReportsPage'
-import { TrafficPage } from '@/pages/TrafficPage'
+import { RevenueReportPage } from '@/pages/reports/RevenueReportPage'
+import { ClientsReportPage } from '@/pages/reports/ClientsReportPage'
+import { ConsumptionReportPage } from '@/pages/reports/ConsumptionReportPage'
+import { OverdueReportPage } from '@/pages/reports/OverdueReportPage'
+import { TrafficReportPage } from '@/pages/reports/TrafficReportPage'
 import { InventoryPage } from '@/pages/InventoryPage'
 import { ProvidersPage } from '@/pages/ProvidersPage'
 import { SettingsPage } from '@/pages/SettingsPage'
@@ -79,7 +82,7 @@ function AppContent() {
           <Route path="/reports" element={<ReportsRedirect />} />
           <Route path="/reports/revenue" element={<RevenueReportPage />} />
           <Route path="/reports/clients" element={<ClientsReportPage />} />
-          <Route path="/reports/traffic" element={<TrafficPage />} />
+          <Route path="/reports/traffic" element={<TrafficReportPage />} />
           <Route path="/reports/consumption" element={<ConsumptionReportPage />} />
           <Route path="/reports/overdue" element={<OverdueReportPage />} />
           <Route path="/inventory" element={<InventoryPage />} />

@@ -1,5 +1,5 @@
 /**
- * TrafficPage — Monitoreo de tráfico de red en tiempo real. Disponible en Reportes → Tráfico.
+ * TrafficReportPage — Monitoreo de tráfico de red en tiempo real. Disponible en Reportes → Tráfico.
  */
 import React, { useState, useEffect, useMemo } from 'react'
 import { useQuery } from '@tanstack/react-query'
@@ -8,6 +8,7 @@ import { Activity, Server, ArrowDown, ArrowUp, Users, Search, RefreshCw, Refresh
 } from 'lucide-react'
 import api from '@/services/api'
 import TrafficChart, { formatSpeed } from '@/components/TrafficChart'
+import { ReportHeader } from '../ReportsPage'
 
 
 interface Router {
@@ -57,7 +58,7 @@ const calculateAverageUploadSpeed = (samples: any[]) => {
   return sum / samples.length
 }
 
-export function TrafficPage() {
+export function TrafficReportPage() {
   const navigate = useNavigate()
 
   // ── Router Selector States ──
@@ -248,12 +249,7 @@ export function TrafficPage() {
     <div className="space-y-6 animate-fade-in">
       {/* ── Header ── */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-        <div>
-          <h1 className="sm:text-2xl font-bold text-foreground flex items-center gap-2">
-            <Activity className="w-6 h-6 text-cyan-400 animate-pulse" />
-            Monitoreo de Tráfico
-          </h1>
-        </div>
+        <ReportHeader title="Monitoreo de Tráfico" description="" icon={Activity} />
 
         {/* Router Selector */}
         <div className="flex items-center gap-3">

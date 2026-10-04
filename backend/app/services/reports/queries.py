@@ -9,7 +9,7 @@ en un rango de 30 días) para no traer la tabla completa a memoria.
 from __future__ import annotations
 
 from collections import defaultdict
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 
 from sqlalchemy import func
 from sqlalchemy.orm import Session
@@ -33,7 +33,10 @@ from app.schemas.reports import (
     PlanAveragePoint,
     RevenueByPlan,
     RevenueBySite,
+    RevenueDailyPoint,
+    RevenuePeriodDetail,
     RevenuePeriodPoint,
+    RevenueSlice,
     RevenueReport,
     TopConsumerPoint,
 )
@@ -145,6 +148,83 @@ def get_revenue_report(
         by_period=by_period,
         by_plan=by_plan,
         by_site=by_site,
+    )
+
+
+def _period_bounds(label: str, group_by: str) -> tuple[datetime, datetime]:
+    """Límites [inicio, fin] (UTC, inclusivos) del período identificado por su etiqueta."""
+    try:
+        if group_by == "year":
+            year, first_month, months = int(label), 1, 12
+        elif group_by == "quarter":
+            year_s, q_s = label.split("-Q")
+            year, first_month, months = int(year_s), (int(q_s) - 1) * 3 + 1, 3
+        else:
+            year_s, month_s = label.split("-")
+            year, first_month, months = int(year_s), int(month_s), 1
+        start = datetime(year, first_month, 1, tzinfo=timezone.utc)
+    except ValueError as exc:
+        raise ValueError(f"Etiqueta de período inválida: {label}") from exc
+    end = start
+    for _ in range(months):
+        end = _next_month(end)
+    return start, end - timedelta(microseconds=1)
+
+
+def _revenue_slice(
+    db: Session, start: datetime, end: datetime, group_by: str, daily: bool
+) -> RevenueSlice:
+    """Totales, desglose por plan/sitio y serie. daily=True: serie por día; False: acumulado por período."""
+    report = get_revenue_report(db, group_by, start, end)
+    rows = (
+        db.query(ClientPayment.amount, ClientPayment.payment_date)
+        .filter(ClientPayment.status == "completed")
+        .filter(ClientPayment.payment_date >= start, ClientPayment.payment_date <= end)
+        .all()
+    )
+    buckets: dict[str, list] = defaultdict(lambda: [0.0, 0])
+    for amount, payment_date in rows:
+        key = payment_date.strftime("%Y-%m-%d")
+        buckets[key][0] += float(amount)
+        buckets[key][1] += 1
+    if daily:
+        series = [
+            RevenueDailyPoint(label=k, amount=round(v[0], 2), payments_count=v[1])
+            for k, v in sorted(buckets.items())
+        ]
+    else:
+        # Acumulado día a día, sin huecos, hasta hoy como máximo (no se proyecta el futuro).
+        last_day = min(end, datetime.now(timezone.utc)).date()
+        day, running, count, series = start.date(), 0.0, 0, []
+        while day <= last_day:
+            key = day.strftime("%Y-%m-%d")
+            running += buckets[key][0] if key in buckets else 0.0
+            count += buckets[key][1] if key in buckets else 0
+            series.append(RevenueDailyPoint(label=key, amount=round(running, 2), payments_count=count))
+            day += timedelta(days=1)
+    return RevenueSlice(
+        date_from=start,
+        date_to=end,
+        total_amount=report.total_amount,
+        total_payments=report.total_payments,
+        by_plan=report.by_plan,
+        by_site=report.by_site,
+        series=series,
+    )
+
+
+def get_revenue_period_detail(
+    db: Session, label: str, group_by: str, range_from: datetime
+) -> RevenuePeriodDetail:
+    """Detalle de un período: simple (solo ese período) y acumulado (desde range_from hasta su fin)."""
+    if group_by not in GROUP_BY_VALUES:
+        raise ValueError(f"group_by debe ser uno de {GROUP_BY_VALUES}")
+    p_start, p_end = _period_bounds(label, group_by)
+    return RevenuePeriodDetail(
+        label=label,
+        group_by=group_by,
+        simple=_revenue_slice(db, p_start, p_end, group_by, daily=True),
+        accumulated=_revenue_slice(db, min(range_from, p_start), p_end, group_by, daily=False),
     )
 
 

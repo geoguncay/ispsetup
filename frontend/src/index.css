@@ -291,3 +291,12 @@
 ::-webkit-scrollbar-thumb:hover {
 	background: hsl(var(--muted-foreground));
 }
+
+/* Recharts: sin marco de foco blanco al hacer clic en una gráfica o sus barras */
+.recharts-wrapper,
+.recharts-wrapper *,
+.recharts-wrapper *:focus,
+.recharts-wrapper *:focus-visible,
+.recharts-surface:focus {
+  outline: none !important;
+}

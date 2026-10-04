@@ -28,6 +28,7 @@ from app.services.reports.queries import (
     get_clients_report,
     get_consumption_report,
     get_overdue_report,
+    get_revenue_period_detail,
     get_revenue_report,
 )
 
@@ -154,6 +155,33 @@ def test_revenue_report_rejects_invalid_group_by():
     db = TestingSessionLocal()
     with pytest.raises(ValueError):
         get_revenue_report(db, "week", datetime.now(timezone.utc) - timedelta(days=1), datetime.now(timezone.utc))
+    db.close()
+
+
+def test_revenue_period_detail_simple_and_accumulated():
+    db = TestingSessionLocal()
+    router = Router(name="R1", ip="10.0.0.1", api_port=8728, api_username="a", password_enc="x")
+    db.add(router)
+    db.flush()
+    c1 = _client(db, router)
+    for amount, when in [(10.0, datetime(2026, 1, 5, tzinfo=timezone.utc)),
+                         (20.0, datetime(2026, 2, 5, tzinfo=timezone.utc)),
+                         (5.0, datetime(2026, 2, 20, tzinfo=timezone.utc)),
+                         (99.0, datetime(2026, 3, 1, tzinfo=timezone.utc))]:
+        db.add(ClientPayment(client_id=c1.id, amount=amount, payment_date=when, method="cash", status="completed"))
+    db.commit()
+
+    detail = get_revenue_period_detail(db, "2026-02", "month", datetime(2026, 1, 1, tzinfo=timezone.utc))
+    assert detail.simple.total_amount == 25.0
+    assert [p.label for p in detail.simple.series] == ["2026-02-05", "2026-02-20"]
+    assert detail.accumulated.total_amount == 35.0
+    acc = {p.label: p.amount for p in detail.accumulated.series}
+    assert len(acc) == 31 + 28  # 1-ene a 28-feb, día a día
+    assert acc["2026-01-04"] == 0.0 and acc["2026-01-05"] == 10.0
+    assert acc["2026-02-05"] == 30.0 and acc["2026-02-28"] == 35.0
+
+    with pytest.raises(ValueError):
+        get_revenue_period_detail(db, "xx", "month", datetime(2026, 1, 1, tzinfo=timezone.utc))
     db.close()
 
 

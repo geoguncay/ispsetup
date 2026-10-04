@@ -9,7 +9,7 @@ from fastapi import APIRouter, HTTPException, Query, Response, status
 
 from app.core.deps import AdminOrTechnician, DBSession
 from app.models.company import Company
-from app.schemas.reports import ClientsReport, ConsumptionReport, OverdueReport, RevenueReport
+from app.schemas.reports import ClientsReport, ConsumptionReport, OverdueReport, RevenuePeriodDetail, RevenueReport
 from app.services.reports.excel_export import (
     generate_clients_excel,
     generate_consumption_excel,
@@ -26,6 +26,7 @@ from app.services.reports.queries import (
     get_clients_report,
     get_consumption_report,
     get_overdue_report,
+    get_revenue_period_detail,
     get_revenue_report,
 )
 
@@ -72,6 +73,22 @@ def revenue_report(
 ) -> RevenueReport:
     start, end = _to_range(date_from, date_to, default_days=365)
     return get_revenue_report(db, group_by, start, end)
+
+
+@router.get("/revenue/period", response_model=RevenuePeriodDetail)
+def revenue_period_detail(
+    db: DBSession,
+    _: AdminOrTechnician,
+    label: str,
+    group_by: str = Query(default="month", pattern="^(month|quarter|year)$"),
+    date_from: date | None = None,
+) -> RevenuePeriodDetail:
+    """Ingresos de un período (simple) y acumulados desde el inicio del rango hasta su fin."""
+    range_from, _end = _to_range(date_from, None, default_days=365)
+    try:
+        return get_revenue_period_detail(db, label, group_by, range_from)
+    except ValueError as exc:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc))
 
 
 @router.get("/revenue/pdf")
