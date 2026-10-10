@@ -24,6 +24,8 @@ class AccessPointCreate(BaseModel):
     longitude: float = Field(ge=-180, le=180)
     ip: str | None = Field(default=None, max_length=45)
     frequency_mhz: int | None = Field(default=None, ge=1, le=100000)
+    channel_width_mhz: int | None = Field(default=None, ge=1, le=1000)
+    rotation_deg: int | None = Field(default=None, ge=0, le=359)
     # Nodo del que cuelga este AP (router, AP o estación); crea el enlace automáticamente.
     connect_to: NodeRef | None = None
 
@@ -34,6 +36,8 @@ class AccessPointUpdate(BaseModel):
     longitude: float | None = Field(default=None, ge=-180, le=180)
     ip: str | None = Field(default=None, max_length=45)
     frequency_mhz: int | None = Field(default=None, ge=1, le=100000)
+    channel_width_mhz: int | None = Field(default=None, ge=1, le=1000)
+    rotation_deg: int | None = Field(default=None, ge=0, le=359)
 
 
 class AccessPointRead(BaseModel):
@@ -46,6 +50,8 @@ class AccessPointRead(BaseModel):
     role: ApRole = "ap"
     ip: str | None = None
     frequency_mhz: int | None = None
+    channel_width_mhz: int | None = None
+    rotation_deg: int = 0
 
 
 class PtpEnd(BaseModel):
@@ -61,6 +67,7 @@ class PtpCreate(BaseModel):
     ap: PtpEnd
     station: PtpEnd
     frequency_mhz: int | None = Field(default=None, ge=1, le=100000)
+    channel_width_mhz: int | None = Field(default=None, ge=1, le=1000)
     connect_to: NodeRef | None = None
 
 
@@ -68,6 +75,11 @@ class PtpRead(BaseModel):
     ap: AccessPointRead
     station: AccessPointRead
     link: "LinkRead"
+
+
+class LocationUpdate(BaseModel):
+    latitude: float = Field(ge=-90, le=90)
+    longitude: float = Field(ge=-180, le=180)
 
 
 class LinkCreate(BaseModel):

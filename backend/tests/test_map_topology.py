@@ -91,6 +91,9 @@ def test_access_points_and_links_crud(client: TestClient):
     assert ap1.status_code == 201 and ap2.status_code == 201
     id1, id2 = ap1.json()["id"], ap2.json()["id"]
 
+    rotated = client.put(f"/api/map/access-points/{id1}", json={"rotation_deg": 90}, headers=h)
+    assert rotated.json()["rotation_deg"] == 90
+    assert client.put(f"/api/map/access-points/{id1}", json={"rotation_deg": 400}, headers=h).status_code == 422
     moved = client.put(f"/api/map/access-points/{id1}", json={"latitude": -0.15}, headers=h)
     assert moved.json()["latitude"] == -0.15 and moved.json()["name"] == "AP Norte"
 
@@ -129,12 +132,13 @@ def test_create_ptp_with_connection(client: TestClient):
         "ap": {"name": "PtP-A", "latitude": 0.1, "longitude": 0.1, "ip": "10.0.0.1"},
         "station": {"name": "PtP-B", "latitude": 0.2, "longitude": 0.2},
         "frequency_mhz": 5800,
+        "channel_width_mhz": 40,
         "connect_to": {"type": "ap", "id": base["id"]},
     }, headers=h)
     assert res.status_code == 201
     data = res.json()
     assert data["ap"]["role"] == "ap" and data["station"]["role"] == "station"
-    assert data["station"]["frequency_mhz"] == 5800 and data["link"]["kind"] == "ptp"
+    assert data["station"]["frequency_mhz"] == 5800 and data["ap"]["channel_width_mhz"] == 40 and data["link"]["kind"] == "ptp"
     # 3 radios en total y 2 enlaces (PtP + conexión a la torre)
     assert len(client.get("/api/map/access-points", headers=h).json()) == 3
     assert len(client.get("/api/map/links", headers=h).json()) == 2
@@ -143,3 +147,29 @@ def test_create_ptp_with_connection(client: TestClient):
         "name": "X", "latitude": 0, "longitude": 0, "connect_to": {"type": "router", "id": base["id"]},
     }, headers=h)
     assert bad.status_code == 404
+
+
+def test_move_router_and_client_locations(client: TestClient):
+    from app.models.router import Router
+    from app.models.client import Client
+
+    db = TestingSessionLocal()
+    router = Router(name="R1", ip="10.0.0.1", api_port=8728, api_username="a", password_enc="x")
+    db.add(router)
+    db.commit()
+    rid = str(router.id)
+    db.close()
+
+    h = _auth(client)
+    # El técnico no puede mover routers (solo admin), pero sí clientes
+    assert client.put(f"/api/map/locations/router/{rid}", json={"latitude": 1, "longitude": 2}, headers=h).status_code == 403
+    missing = client.put("/api/map/locations/client/00000000-0000-0000-0000-000000000000", json={"latitude": 1, "longitude": 2}, headers=h)
+    assert missing.status_code == 404
+
+    login = client.post("/api/auth/login", json={"email": "admin@test.com", "password": "adminpass123"})
+    admin = {"Authorization": f"Bearer {login.json()['access_token']}"}
+    assert client.put(f"/api/map/locations/router/{rid}", json={"latitude": 1.5, "longitude": 2.5}, headers=admin).status_code == 204
+    db = TestingSessionLocal()
+    moved = db.get(Router, router.id)
+    assert (moved.latitude, moved.longitude) == (1.5, 2.5)
+    db.close()

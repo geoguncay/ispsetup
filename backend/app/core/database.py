@@ -153,6 +153,8 @@ def run_migrations(bind_engine) -> None:
             conn.execute(text("ALTER TABLE map_access_points ADD COLUMN IF NOT EXISTS role VARCHAR(10) NOT NULL DEFAULT 'ap';"))
             conn.execute(text("ALTER TABLE map_access_points ADD COLUMN IF NOT EXISTS ip VARCHAR(45);"))
             conn.execute(text("ALTER TABLE map_access_points ADD COLUMN IF NOT EXISTS frequency_mhz INTEGER;"))
+            conn.execute(text("ALTER TABLE map_access_points ADD COLUMN IF NOT EXISTS channel_width_mhz INTEGER;"))
+            conn.execute(text("ALTER TABLE map_access_points ADD COLUMN IF NOT EXISTS rotation_deg INTEGER NOT NULL DEFAULT 0;"))
             conn.execute(text("ALTER TABLE companies ADD COLUMN IF NOT EXISTS logo_url VARCHAR(255);"))
             conn.execute(text("ALTER TABLE companies ADD COLUMN IF NOT EXISTS use_logo_on_login BOOLEAN NOT NULL DEFAULT FALSE;"))
             conn.execute(text("ALTER TABLE companies ADD COLUMN IF NOT EXISTS login_bg_url VARCHAR(255);"))

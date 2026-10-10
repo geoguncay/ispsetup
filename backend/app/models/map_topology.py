@@ -23,6 +23,9 @@ class MapAccessPoint(Base):
     role: Mapped[str] = mapped_column(String(10), nullable=False, default="ap", server_default="ap")
     ip: Mapped[str | None] = mapped_column(String(45), nullable=True)
     frequency_mhz: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    channel_width_mhz: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    # Orientación del icono en el mapa (grados desde el norte, sentido horario); solo PtMP
+    rotation_deg: Mapped[int] = mapped_column(Integer, nullable=False, default=0, server_default="0")
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), nullable=False
     )

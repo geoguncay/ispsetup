@@ -7,6 +7,8 @@ interface Props {
   mode: RadioMode
   onModeChange: (mode: RadioMode) => void
   hint: string
+  /** Modo edición con un enlace seleccionado: permite eliminarlo. */
+  onDeleteLink?: () => void
 }
 
 const TOOLS: { mode: RadioMode; label: string; icon: typeof Eye }[] = [
@@ -16,7 +18,7 @@ const TOOLS: { mode: RadioMode; label: string; icon: typeof Eye }[] = [
   { mode: 'ptp', label: 'PtP', icon: ArrowLeftRight },
 ]
 
-export function RadioToolbar({ mode, onModeChange, hint }: Props) {
+export function RadioToolbar({ mode, onModeChange, hint, onDeleteLink }: Props) {
   return (
     <div className="glass-card p-3 flex flex-wrap items-center gap-3">
       <div className="flex bg-secondary/50 rounded-lg p-0.5 border border-border/60">
@@ -34,6 +36,15 @@ export function RadioToolbar({ mode, onModeChange, hint }: Props) {
           </button>
         ))}
       </div>
+      {onDeleteLink && (
+        <button
+          type="button"
+          onClick={onDeleteLink}
+          className="px-3 py-1.5 text-xs font-semibold rounded-md border border-red-500/40 text-red-400 hover:bg-red-500/10 transition-colors cursor-pointer"
+        >
+          Eliminar enlace seleccionado
+        </button>
+      )}
       <p className="text-xs text-muted-foreground">{hint}</p>
     </div>
   )

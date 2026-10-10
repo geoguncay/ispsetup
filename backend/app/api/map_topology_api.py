@@ -5,13 +5,13 @@ import uuid
 
 from fastapi import APIRouter, HTTPException, status
 
-from app.core.deps import AdminOrTechnician, DBSession
+from app.core.deps import AdminOnly, AdminOrTechnician, DBSession
 from app.models.client import Client
 from app.models.map_topology import MapAccessPoint, MapLink
 from app.models.router import Router
 from app.schemas.map_topology import (
     AccessPointCreate, AccessPointRead, AccessPointUpdate,
-    LinkCreate, LinkRead, LinkUpdate, NodeRef, PtpCreate, PtpRead,
+    LinkCreate, LinkRead, LinkUpdate, LocationUpdate, NodeRef, PtpCreate, PtpRead,
 )
 
 router = APIRouter(prefix="/map", tags=["map"])
@@ -36,6 +36,7 @@ def create_access_point(payload: AccessPointCreate, db: DBSession, _: AdminOrTec
     ap = MapAccessPoint(
         name=payload.name.strip(), latitude=payload.latitude, longitude=payload.longitude,
         ip=(payload.ip or "").strip() or None, frequency_mhz=payload.frequency_mhz,
+        channel_width_mhz=payload.channel_width_mhz, rotation_deg=payload.rotation_deg or 0,
     )
     db.add(ap)
     db.flush()
@@ -55,10 +56,12 @@ def create_ptp(payload: PtpCreate, db: DBSession, _: AdminOrTechnician) -> dict:
     ap = MapAccessPoint(
         name=payload.ap.name.strip(), latitude=payload.ap.latitude, longitude=payload.ap.longitude,
         role="ap", ip=(payload.ap.ip or "").strip() or None, frequency_mhz=payload.frequency_mhz,
+        channel_width_mhz=payload.channel_width_mhz,
     )
     station = MapAccessPoint(
         name=payload.station.name.strip(), latitude=payload.station.latitude, longitude=payload.station.longitude,
         role="station", ip=(payload.station.ip or "").strip() or None, frequency_mhz=payload.frequency_mhz,
+        channel_width_mhz=payload.channel_width_mhz,
     )
     db.add_all([ap, station])
     db.flush()
@@ -88,6 +91,10 @@ def update_access_point(ap_id: uuid.UUID, payload: AccessPointUpdate, db: DBSess
         ap.ip = (payload.ip or "").strip() or None
     if "frequency_mhz" in payload.model_fields_set:
         ap.frequency_mhz = payload.frequency_mhz
+    if "channel_width_mhz" in payload.model_fields_set:
+        ap.channel_width_mhz = payload.channel_width_mhz
+    if payload.rotation_deg is not None:
+        ap.rotation_deg = payload.rotation_deg
     db.commit()
     db.refresh(ap)
     return ap
@@ -167,4 +174,26 @@ def delete_link(link_id: uuid.UUID, db: DBSession, _: AdminOrTechnician) -> None
     if not link:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Enlace no encontrado")
     db.delete(link)
+    db.commit()
+
+
+@router.put("/locations/client/{client_id}", status_code=status.HTTP_204_NO_CONTENT)
+def update_client_location(client_id: uuid.UUID, payload: LocationUpdate, db: DBSession, _: AdminOrTechnician) -> None:
+    """Mueve un cliente en el mapa: solo cambia sus coordenadas (sin tocar router ni facturación)."""
+    client = db.get(Client, client_id)
+    if not client:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Cliente no encontrado")
+    client.latitude = payload.latitude
+    client.longitude = payload.longitude
+    db.commit()
+
+
+@router.put("/locations/router/{router_id}", status_code=status.HTTP_204_NO_CONTENT)
+def update_router_location(router_id: uuid.UUID, payload: LocationUpdate, db: DBSession, _: AdminOnly) -> None:
+    """Mueve un router en el mapa: solo cambia sus coordenadas (sin sincronizar con el equipo)."""
+    r = db.get(Router, router_id)
+    if not r:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Router no encontrado")
+    r.latitude = payload.latitude
+    r.longitude = payload.longitude
     db.commit()

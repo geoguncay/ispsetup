@@ -8,7 +8,7 @@ import L from 'leaflet'
 import { Polyline, Popup } from 'react-leaflet'
 import { LinkEndHandle, type SnapNode } from './LinkEndHandle'
 import {
-  type LinkKind, type MapAccessPoint, type MapClient, type MapLink, type MapRouter, type NodeType,
+  type MapAccessPoint, type MapClient, type MapLink, type MapRouter, type NodeType,
 } from '../mapTypes'
 
 interface Props {
@@ -21,9 +21,9 @@ interface Props {
   onSelectLink: (id: string) => void
   /** Convierte el enlace automático router→cliente en un enlace guardado (y editable). */
   onMaterialize: (routerId: string, clientId: string) => void
-  onChangeKind: (id: string, kind: LinkKind) => void
+  /** Modo edición: clic en un enlace PtP abre su modal de edición. */
+  onEditPtp: (link: MapLink) => void
   onReconnect: (id: string, end: 'source' | 'target', node: SnapNode) => void
-  onDelete: (id: string) => void
 }
 
 type Pos = [number, number]
@@ -38,7 +38,7 @@ const HIT = { color: '#000', weight: 16, opacity: 0 }
 
 export function RadioLinks({
   clients, routers, accessPoints, links, editing, selectedLinkId,
-  onSelectLink, onMaterialize, onChangeKind, onReconnect, onDelete,
+  onSelectLink, onMaterialize, onEditPtp, onReconnect,
 }: Props) {
   const nodes = new Map<string, { pos: Pos; name: string; client?: MapClient }>()
   routers.forEach(r => nodes.set(`router:${r.id}`, { pos: [r.latitude!, r.longitude!], name: r.name }))
@@ -100,39 +100,22 @@ export function RadioLinks({
             <Polyline
               positions={positions}
               pathOptions={HIT}
-              eventHandlers={{ click: () => onSelectLink(l.id) }}
+              eventHandlers={{
+                click: () => {
+                  onSelectLink(l.id)
+                  if (editing && l.kind === 'ptp') onEditPtp(l)
+                },
+              }}
             >
-              <Popup autoPan={false}>
+              {!editing && <Popup autoPan={false}>
                 <div className="p-1 font-sans min-w-[180px] space-y-2">
                   {/* <p className="font-bold text-sm text-foreground m-0">{KIND_LABEL[l.kind]}</p> */}
                   <p className="text-xs font-semibold text-black m-0">{a.name} ↔ {b.name}</p>
                   <p className="text-xs m-0">
                     <span className="font-semibold text-black">Distancia:</span> {formatDistance(a.pos, b.pos)}
                   </p>
-                  {editing && (
-                    <>
-                      <div className="flex items-center justify-between gap-2 pt-1">
-                        <select
-                          value={l.kind}
-                          onChange={(e) => onChangeKind(l.id, e.target.value as LinkKind)}
-                          className="input-field text-xs"
-                        >
-                          <option value="ptp">PtP</option>
-                          <option value="ap">AP</option>
-                        </select>
-                        <button
-                          type="button"
-                          onClick={() => onDelete(l.id)}
-                          className="text-[10px] uppercase font-bold text-red-400 hover:text-red-300"
-                        >
-                          Eliminar
-                        </button>
-                      </div>
-                      <p className="text-[10px] text-muted-foreground m-0">Arrastra los extremos rojos a otro nodo para moverlo.</p>
-                    </>
-                  )}
                 </div>
-              </Popup>
+              </Popup>}
             </Polyline>
             {selected && (
               <>

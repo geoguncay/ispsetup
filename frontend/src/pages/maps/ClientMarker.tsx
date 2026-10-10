@@ -11,15 +11,29 @@ interface Props {
   getIcon?: (status: ClientStatus) => L.Icon | L.DivIcon
   /** Si se define, el clic llama a esta función (modo edición) en lugar de abrir el popup. */
   onSelect?: () => void
+  /** Modo edición: el pin se arrastra; `revert` lo devuelve a su sitio si falla el guardado. */
+  draggable?: boolean
+  onMove?: (lat: number, lng: number, revert: () => void) => void
+  /** Registra el marcador (o null al desmontar) para poder localizarlo desde el buscador. */
+  registerMarker?: (marker: L.Marker | null) => void
 }
 
-export function ClientMarker({ client, getIcon = clientIcon, onSelect }: Props) {
+export function ClientMarker({ client, getIcon = clientIcon, onSelect, draggable = false, onMove, registerMarker }: Props) {
   const navigate = useNavigate()
   const status = getClientStatus(client)
 
   return (
     <Marker position={[client.latitude!, client.longitude!]} icon={getIcon(status)}
-      eventHandlers={onSelect ? { click: onSelect } : flipPopupHandlers}
+      ref={registerMarker}
+      draggable={draggable}
+      eventHandlers={{
+        ...(onSelect ? { click: onSelect } : flipPopupHandlers),
+        dragend: (e) => {
+          const marker = e.target as L.Marker
+          const { lat, lng } = marker.getLatLng()
+          onMove?.(lat, lng, () => marker.setLatLng([client.latitude!, client.longitude!]))
+        },
+      }}
     >
       {!onSelect && <Popup autoPan={false}>
         <div className="p-1 space-y-2 text-foreground font-sans min-w-[200px]">

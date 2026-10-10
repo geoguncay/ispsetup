@@ -18,15 +18,17 @@ export function useRadioTopology() {
     queryFn: async () => (await api.get('/map/links')).data,
   })
 
-  const refresh = () => {
-    qc.invalidateQueries({ queryKey: AP_KEY })
-    qc.invalidateQueries({ queryKey: LINK_KEY })
-  }
+  // Devuelve la promesa para que la mutación termine cuando los datos ya están actualizados.
+  const refresh = () =>
+    Promise.all([
+      qc.invalidateQueries({ queryKey: AP_KEY }),
+      qc.invalidateQueries({ queryKey: LINK_KEY }),
+    ])
 
   const createAp = useMutation({
     mutationFn: async (body: {
       name: string; latitude: number; longitude: number
-      ip?: string | null; frequency_mhz?: number | null; connect_to?: NodeRef | null
+      ip?: string | null; frequency_mhz?: number | null; channel_width_mhz?: number | null; rotation_deg?: number; connect_to?: NodeRef | null
     }) => (await api.post('/map/access-points', body)).data,
     onSuccess: refresh,
   })
@@ -35,12 +37,16 @@ export function useRadioTopology() {
       ap: { name: string; latitude: number; longitude: number; ip?: string | null }
       station: { name: string; latitude: number; longitude: number; ip?: string | null }
       frequency_mhz?: number | null
+      channel_width_mhz?: number | null
       connect_to?: NodeRef | null
     }) => (await api.post('/map/ptp', body)).data,
     onSuccess: refresh,
   })
   const updateAp = useMutation({
-    mutationFn: async ({ id, ...body }: { id: string; name?: string; latitude?: number; longitude?: number }) =>
+    mutationFn: async ({ id, ...body }: {
+      id: string; name?: string; latitude?: number; longitude?: number
+      ip?: string | null; frequency_mhz?: number | null; channel_width_mhz?: number | null; rotation_deg?: number
+    }) =>
       (await api.put(`/map/access-points/${id}`, body)).data,
     onSuccess: refresh,
   })

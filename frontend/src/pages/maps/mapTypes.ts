@@ -37,6 +37,9 @@ export interface MapAccessPoint {
   role: 'ap' | 'station'
   ip?: string | null
   frequency_mhz?: number | null
+  channel_width_mhz?: number | null
+  /** Orientación del icono en grados desde el norte (solo PtMP). */
+  rotation_deg?: number
 }
 
 export interface NodeRef {
