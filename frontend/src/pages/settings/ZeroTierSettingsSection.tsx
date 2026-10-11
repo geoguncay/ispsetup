@@ -16,7 +16,7 @@ import {
   getZeroTierMembers,
   type ZeroTierSettingsRead,
 } from '@/services/zerotier'
-import { RouterStatusBadge } from '@/components/RouterStatusBadge'
+import { RouterStatusBadge } from '@/pages/devices/shared/RouterStatusBadge'
 import { saveButtonClass } from '@/lib/utils'
 import { useFormDirty } from '@/hooks/useFormDirty'
 

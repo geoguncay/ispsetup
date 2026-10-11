@@ -1,6 +1,6 @@
 import { Link } from 'react-router-dom'
 import { Server, Wifi, WifiOff, HelpCircle, Network } from 'lucide-react'
-import { RouterStatusBadge } from '@/components/RouterStatusBadge'
+import { RouterStatusBadge } from '@/pages/devices/shared/RouterStatusBadge'
 import { SectionTitle, StatCard } from './StatCard'
 import type { DashboardSummary, DeviceStatus, RouterRow } from './types'
 
