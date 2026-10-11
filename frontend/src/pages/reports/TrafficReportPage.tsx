@@ -8,7 +8,7 @@ import { Activity, Server, ArrowDown, ArrowUp, Users, Search, RefreshCw, Refresh
 } from 'lucide-react'
 import api from '@/services/api'
 import TrafficChart, { formatSpeed } from '@/components/TrafficChart'
-import { ReportHeader } from '../ReportsPage'
+import { ReportHeader } from './shared'
 
 
 interface Router {

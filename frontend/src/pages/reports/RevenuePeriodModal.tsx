@@ -3,8 +3,8 @@ import { useQuery } from '@tanstack/react-query'
 import { Receipt, Loader2, DollarSign, X } from 'lucide-react'
 import { BarChart, Bar, AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts'
 import api from '@/services/api'
-import { KpiCard, TOOLTIP_STYLE } from '@/pages/ReportsPage'
-import type { RevenuePeriodDetail } from '@/pages/ReportsPage'
+import { KpiCard, TOOLTIP_STYLE } from '@/pages/reports/shared'
+import type { RevenuePeriodDetail } from '@/pages/reports/shared'
 
 function BreakdownTable({ title, nameHeader, rows }: { title: string; nameHeader: string; rows: { name: string; amount: number; count: number }[] }) {
   return (

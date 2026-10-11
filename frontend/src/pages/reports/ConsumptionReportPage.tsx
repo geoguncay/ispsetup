@@ -4,8 +4,8 @@ import { Activity, Loader2, Clock } from 'lucide-react'
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts'
 import api from '@/services/api'
 import { formatVolume } from '@/lib/traffic'
-import { ExportButtons, DateRangeFilters, ReportHeader, TOOLTIP_STYLE } from '@/pages/ReportsPage'
-import type { ConsumptionReport } from '@/pages/ReportsPage'
+import { ExportButtons, DateRangeFilters, ReportHeader, TOOLTIP_STYLE } from '@/pages/reports/shared'
+import type { ConsumptionReport } from '@/pages/reports/shared'
 
 export function ConsumptionReportPage() {
   const [dateFrom, setDateFrom] = useState('')

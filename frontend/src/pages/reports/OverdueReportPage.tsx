@@ -1,8 +1,8 @@
 import { useQuery } from '@tanstack/react-query'
 import { Receipt, Users, AlertTriangle, Loader2, TrendingUp } from 'lucide-react'
 import api from '@/services/api'
-import { ExportButtons, KpiCard, ReportHeader } from '@/pages/ReportsPage'
-import type { OverdueReport } from '@/pages/ReportsPage'
+import { ExportButtons, KpiCard, ReportHeader } from '@/pages/reports/shared'
+import type { OverdueReport } from '@/pages/reports/shared'
 
 export function OverdueReportPage() {
   const { data, isLoading } = useQuery<OverdueReport>({

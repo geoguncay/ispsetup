@@ -3,8 +3,8 @@ import { useQuery } from '@tanstack/react-query'
 import { Users, Loader2 } from 'lucide-react'
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend } from 'recharts'
 import api from '@/services/api'
-import { ExportButtons, DateRangeFilters, KpiCard, ReportHeader, TOOLTIP_STYLE } from '@/pages/ReportsPage'
-import type { ClientsReport } from '@/pages/ReportsPage'
+import { ExportButtons, DateRangeFilters, KpiCard, ReportHeader, TOOLTIP_STYLE } from '@/pages/reports/shared'
+import type { ClientsReport } from '@/pages/reports/shared'
 
 export function ClientsReportPage() {
   const [dateFrom, setDateFrom] = useState('')

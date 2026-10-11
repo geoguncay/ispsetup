@@ -4,8 +4,8 @@ import { Receipt, Loader2, DollarSign } from 'lucide-react'
 import { BarChart, Bar, Cell, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts'
 import api from '@/services/api'
 import { RevenuePeriodModal } from './RevenuePeriodModal'
-import { ExportButtons, DateRangeFilters, KpiCard, ReportHeader, TOOLTIP_STYLE } from '@/pages/ReportsPage'
-import type { RevenuePeriodPoint, RevenueReport } from '@/pages/ReportsPage'
+import { ExportButtons, DateRangeFilters, KpiCard, ReportHeader, TOOLTIP_STYLE } from '@/pages/reports/shared'
+import type { RevenuePeriodPoint, RevenueReport } from '@/pages/reports/shared'
 
 export function RevenueReportPage() {
   const [groupBy, setGroupBy] = useState<'month' | 'quarter' | 'year'>('month')

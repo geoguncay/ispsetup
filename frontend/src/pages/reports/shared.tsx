@@ -1,8 +1,8 @@
 /**
- * ReportsPage — Base del módulo de reportes (Fase 4.3): tipos, tema de gráficas y
- * componentes compartidos (exportar PDF/Excel, filtros de fecha, KPI, encabezado).
- * Cada reporte vive en su propio archivo en pages/reports/ (Ingresos, Clientes,
- * Consumo, Mora, Tráfico).
+ * Piezas compartidas del módulo de reportes (Fase 4.3): tipos, tema de gráficas y
+ * componentes (exportar PDF/Excel, filtros de fecha, KPI, encabezado).
+ * No es una página ruteada: cada reporte vive en su propio archivo de esta carpeta
+ * (Ingresos, Clientes, Consumo, Mora, Tráfico) y el dashboard reutiliza TOOLTIP_STYLE.
  */
 import { useState } from 'react'
 import {
