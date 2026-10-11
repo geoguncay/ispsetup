@@ -6,20 +6,20 @@
  */
 import { RefreshCw, ShieldAlert } from 'lucide-react'
 import { useAuthStore } from '@/stores/authStore'
-import { ActivityFeed } from './dashboard/ActivityFeed'
-import { AlertsPanel } from './dashboard/AlertsPanel'
-import { ClientsSection } from './dashboard/ClientsSection'
-import { FinanceSection } from './dashboard/FinanceSection'
-import { InfraSection } from './dashboard/InfraSection'
-import { MapCard } from './dashboard/MapCard'
-import { NetworkSection } from './dashboard/NetworkSection'
-import { RevenueChart } from './dashboard/RevenueChart'
+import { ActivityFeed } from './ActivityFeed'
+import { AlertsPanel } from './AlertsPanel'
+import { ClientsSection } from './ClientsSection'
+import { FinanceSection } from './FinanceSection'
+import { InfraSection } from './InfraSection'
+import { MapCard } from './MapCard'
+import { NetworkSection } from './NetworkSection'
+import { RevenueChart } from './RevenueChart'
 import {
   useDashboardActivity,
   useDashboardRouters,
   useDashboardSummary,
   useRevenueTrend,
-} from './dashboard/useDashboardData'
+} from './useDashboardData'
 
 export function DashboardPage() {
   const { user } = useAuthStore()
