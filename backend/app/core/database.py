@@ -78,7 +78,14 @@ def run_migrations(bind_engine) -> None:
     con su nombre final, que son seguros de ejecutar después de `create_all`.
     """
     if not str(bind_engine.url).startswith("sqlite"):
-        with bind_engine.connect() as conn:
+        # AUTOCOMMIT: cada sentencia confirma y libera su bloqueo al instante. Todas son
+        # idempotentes (IF NOT EXISTS / DO $$ con guardas), así que re-ejecutar converge.
+        # Con una sola transacción larga, los ALTER TABLE ya ejecutados mantenían ACCESS
+        # EXCLUSIVE sobre sus tablas hasta el final; un worker de Celery con una lectura
+        # abierta en `load_balancers` que pedía una segunda conexión a `system_settings`
+        # quedaba esperando a la migración, y la migración esperando al worker
+        # (bloqueo circular a nivel de aplicación: la API nunca terminaba de arrancar).
+        with bind_engine.connect().execution_options(isolation_level="AUTOCOMMIT") as conn:
             # Renombrar columnas en español de routers que tenían un ADD COLUMN histórico
             # con el nombre viejo (deben ejecutarse antes de los ADD COLUMN de abajo).
             conn.execute(text("""
@@ -2237,5 +2244,3 @@ def run_migrations(bind_engine) -> None:
             conn.execute(text("ALTER TABLE clients ADD COLUMN IF NOT EXISTS pending_plan_id VARCHAR(36) REFERENCES plans(id) ON DELETE SET NULL;"))
             conn.execute(text("ALTER TABLE clients ADD COLUMN IF NOT EXISTS pending_plan_requested_at TIMESTAMP WITH TIME ZONE;"))
             conn.execute(text("ALTER TABLE invoices ADD COLUMN IF NOT EXISTS concept VARCHAR(255);"))
-
-            conn.commit()
