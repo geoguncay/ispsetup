@@ -6,14 +6,12 @@ import shutil
 import uuid
 
 from fastapi import APIRouter, File, HTTPException, UploadFile, status
-from sqlalchemy import func
 from sqlalchemy.exc import IntegrityError
 
 from app.core.deps import AdminOnly, CurrentUser, DBSession
 from app.core.security import hash_password
 from app.models.user import User
-from app.models.client import Client
-from app.schemas.user import ClientStats, UserCreate, UserRead, UserUpdate
+from app.schemas.user import UserCreate, UserRead, UserUpdate
 from app.services.audit_service import AuditAction, audit_detail, changed_fields, log_event
 
 router = APIRouter(prefix="/users", tags=["users"])
@@ -22,34 +20,6 @@ router = APIRouter(prefix="/users", tags=["users"])
 @router.get("", response_model=list[UserRead])
 def list_users(db: DBSession, _: AdminOnly) -> list[User]:
     return db.query(User).order_by(User.created_at.desc()).all()
-
-
-@router.get("/stats", response_model=ClientStats)
-def get_client_stats(db: DBSession, _: AdminOnly) -> ClientStats:
-    """
-    Retorna conteo de clientes ISP agrupados por estado:
-      - connected, disconnected, suspended
-    """
-    clients = db.query(Client).all()
-    total = len(clients)
-    connected = 0
-    disconnected = 0
-    suspended = 0
-    for c in clients:
-        if not c.active:
-            suspended += 1
-        else:
-            first_char = str(c.id)[0]
-            if ord(first_char) % 7 == 0:
-                disconnected += 1
-            else:
-                connected += 1
-    return ClientStats(
-        total=total,
-        connected=connected,
-        disconnected=disconnected,
-        suspended=suspended,
-    )
 
 
 @router.post("", response_model=UserRead, status_code=status.HTTP_201_CREATED)

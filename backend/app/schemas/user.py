@@ -70,10 +70,3 @@ class UserRead(BaseModel):
     created_at: datetime
     updated_at: datetime
 
-
-# ── Dashboard stats ───────────────────────────────────────────────────────────
-class ClientStats(BaseModel):
-    total: int
-    connected: int
-    disconnected: int
-    suspended: int
