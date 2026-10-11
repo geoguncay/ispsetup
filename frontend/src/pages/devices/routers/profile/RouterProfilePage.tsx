@@ -21,7 +21,7 @@ import { RouterServicesDialog } from '@/pages/devices/routers/RouterServicesDial
 import { RouterDeleteDialog, type RouterDeletionOptions } from '@/pages/devices/routers/RouterDeleteDialog'
 import { useAuthStore } from '@/stores/authStore'
 import { formatUptime } from '@/lib/utils'
-import { formatSpeed } from '@/components/TrafficChart'
+import { formatSpeed } from '@/components/charts/TrafficChart'
 import { useTimeFormat } from '@/hooks/useDateFormat'
 
 // Icono personalizado violeta para el Router

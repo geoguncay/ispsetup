@@ -7,7 +7,7 @@ import { useNavigate } from 'react-router-dom'
 import { Activity, Server, ArrowDown, ArrowUp, Users, Search, RefreshCw, RefreshCcw, ShieldAlert, ExternalLink
 } from 'lucide-react'
 import api from '@/services/api'
-import TrafficChart, { formatSpeed } from '@/components/TrafficChart'
+import TrafficChart, { formatSpeed } from '@/components/charts/TrafficChart'
 import { ReportHeader } from './shared'
 
 

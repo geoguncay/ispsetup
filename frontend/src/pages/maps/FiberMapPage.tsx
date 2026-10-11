@@ -2,7 +2,7 @@
  * FiberMapPage — Mapa de clientes por fibra óptica con los routers.
  */
 import { useMemo, useState } from 'react'
-import { ClientsMapPage } from '@/pages/ClientsMapPage'
+import { ClientsMapPage } from '@/pages/clients/ClientsMapPage'
 import { MapFilters } from '@/pages/maps/MapFilters'
 import { ClientMarker } from '@/pages/maps/ClientMarker'
 import { RouterMarkers } from '@/pages/maps/RouterMarkers'

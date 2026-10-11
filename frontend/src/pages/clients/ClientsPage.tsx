@@ -11,8 +11,8 @@ import { RefreshCw, Search, Users, Wifi, UserCheck, UserX, SlidersHorizontal, Ar
   Upload, Clock, RotateCcw, PlusCircle
 } from 'lucide-react'
 import api from '@/services/api'
-import { ClientFormDialog } from '@/components/ClientFormDialog'
-import { ClientImportDialog } from '@/components/ClientImportDialog'
+import { ClientFormDialog } from '@/pages/clients/ClientFormDialog'
+import { ClientImportDialog } from '@/pages/clients/ClientImportDialog'
 import { useDateFormat, useTimeFormat } from '@/hooks/useDateFormat'
 import { formatDate, formatDateTime } from '@/lib/utils'
 
