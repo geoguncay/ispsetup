@@ -14,6 +14,8 @@ import { useAuthStore } from '@/stores/authStore'
 import api from '@/services/api'
 import { getLogoUrl } from '@/lib/utils'
 import { usePageBranding } from '@/hooks/usePageBranding'
+import { useDashboardSummary } from '@/pages/dashboard/useDashboardData'
+import { cn } from '@/lib/utils'
 
 interface NavLinkItem {
   to: string
@@ -239,6 +241,12 @@ export function AppLayout() {
   const profileRef = useRef<HTMLDivElement>(null)
   const notificationsRef = useRef<HTMLDivElement>(null)
 
+  // Mismas alertas que el dashboard (query compartida, no hay petición extra).
+  const { data: summary } = useDashboardSummary()
+  const alerts = summary?.alerts ?? []
+  // El contador solo cuenta lo que requiere atención; las de tipo "info" aparecen en la lista.
+  const urgentCount = alerts.filter((a) => a.severity !== 'info').length
+
   useEffect(() => {
     const handleClickOutside = (e: MouseEvent) => {
       if (profileRef.current && !profileRef.current.contains(e.target as Node)) {
@@ -354,15 +362,51 @@ export function AppLayout() {
                 title="Notificaciones"
               >
                 <Bell className="w-4 h-4" />
+                {urgentCount > 0 && (
+                  <span className="absolute -top-0.5 -right-0.5 min-w-4 h-4 px-1 rounded-full bg-red-500 text-white text-[10px] font-bold flex items-center justify-center">
+                    {urgentCount > 9 ? '9+' : urgentCount}
+                  </span>
+                )}
               </button>
               {notificationsOpen && (
-                <div className="absolute right-0 top-full mt-1 w-72 bg-surface-50 border border-border rounded-xl shadow-lg z-50">
+                <div className="absolute right-0 top-full mt-1 w-80 max-w-[calc(100vw-2rem)] bg-surface-50 border border-border rounded-xl shadow-lg z-50">
                   <div className="p-3 border-b border-border">
                     <h3 className="text-sm font-semibold text-foreground">Notificaciones</h3>
                   </div>
-                  <div className="py-8 text-sm text-muted-foreground text-center">
-                    No hay notificaciones nuevas
-                  </div>
+                  {alerts.length === 0 ? (
+                    <div className="py-8 text-sm text-muted-foreground text-center">
+                      No hay notificaciones nuevas
+                    </div>
+                  ) : (
+                    <ul className="max-h-80 overflow-y-auto py-1">
+                      {alerts.map((a) => (
+                        <li key={a.code}>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setNotificationsOpen(false)
+                              if (a.link) navigate(a.link)
+                            }}
+                            className="w-full flex items-start gap-3 px-3 py-2.5 text-left hover:bg-secondary/40 transition-colors"
+                          >
+                            <span
+                              className={cn(
+                                'mt-1.5 w-2 h-2 rounded-full flex-shrink-0',
+                                a.severity === 'critical' && 'bg-red-500',
+                                a.severity === 'warning' && 'bg-amber-500',
+                                a.severity === 'info' && 'bg-sky-500',
+                              )}
+                            />
+                            <span className="min-w-0 flex-1">
+                              <span className="block text-sm text-foreground">{a.title}</span>
+                              {a.detail && <span className="block text-xs text-muted-foreground">{a.detail}</span>}
+                            </span>
+                            <span className="text-sm font-semibold text-foreground">{a.count}</span>
+                          </button>
+                        </li>
+                      ))}
+                    </ul>
+                  )}
                 </div>
               )}
             </div>
