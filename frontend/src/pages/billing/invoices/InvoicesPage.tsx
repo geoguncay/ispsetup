@@ -9,9 +9,9 @@ import { Receipt, Search, AlertTriangle, CheckCircle2, Clock, Download, PlusCirc
 } from 'lucide-react'
 import api from '@/services/api'
 import { useAuthStore } from '@/stores/authStore'
-import { PaymentRegisterDialog } from '@/components/PaymentRegisterDialog'
-import { InvoiceCreateDialog } from '@/components/InvoiceCreateDialog'
-import { InvoiceEditDialog } from '@/components/InvoiceEditDialog'
+import { PaymentRegisterDialog } from '@/pages/billing/payments/PaymentRegisterDialog'
+import { InvoiceCreateDialog } from '@/pages/billing/invoices/InvoiceCreateDialog'
+import { InvoiceEditDialog } from '@/pages/billing/invoices/InvoiceEditDialog'
 import { useDateFormat } from '@/hooks/useDateFormat'
 import { formatDate } from '@/lib/utils'
 
