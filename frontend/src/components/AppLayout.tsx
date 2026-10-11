@@ -128,7 +128,7 @@ function SidebarContent({
   return (
     <aside
       className={`
-        ${mobile ? 'fixed inset-y-0 left-0 z-50 w-64 shadow-2xl' : 'hidden lg:flex w-60'}
+        ${mobile ? 'fixed left-0 top-0 z-50 flex h-dvh w-64 shadow-2xl' : 'hidden lg:flex w-60'}
         flex-col bg-surface-50 border-r border-border
       `}
     >
@@ -168,7 +168,7 @@ function SidebarContent({
       </div>
 
       {/* Navigation — lista plana con encabezados de sección (sin desplegables) */}
-      <nav className="flex-1 p-3 space-y-0.5 overflow-y-auto">
+      <nav className="min-h-0 flex-1 p-3 space-y-0.5 overflow-y-auto overscroll-contain">
         {visibleNavItems
           .filter(item => 'items' in item || item.label !== 'Ajustes')
           .map((item) => {
