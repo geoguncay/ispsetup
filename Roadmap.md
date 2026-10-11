@@ -31,6 +31,14 @@
 > Postgres de desarrollo existente no migra sola (`create_all` corre antes que
 > `run_migrations`) — usar `docker compose down -v` o renombrar tabla/columnas a
 > mano antes del primer arranque.
+>
+> **Nota de actualización (2026-10-10):** Se alineó el roadmap con lo construido en las
+> últimas semanas, que no tenía fase asignada: **Balanceadores de carga MikroTik**
+> (PCC/Failover), **Mapas de radio y fibra** (APs, PtP/PtMP, enlaces editables, clusters,
+> capas y buscador), **`Client.medium`**, **Reportes** reorganizados como grupo del menú
+> con una página por reporte, y un **Dashboard** rehecho sobre `GET /api/dashboard/*`
+> (resumen agregado, alertas derivadas, tendencia de ingresos, actividad y mini-mapa).
+> `SubscribersStatsPage` y `AuditLogsPage` ya no existen. Ver "Módulos adicionales".
 
 ---
 
@@ -41,12 +49,16 @@ isp-platform/
 ├── backend/
 │   ├── app/
 │   │   ├── api/              # Routers FastAPI por módulo (clients, routers,
-│   │   │                     #   sites, inventory, suppliers, custom_services,
-│   │   │                     #   audit_logs, zerotier, traffic, …)
+│   │   │                     #   load_balancers, sites, inventory, suppliers,
+│   │   │                     #   custom_services, audit_logs, zerotier, traffic,
+│   │   │                     #   reports, map_topology, dashboard, …)
 │   │   ├── models/           # Modelos SQLAlchemy
 │   │   ├── schemas/          # Pydantic schemas
 │   │   ├── services/         # Lógica de negocio
 │   │   │   ├── router/       # librouteros — queues, PPPoE, firewall
+│   │   │   ├── load_balancer/# Health, scripts PCC/Failover y runner sobre RouterOS
+│   │   │   ├── reports/      # Queries + export PDF (ReportLab) y Excel (openpyxl)
+│   │   │   ├── dashboard.py  # Agregados del dashboard (COUNT/SUM/GROUP BY)
 │   │   │   ├── netflow/      # Colector + parser NetFlow v9 (modo "Traffic Flow")
 │   │   │   ├── zerotier/     # Cliente ZeroTier Central API
 │   │   │   ├── olt/          # Drivers OLT/ONU por vendor (SSH/Telnet + SNMP) — pendiente (Fase 4.4)
@@ -62,8 +74,11 @@ isp-platform/
 ├── frontend/
 │   ├── src/
 │   │   ├── components/       # Componentes reutilizables
-│   │   ├── pages/            # Vistas por módulo (incluye pages/settings/ con
-│   │   │                     #   pestañas: Company, Security, Integrations, …)
+│   │   ├── pages/            # Vistas por módulo:
+│   │   │                     #   dashboard/ (secciones + hooks del resumen),
+│   │   │                     #   reports/ (una página por reporte + shared.tsx),
+│   │   │                     #   maps/ (radio y fibra), settings/ (pestañas:
+│   │   │                     #   Company, Security, Integrations, Logs, …)
 │   │   ├── hooks/            # Custom hooks
 │   │   ├── stores/           # Zustand stores
 │   │   ├── services/         # Llamadas a la API
@@ -182,7 +197,7 @@ isp-platform/
 - [x] Colector de tráfico: polling RouterOS API cada 5 s → guardar en tabla `traffic_samples` (PostgreSQL particionado por mes)
 - [x] **Modo alternativo "Traffic Flow" (no estaba en el plan original):** colector NetFlow v9 standalone (`netflow-collector`, servicio propio en `docker-compose.yml`) que recibe UDP del router y escribe en el mismo `traffic_samples` / canal Redis — se elige por Router vía `traffic_accounting` (`polling` vs `traffic_flow`), sin cambios en los endpoints de consumo
 - [x] WebSocket endpoint `/ws/traffic/{router_id}` — push de métricas al frontend
-- [x] UI: dashboard principal con gráficos en tiempo real por router (Recharts)
+- [x] UI: gráficos de tráfico en tiempo real por router (Recharts) en **Reportes ▸ Tráfico** (`TrafficReportPage`); el dashboard principal solo muestra el resumen agregado, no tráfico en vivo
 - [x] UI: top 10 clientes por consumo en el momento actual
 - [x] Histórico: tráfico por cliente — últimas 1h, 24h, 7d, 30d
 - [x] Endpoint `GET /clients/{id}/traffic?range=24h` — datos para gráfico de consumo individual
@@ -197,6 +212,7 @@ isp-platform/
 - [ ] Alerta saturación enlace: BW total > X% de capacidad del router
 - [ ] Canales de notificación: email (SMTP) + webhook configurable (Slack, Telegram, etc.)
 - [ ] UI: panel de alertas activas + historial + gestión de reglas
+- [~] **Parcial (2026-10-10):** el dashboard y la campana de notificaciones muestran alertas **derivadas al vuelo** de datos existentes (routers/balanceadores caídos, facturas vencidas, stock bajo, suspensiones por ejecutar, clientes sin ubicación) vía `GET /api/dashboard/summary`. No hay reglas configurables, umbrales, historial ni canales de notificación: eso sigue pendiente arriba
 
 ### 3.3 Gestión PPPoE
 
@@ -246,9 +262,13 @@ Estos módulos surgieron durante el desarrollo y no tenían fase asignada en el 
 - [x] **Inventario**: modelo `InventoryItem` (stock, alerta de mínimo, precio compra/venta, categoría, modelo) + `Supplier` (proveedores) + `ProductCategory`; endpoints `inventory_api.py` / `suppliers_api.py`; UI de inventario y proveedores (`InventoryPage`, `ProvidersPage`)
 - [x] **Servicios personalizados** (`CustomService`): cargos recurrentes o puntuales fuera de los planes de internet (nombre, precio, impuestos, recurrente/no) — extiende la facturación de la Fase 4.1
 - [x] **Datos de empresa** (`Company`): RUC, dirección, teléfono, logo y fondo de login, editable desde Ajustes ▸ Empresa — cubre parte de lo que la Fase 4.2 preveía como variable de entorno estática (RUC ahora vive en BD, no solo en `.env`)
-- [x] **Auditoría** (`AuditLog`): registro de acciones (usuario, acción, entidad, detalle, IP) con endpoint y UI dedicados (`audit_logs_api.py`, `AuditLogsPage`)
+- [x] **Auditoría** (`AuditLog`): registro de acciones (usuario, acción, entidad, detalle, IP) con endpoint y UI en **Ajustes ▸ Logs** (`audit_logs_api.py`, `settings/LogsSettingsTab`; la antigua `AuditLogsPage` se eliminó y `/audit-logs` redirige a Ajustes)
 - [x] **Tickets de soporte**: implementado como se previó en 2.1 (perfil de cliente), con modelo `ClientTicket` propio (prioridad/estado) y endpoints anidados en `/clients/{id}/tickets`
-- [x] **Panel de estadísticas de suscriptores** (`SubscribersStatsPage`): gráficos de clientes activos/suspendidos/nuevos — solapa parcialmente con lo previsto en el "Reporte de clientes" de 4.3; al construir esa fase, evaluar si se reutiliza esta pantalla en vez de duplicar
+- [x] ~~**Panel de estadísticas de suscriptores** (`SubscribersStatsPage`)~~ — **eliminado** (commit `b026438`): su contenido quedó absorbido por **Reportes ▸ Clientes**; `/subscribers/stats` redirige a `/reports/clients`
+- [x] **Balanceadores de carga MikroTik** (`LoadBalancer`, commit `7eca77e`): alta con credenciales Fernet, balanceo **PCC / Failover** generado como script RouterOS y aplicado con registro de ejecuciones (`LoadBalancerScriptRun`), estado por health check (Celery, 30 s, mismo esquema `online/offline/tunnel_down` que los routers), monitoreo de interfaces WAN cada 5 s (`LoadBalancerInterfaceSample`, snapshot en Redis + WebSocket `/load-balancers/ws/{id}`); UI en `LoadBalancerPage` / `LoadBalancerProfilePage`
+- [x] **Mapas de radio y fibra** (commits `f8f2397`, `a386927`): `/maps/radio` y `/maps/fiber` con capas conmutables (routers, clientes, y en radio APs y PtP), clusters, buscador y edición de ubicación arrastrando marcadores. En radio: `MapAccessPoint` (rol `ap` / `station`) y `MapLink` (`kind`: `ptp` o `ap` = PtMP) con modales de alta/edición; endpoints `/map/access-points`, `/map/links`, `/map/ptp`, `/map/locations/*` (`map_topology_api.py`)
+- [x] **`Client.medium`** (`radio` | `fiber` | `unspecified`): medio físico de última milla, separado de `access_method` (`static` | `pppoe`, ruta de aprovisionamiento MikroTik). Informativo por ahora; ver 4.4.6
+- [x] **Dashboard** (`pages/dashboard/`, `api/dashboard_api.py`): resumen real en vez de los 2 endpoints iniciales. `GET /api/dashboard/summary` (infra por estado, clientes por medio/método, red de radio, finanzas **solo admin**, alertas derivadas y puntos del mini-mapa, todo con agregados SQL), `GET /api/dashboard/revenue-trend` (solo admin) y `GET /api/dashboard/activity` (auditoría para admin; suspensiones/reactivaciones para el resto). Reemplaza al endpoint `/users/stats`, que clasificaba "desconectados" con un hash del UUID del cliente. **Limitación conocida:** no muestra clientes "conectados/desconectados" porque no hay fuente barata en BD (las sesiones PPPoE solo se consultan en vivo al router); requeriría cachear sesiones desde un worker
 
 ---
 
@@ -295,7 +315,7 @@ exportables y **módulo de gestión de OLTs/ONUs GPON** (estilo SmartOLT).
 - [x] Reporte de mora: facturas `status="overdue"`, días de mora, monto y clientes totales (`GET /reports/overdue`)
 - [x] Export PDF con **ReportLab** (no WeasyPrint — se usó la librería que ya trae el repo para los recibos de pago, `services/pdf_generator.py`, para no sumar una dependencia nueva) con logo/nombre de la empresa
 - [x] Export Excel con **openpyxl**, tablas con encabezado y totales (`services/reports/excel_export.py`)
-- [x] UI: `ReportsPage.tsx` (nav Facturación ▸ Reportes) — 4 pestañas (Ingresos/Clientes/Consumo/Mora), filtros de fecha y `group_by`, gráficos Recharts, botones de descarga PDF/Excel (mismo patrón `blob` + `<a download>` que el recibo de pago)
+- [x] UI: grupo **Reportes** en el menú lateral con una página por reporte bajo `/reports/*` (`pages/reports/`: Ingresos con detalle por período, Clientes, Tráfico, Consumo y Mora), filtros de fecha y `group_by`, gráficos Recharts, botones de descarga PDF/Excel (mismo patrón `blob` + `<a download>` que el recibo de pago). Las piezas comunes viven en `pages/reports/shared.tsx`; `/reports` redirige a `/reports/revenue`
 
 ### 4.4 Módulo OLT / ONU GPON (reemplaza la app móvil — estilo SmartOLT)
 
@@ -380,7 +400,7 @@ agregar vendors 2..N (~3–5 días cada uno sobre la ABC estable).
 #### 4.4.5 Zonas de fibra y mapa (1 sem)
 
 - [ ] Modelos `FiberZone` (cobertura GPON) y `SplitterBox`/`ODB` (ratio, ubicación, PON padre, puertos usados); ONU → puerto de splitter
-- [ ] `FiberMapPage` con Leaflet (ya en el stack): OLTs, splitters y ONUs; color por señal/estado
+- [ ] Ampliar el `FiberMapPage` existente (`/maps/fiber`, hoy solo routers y clientes con `medium="fiber"`) con OLTs, splitters y ONUs; color por señal/estado
 
 #### 4.4.6 Integración con cliente y facturación (2 sem)
 

@@ -60,6 +60,24 @@ Luego autoriza el nuevo nodo desde **Ajustes → Integraciones → ZeroTier** en
 
 ---
 
+## 🧭 Módulos de la aplicación
+
+| Módulo | Qué hace |
+| --- | --- |
+| **Dashboard** | Resumen del estado de la red: routers y balanceadores por estado, clientes por medio y método de acceso, red de radio, alertas, actividad reciente, mini-mapa y (solo admin) finanzas e ingresos de los últimos 6 meses. Datos de `GET /api/dashboard/*`. |
+| **Dispositivos** | Routers MikroTik (colas, PPPoE, health check, ZeroTier) y **Balanceadores de carga** (PCC / Failover, monitoreo de interfaces WAN). |
+| **Suscriptores** | Clientes con medio (`radio` / `fiber`), método de acceso (`static` / `pppoe`), planes, suspensión y reactivación, tickets. |
+| **Servicios y facturación** | Planes, servicios personalizados, facturas (automáticas y manuales con prorrateo) y pagos. |
+| **Reportes** | Ingresos, Clientes, Tráfico, Consumo y Mora (`/reports/*`), con exportación PDF y Excel. |
+| **Mapas** | `/maps/radio` (routers, APs, PtP/PtMP, clientes) y `/maps/fiber` (routers y clientes), con clusters, capas y edición de ubicación. |
+| **Inventario** | Stock, proveedores y categorías, con alerta de mínimo. |
+| **Ajustes** | Empresa, router, facturación, seguridad, notificaciones, integraciones (ZeroTier), sistema y logs de auditoría. |
+
+> **Alertas:** el dashboard y la campana de notificaciones muestran alertas **derivadas** de datos
+> existentes. El motor de alertas con reglas configurables sigue pendiente (ver `Roadmap.md`, 3.2).
+
+---
+
 ## 🛠️ Stack Tecnológico
 
 El proyecto está estructurado como un monorepo para facilitar la gestión conjunta de todos los servicios.
@@ -81,7 +99,7 @@ El proyecto está estructurado como un monorepo para facilitar la gestión conju
 - **Estilos:** Tailwind CSS 3.4+ & Componentes interactivos de **shadcn/ui**
 - **Manejo de Estado:** Zustand (estado global) & TanStack Query v5 (caché e interactividad con el servidor)
 - **Gráficos:** Recharts (tráfico en tiempo real y consumo de datos)
-- **Mapas:** Leaflet (georreferenciación de clientes)
+- **Mapas:** Leaflet + markercluster (clientes, routers, APs y enlaces PtP/PtMP en radio y fibra)
 - **Formularios:** React Hook Form + validaciones estructuradas con Zod
 
 ---
@@ -92,7 +110,8 @@ El proyecto está estructurado como un monorepo para facilitar la gestión conju
 ispsetup/
 ├── backend/                  # Código fuente del backend (FastAPI)
 │   ├── app/
-│   │   ├── api/              # Routers FastAPI por módulo (auth, mikrotiks_api, zerotier_api, clients...)
+│   │   ├── api/              # Routers FastAPI por módulo (auth, routers_api, load_balancers_api, clients,
+│   │   │                     #   reports_api, map_topology_api, dashboard_api, zerotier_api...)
 │   │   ├── models/           # Modelos de base de datos SQLAlchemy (user, router, system_settings...)
 │   │   ├── schemas/          # Esquemas de validación Pydantic (user, router, zerotier...)
 │   │   ├── services/         # Lógica de negocio (Routers, SRI, zerotier, etc.)
@@ -105,7 +124,7 @@ ispsetup/
 ├── frontend/                 # Panel web de administración (React)
 │   ├── src/
 │   │   ├── components/       # Componentes visuales comunes (AppLayout, RouterFormDialog...)
-│   │   ├── pages/            # Vistas por módulo (DashboardPage, Router, settings/ZeroTierSettingsSection.tsx...)
+│   │   ├── pages/            # Vistas por módulo (dashboard/, reports/, maps/, settings/, Router, Clients...)
 │   │   ├── stores/           # Almacenes de estado global (Zustand)
 │   │   └── services/         # Clientes de consumo de API (incluye zerotier.ts)
 ├── architecture/             # Recursos visuales y diagramas SVG
@@ -210,6 +229,26 @@ Para correr las pruebas localmente usando una base de datos en memoria SQLite y 
    ```bash
    DATABASE_URL="sqlite:///:memory:" REDIS_URL="redis://localhost:6379/0" SECRET_KEY="testkey123456789testkey123456789xx" FERNET_KEY="wlphuDlhKvtsvUg8lnnjWzNKJSP1dDzCZuYMFdhLcJg=" ENVIRONMENT=development python3 -m pytest tests/
    ```
+
+---
+
+## 🩺 Solución de problemas
+
+### La API no arranca y el login no responde
+
+Síntoma: `docker compose ps` muestra `api` como *Up* pero `GET /api/health` no responde, y los logs
+terminan en `ISP SETUP iniciando…` sin `Application startup complete`. Suele ser un bloqueo en la
+base de datos durante las migraciones del arranque. Para comprobarlo:
+
+```bash
+docker exec postgres psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" -c \
+  "select pid, state, wait_event_type, pg_blocking_pids(pid) as bloqueado_por, left(query,80) from pg_stat_activity where datname = current_database();"
+```
+
+Si hay sesiones con `wait_event_type = Lock` y una `ALTER TABLE …` en el centro, el arranque quedó
+esperando a otra sesión. Desde 2026-10-10 `run_migrations` corre en `AUTOCOMMIT` para evitar que las
+migraciones retengan bloqueos entre sentencias; si aun así ocurre, termina la sesión huérfana con
+`select pg_terminate_backend(<pid>);` y reinicia `api`.
 
 ---
 
