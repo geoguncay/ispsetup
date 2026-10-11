@@ -118,7 +118,6 @@ export function InvoicesPage() {
   // Calcular métricas rápidas basadas en el listado completo consultado
   // (una factura anulada no cuenta para ningún total: nunca llegó a cobrarse)
   const billableInvoices = invoices.filter((i: any) => i.status !== 'cancelled')
-  const totalInvoices = billableInvoices.length
   const totalAmount = billableInvoices.reduce((sum: number, i: any) => sum + Number(i.amount), 0)
   const pendingAmount = invoices.filter((i: any) => i.status === 'pending').reduce((sum: number, i: any) => sum + Number(i.amount), 0)
   const overdueAmount = invoices.filter((i: any) => i.status === 'overdue').reduce((sum: number, i: any) => sum + Number(i.amount), 0)
@@ -147,11 +146,11 @@ export function InvoicesPage() {
       </div>
 
       {/* Tarjetas de Métricas Rápidas */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         <div className="glass-card p-5 relative overflow-hidden">
           <div className="flex justify-between items-start">
             <div className="space-y-1">
-              <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider block">Recaudado (Filtro)</span>
+              <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider block">Recaudado </span>
               <p className="text-2xl font-black text-emerald-400 font-mono">${collectedAmount.toFixed(2)}</p>
             </div>
             <div className="p-2 bg-emerald-500/10 rounded-lg text-emerald-400">
@@ -163,7 +162,7 @@ export function InvoicesPage() {
         <div className="glass-card p-5 relative overflow-hidden">
           <div className="flex justify-between items-start">
             <div className="space-y-1">
-              <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider block">Pendiente (Filtro)</span>
+              <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider block">Pendiente </span>
               <p className="text-2xl font-black text-amber-400 font-mono">${pendingAmount.toFixed(2)}</p>
             </div>
             <div className="p-2 bg-amber-500/10 rounded-lg text-amber-400">
@@ -175,7 +174,7 @@ export function InvoicesPage() {
         <div className="glass-card p-5 relative overflow-hidden">
           <div className="flex justify-between items-start">
             <div className="space-y-1">
-              <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider block">Vencido (Filtro)</span>
+              <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider block">Vencido </span>
               <p className="text-2xl font-black text-rose-500 font-mono">${overdueAmount.toFixed(2)}</p>
             </div>
             <div className="p-2 bg-rose-500/10 rounded-lg text-rose-500">
@@ -214,7 +213,7 @@ export function InvoicesPage() {
         {/* Controles Filtro */}
         <div className="flex flex-wrap items-center gap-3 w-full lg:w-auto justify-end">
           {/* Selector Estado */}
-          <div className="flex bg-secondary/30 border border-border p-1 rounded-lg">
+          <div className="grid sm:grid-cols-5 grid-cols-3 gap-1 w-full bg-secondary/30 border border-border p-1 rounded-lg">
             {(['all', 'pending', 'overdue', 'paid', 'cancelled'] as const).map((st) => (
               <button
                 key={st}
@@ -265,11 +264,11 @@ export function InvoicesPage() {
                 <tr>
                   <th>Cliente</th>
                   <th>Cédula</th>
-                  <th>Periodo</th>
-                  <th>Plan Base</th>
+                  <th className="hidden sm:table-cell">Periodo</th>
+                  <th className="hidden sm:table-cell">Plan Base</th>
                   <th>Monto</th>
-                  <th>Fecha Emisión</th>
-                  <th>Fecha Vencimiento</th>
+                  <th className="hidden sm:table-cell">Fecha Emisión</th>
+                  <th className="hidden sm:table-cell">Fecha Vencimiento</th>
                   <th>Estado</th>
                   <th className="text-right">Acciones</th>
                 </tr>
@@ -287,17 +286,17 @@ export function InvoicesPage() {
                       </Link>
                     </td>
                     <td className="font-mono text-xs text-muted-foreground">{inv.client_cedula ?? 'N/A'}</td>
-                    <td className="font-semibold text-foreground text-xs">{inv.period}</td>
-                    <td>
+                    <td className="hidden sm:table-cell font-semibold text-foreground text-xs">{inv.period}</td>
+                    <td className="hidden sm:table-cell">
                       <span className="text-xs bg-secondary/50 px-2 py-0.5 rounded border border-border text-foreground font-medium">
                         {inv.plan_name ?? 'Plan Eliminado'}
                       </span>
                     </td>
                     <td className="font-black text-brand-300 font-mono text-sm">${Number(inv.amount).toFixed(2)}</td>
-                    <td className="text-xs text-muted-foreground font-mono">
+                    <td className="hidden sm:table-cell text-xs text-muted-foreground font-mono">
                       {formatDate(inv.issue_date, dateFormat)}
                     </td>
-                    <td className="text-xs text-muted-foreground font-mono">
+                    <td className="hidden sm:table-cell text-xs text-muted-foreground font-mono">
                       {formatDate(inv.due_date, dateFormat)}
                     </td>
                     <td>
