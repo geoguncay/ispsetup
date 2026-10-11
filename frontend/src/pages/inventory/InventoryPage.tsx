@@ -5,8 +5,8 @@ import { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { RefreshCw, Search, Package, Edit2, Trash2, AlertTriangle, Truck, ArrowUpDown, ArrowUp, ArrowDown, Upload, PlusCircle } from 'lucide-react'
 import api from '@/services/api'
-import { InventoryFormDialog } from '@/components/InventoryFormDialog'
-import { InventoryImportDialog } from '@/components/InventoryImportDialog'
+import { InventoryFormDialog } from './InventoryFormDialog'
+import { InventoryImportDialog } from './InventoryImportDialog'
 
 interface Supplier {
   id: string

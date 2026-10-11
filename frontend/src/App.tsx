@@ -27,8 +27,8 @@ import { OverdueReportPage } from '@/pages/reports/OverdueReportPage'
 import { TrafficReportPage } from '@/pages/reports/TrafficReportPage'
 import { RadioMapPage } from '@/pages/maps/RadioMapPage'
 import { FiberMapPage } from '@/pages/maps/FiberMapPage'
-import { InventoryPage } from '@/pages/InventoryPage'
-import { ProvidersPage } from '@/pages/ProvidersPage'
+import { InventoryPage } from '@/pages/inventory/InventoryPage'
+import { ProvidersPage } from '@/pages/inventory/ProvidersPage'
 import { SettingsPage } from '@/pages/SettingsPage'
 
 
