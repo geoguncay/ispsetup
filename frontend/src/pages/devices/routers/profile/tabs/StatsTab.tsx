@@ -2,7 +2,7 @@ import { useNavigate } from 'react-router-dom'
 import { Users, Loader2 } from 'lucide-react'
 import { formatSpeed } from '@/components/charts/TrafficChart'
 import { DonutChart } from '../DonutChart'
-import { formatBytes } from '../format'
+import { formatBytes } from '@/pages/devices/shared/formatBytes'
 import type { Client } from '../types'
 
 interface StatsTabProps {
