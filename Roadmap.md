@@ -1,58 +1,5 @@
 # ISP SETUP — Roadmap de desarrollo
 
-> **Nota de actualización (2026-08-17):** Este roadmap se revisó y ajustó contra
-> el estado real del código. Cambios de fondo desde la versión anterior: se
-> agregó un modo de monitoreo por **NetFlow v9 ("Traffic Flow")** como
-> alternativa al polling, y se sumaron módulos que no estaban contemplados
-> originalmente: **Inventario/Proveedores**, **Servicios personalizados**,
-> **Datos de empresa (Company)** y **Auditoría**. El detalle de cada uno está
-> marcado inline abajo. La carpeta `mobile/` del árbol original todavía no
-> existe en el repo — ver nota en Fase 4.4.
->
-> **Nota de actualización (2026-09-06):** La **Fase 4.4** deja de ser la "app móvil
-> para técnicos" (descartada) y pasa a ser un **módulo completo de gestión OLT/ONU
-> GPON** estilo SmartOLT: OLTs multi-vendor, aprovisionamiento de ONUs, perfiles de
-> velocidad/VLAN, monitoreo de señal óptica y enganche con el ciclo de vida del
-> cliente. Detalle en Fase 4.4; stack en "Módulo OLT / ONU".
->
-> **Nota de actualización (2026-09-06):** La **subfase 3.5 (RADIUS Accounting)**
-> se **descartó por completo** — no hay caso de uso (servicio 100% PPPoE + IP
-> estática, sin Hotspot). Se eliminó del código el servidor FreeRADIUS
-> (contenedor `radius/`), la ingesta de Accounting, los modos de seguridad
-> `ppp_radius`/`hotspot_radius`, el secreto RADIUS por Router y `docs/radius.md`.
-> La IP del servidor ISPSETUP se conserva porque la usa Traffic Flow.
->
-> **Nota de actualización (2026-09-07):** Rename **`Gateway` → `Router`** en todo
-> el stack (commit `07da040`): modelo `Router` (tabla `routers`), columnas
-> `router_id`, rutas `/api/routers`, paquete `app/services/router/`, componentes
-> `Router*` en el frontend. Se conservan los settings `mikrotik_*` /
-> `MikrotikApiConfig` (son de la API MikroTik RouterOS) y
-> `SystemSettings.ispsetup_server_ip` (lo usa Traffic Flow). **Aviso:** una BD
-> Postgres de desarrollo existente no migra sola (`create_all` corre antes que
-> `run_migrations`) — usar `docker compose down -v` o renombrar tabla/columnas a
-> mano antes del primer arranque.
->
-> **Nota de actualización (2026-10-10):** Se alineó el roadmap con lo construido en las
-> últimas semanas, que no tenía fase asignada: **Balanceadores de carga MikroTik**
-> (PCC/Failover), **Mapas de radio y fibra** (APs, PtP/PtMP, enlaces editables, clusters,
-> capas y buscador), **`Client.medium`**, **Reportes** reorganizados como grupo del menú
-> con una página por reporte, y un **Dashboard** rehecho sobre `GET /api/dashboard/*`
-> (resumen agregado, alertas derivadas, tendencia de ingresos, actividad y mini-mapa).
-> `SubscribersStatsPage` y `AuditLogsPage` ya no existen. Ver "Módulos adicionales".
->
-> **Nota de actualización (2026-11-14):** Auditoría del producto contra los **12 requisitos
-> funcionales** (ver "Matriz de cumplimiento" al final de la Fase 4): 3 cumplidos, 3 parciales
-> y 6 pendientes. Cambios de alcance: (1) **RADIUS se reintegra** — la 3.5 se reabre porque
-> ahora sí hay caso de uso (control de tráfico *PPPoE-RADIUS*, corte por mora vía RADIUS y
-> coordinación con fibra/BNG); (2) nueva **3.6 WireGuard** (VPN junto a ZeroTier); (3) los
-> avisos y recordatorios de cobro pasan a **WhatsApp únicamente, con Meta Cloud API**
-> (nueva 4.5; sustituye a Twilio/SMS); (4) nuevas **4.6 Contratos y documentos** y
-> **4.7 Cash Desk**; (5) **4.8 Cobranza con IA queda como "Próximamente"** (solo placeholder);
-> (6) el **Portal de clientes se difiere a la Fase 5** (no planeado por ahora); (7) **Decisiones tomadas:**
-> OLT/ONU con **módulo propio** (sin depender de SmartOLT SaaS) y con **TR-069 incluido** (4.4.9, ya no es
-> Fase 5); WireGuard con **ISPSETUP como hub**; documentos con **almacenamiento configurable local o S3**.
-> 4.2 (SRI) mantiene su alcance.
-
 ---
 
 ## Estructura del monorepo
@@ -259,7 +206,7 @@ isp-platform/
 - [x] `docker-compose.yml`: servicio `zerotier` opcional (`--profile zerotier`) para acceso remoto al servidor completo
 - [x] Cruce de estado ZeroTier + ping RouterOS en el health-check periódico (distinguir túnel caído vs. RouterOS caído) — nuevo estado `tunnel_down`: si RouterOS no responde y el nodo ZeroTier tampoco reporta a ZeroTier Central, el problema es el túnel/enlace; badge "Túnel caído" en la UI
 
-### 3.5 RADIUS (reintegración) — ~~descartada 2026-09-06~~, **reabierta 2026-11-14**
+### 3.5 RADIUS
 
 **Estado: no iniciado.** **Duración estimada:** 4–6 semanas.
 
@@ -309,23 +256,7 @@ en `3fefb0f`): usarlo solo como referencia, no revertir.
 
 **Decisiones a confirmar:** modo por router vs. global (recomendado: por router); método de corte (address-list vs. reject); si la OLT termina PPPoE o el BNG sigue siendo MikroTik (se cruza con 4.4.6).
 
-#### Historial: descartada el 2026-09-06
-
-Esta subfase (añadido a mitad de desarrollo, nunca estuvo en el plan original) se
-**eliminó por completo del producto y del código**. Motivo: no hay caso de uso —
-el ISP opera 100% PPPoE + IP estática, sin Hotspot ni venta por fichas, y el
-consumo por cliente ya lo cubre Traffic Flow (NetFlow v9).
-
-Se retiró: el contenedor FreeRADIUS (`radius/`), la ingesta de Accounting
-(parser de `detail`, modelos `RadiusAccountingSession`/`RadiusIngestState`,
-worker, API `/radius/accounting/*`, página **Dispositivos ▸ RADIUS**), los modos
-de seguridad `ppp_radius`/`hotspot_radius`, el campo `Router.radius_secret_encrypted`,
-la configuración de `/radius` en RouterOS y `docs/radius.md`. La IP del servidor
-ISPSETUP (`SystemSettings.ispsetup_server_ip`) **se conserva** porque la usa
-Traffic Flow. La limpieza de una entrada `/radius` heredada al eliminar un Router
-se mantiene como higiene (para instalaciones que la tuvieran de una versión previa).
-
-### 3.6 Integración WireGuard (VPN) — **nuevo**
+### 3.6 Integración WireGuard (VPN)
 
 **Estado: no iniciado.** **Duración estimada:** 2–3 semanas.
 
@@ -335,8 +266,7 @@ Ambas VPN conviven; el Router elige a cuál se vincula.
 
 **Modos**
 
-- **A (DECIDIDO 2026-11-14): ISPSETUP como hub.** El servidor levanta `wg0` y los routers y técnicos son peers.
-- **B (fuera de alcance):** unirse como peer a una VPN WireGuard ajena. Solo se conserva la importación opcional de un `.conf` existente como utilidad.
+- **ISPSETUP como hub.** El servidor levanta `wg0` y los routers y técnicos son peers.
 
 #### 3.6.1 Servidor
 
@@ -361,7 +291,7 @@ Ambas VPN conviven; el Router elige a cuál se vincula.
 - [ ] Configuración y claves privadas visibles una sola vez al generarlas; altas y revocaciones en `AuditLog`
 - [ ] Tests del render de configuración y de la asignación de IPs (sin kernel WireGuard); `docs/wireguard.md`
 
-**Decisión (2026-11-14, varios routers): modo A, ISPSETUP como hub.** Topología en estrella con un peer por router; las altas, revocaciones, IPs y scripts RouterOS se automatizan desde el panel; los routers detrás de CGNAT funcionan porque inician la conexión (`persistent-keepalive`); por defecto cada router solo ve al servidor (`AllowedIPs` aislados). El modo B queda para quien ya tenga un hub WireGuard propio: ISPSETUP sería un peer más y los peers del hub se seguirían administrando a mano. Riesgo del hub: punto único de fallo (mitigable con un segundo hub más adelante).
+**Decisión, ISPSETUP como hub.** Topología en estrella con un peer por router; las altas, revocaciones, IPs y scripts RouterOS se automatizan desde el panel; los routers detrás de CGNAT funcionan porque inician la conexión (`persistent-keepalive`); por defecto cada router solo ve al servidor (`AllowedIPs` aislados). El modo B queda para quien ya tenga un hub WireGuard propio: ISPSETUP sería un peer más y los peers del hub se seguirían administrando a mano. Riesgo del hub: punto único de fallo (mitigable con un segundo hub más adelante).
 
 **Pendiente de definir:** subred (por ejemplo `10.77.0.0/24`); puerto UDP expuesto; si el servidor está detrás de NAT (requiere reenvío del puerto).
 
@@ -390,12 +320,6 @@ Estos módulos surgieron durante el desarrollo y no tenían fase asignada en el 
 **Duración estimada:** 5–6 semanas (4.1–4.3) + 10–14 semanas (4.4 OLT/ONU)  
 **Objetivo:** Sistema de cobro con emisión de facturas electrónicas SRI, reportes
 exportables y **módulo de gestión de OLTs/ONUs GPON** (estilo SmartOLT).
-
-> **Estado real:** 4.1 (facturación y pagos) está implementado. 4.2 (SRI) y 4.3
-> (reportes) siguen pendientes tal como estaban. **4.4 se replanteó:** la app
-> móvil para técnicos (carpeta `mobile/`, nunca iniciada) se descarta y se
-> reemplaza por un módulo completo de administración de fibra OLT/ONU — ver 4.4.
-> La app móvil, si se retoma, pasa a una eventual Fase 5.
 
 ### 4.1 Facturación y pagos
 
@@ -433,19 +357,7 @@ exportables y **módulo de gestión de OLTs/ONUs GPON** (estilo SmartOLT).
 - [x] Export Excel con **openpyxl**, tablas con encabezado y totales (`services/reports/excel_export.py`)
 - [x] UI: grupo **Reportes** en el menú lateral con una página por reporte bajo `/reports/*` (`pages/reports/`: Ingresos con detalle por período, Clientes, Tráfico, Consumo y Mora), filtros de fecha y `group_by`, gráficos Recharts, botones de descarga PDF/Excel (mismo patrón `blob` + `<a download>` que el recibo de pago). Las piezas comunes viven en `pages/reports/shared.tsx`; `/reports` redirige a `/reports/revenue`
 
-### 4.4 Módulo OLT / ONU GPON (reemplaza la app móvil — estilo SmartOLT)
-
-> **Requisitos 11 y 12 (Wireless/Fibra y SmartOLT):** la parte wireless ya está cubierta
-> (mapa de radio, Simple Queue/PPPoE). La fibra con OLT depende de este módulo.
-> **Decisión (2026-11-14): módulo propio**, sin integrar SmartOLT SaaS; el requisito de
-> «controlar y administrar las OLTs» se cubre con este módulo y la gestión del equipo del
-> cliente con TR-069 (4.4.9, incluido). Con RADIUS reintegrado (3.5), el control de tráfico
-> PPPoE de los clientes de fibra puede pasar por RADIUS.
-
-**Estado: no iniciado.** Sustituye a la antigua "app móvil para técnicos". Objetivo:
-gestión completa de fibra — registro de OLTs multi-vendor, aprovisionamiento de ONUs,
-perfiles de velocidad/VLAN, monitoreo de señal óptica, diagnósticos y enganche con el
-ciclo de vida del cliente (alta, cambio de plan, suspensión).
+### 4.4 Módulo OLT / ONU GPON
 
 **Duración estimada:** 10–14 semanas (1 dev) para OLT/ONU + 3–5 semanas para TR-069 (4.4.9), entregable por sub-fases.
 
